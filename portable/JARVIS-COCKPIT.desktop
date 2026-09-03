@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=JARVIS Cockpit (portable)
+Comment=Application bureau JARVIS Cockpit exécutée depuis son support amovible
+Exec=bash -c '"$(dirname "%k")"/JARVIS-COCKPIT.sh'
+Icon=utilities-system-monitor
+Terminal=false
+Categories=Utility;
+StartupWMClass=JarvisCockpit

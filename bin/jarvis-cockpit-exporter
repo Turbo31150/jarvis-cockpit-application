@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# =============================================================================
+# jarvis-cockpit-exporter — COPIE L'APPLICATION PORTABLE SUR UN SUPPORT
+#
+# Cree le 2026-09-03. Reconstruit le paquet portable depuis la version de
+# travail (~/jarvis/cockpit), puis le copie sur la cible demandee.
+#
+#   jarvis-cockpit-exporter                 liste les supports amovibles
+#   jarvis-cockpit-exporter /media/.../CLE  exporte vers ce chemin
+#   jarvis-cockpit-exporter --reconstruire  rafraichit le paquet, sans copier
+# =============================================================================
+set -euo pipefail
+
+SOURCE="$HOME/jarvis/cockpit"
+PAQUET="/data/jarvis/JARVIS-COCKPIT-PORTABLE"
+
+reconstruire() {
+    [ -d "$SOURCE" ] || { echo "source introuvable : $SOURCE" >&2; return 1; }
+    mkdir -p "$PAQUET/cockpit"
+    # Les caches et les sauvegardes horodatees restent dehors : ils
+    # alourdissent le paquet sans servir a l'execution.
+    rsync -a --delete \
+          --exclude='__pycache__' --exclude='*.bak-*' --exclude='*.avant-*' \
+          --exclude='.sql-cache.tsv' \
+          "$SOURCE/" "$PAQUET/cockpit/"
+    echo "paquet reconstruit : $PAQUET ($(du -sh "$PAQUET" | cut -f1))"
+}
+
+# Piege mesure et deja paye : sous /media/<user>/ coexistent de VRAIS points
+# de montage et de simples REPERTOIRES du disque systeme (JARVIS-M1, M11, M12,
+# Y, Y1...). Un `df` sur ces derniers retombe silencieusement sur "/" et
+# annonce l'espace de la racine. Exporter la, en croyant ecrire sur une cle,
+# remplit le disque systeme — qui etait deja a 93 %. On affiche donc le
+# PERIPHERIQUE de chaque entree et on ecarte ceux qui rendent la racine.
+_racine_dev() { df --output=source / 2>/dev/null | tail -1; }
+
+lister() {
+    local dev_racine; dev_racine=$(_racine_dev)
+    echo "Supports montes sous /media et /run/media :"
+    echo
+    local trouve=0
+    for m in /media/"$USER"/* /run/media/"$USER"/*; do
+        [ -d "$m" ] || continue
+        trouve=1
+        local dev libre ecriture nature
+        dev=$(df --output=source "$m" 2>/dev/null | tail -1)
+        libre=$(df -h --output=avail "$m" 2>/dev/null | tail -1 | tr -d ' ')
+        if touch "$m/.jce" 2>/dev/null; then rm -f "$m/.jce"; ecriture="ecriture OK"
+        else ecriture="lecture seule"; fi
+        if [ "$dev" = "$dev_racine" ]; then
+            nature="⚠ PAS UN SUPPORT — repertoire du disque systeme"
+            ecriture=""
+        else
+            nature="support reel"
+        fi
+        printf "  %-34s %-16s %6s  %-14s %s\n" \
+               "$(basename "$m")" "$dev" "$libre" "$ecriture" "$nature"
+    done
+    [ "$trouve" = 1 ] || echo "  (aucun)"
+    echo
+    echo "Exporter :  $(basename "$0") <chemin>"
+}
+
+exporter() {
+    local cible="$1"
+    [ -d "$cible" ] || { echo "cible introuvable : $cible" >&2; return 1; }
+    # Refus net si la cible retombe sur la racine : c'est le piege decrit
+    # au-dessus, et il se solde par un disque systeme plein.
+    if [ "$(df --output=source "$cible" 2>/dev/null | tail -1)" = "$(_racine_dev)" ]; then
+        echo "REFUS : '$cible' est sur le disque systeme ($(_racine_dev))," >&2
+        echo "        pas sur un support amovible. Rien n'a ete ecrit." >&2
+        echo "        Lancer '$(basename "$0")' sans argument pour voir les supports reels." >&2
+        return 1
+    fi
+    # On verifie l'ecriture AVANT de reconstruire : echouer apres la copie
+    # laisserait un paquet a moitie ecrit sur la cle.
+    touch "$cible/.jce" 2>/dev/null || {
+        echo "cible en LECTURE SEULE : $cible" >&2
+        echo "  (monter en ecriture, ou choisir un autre support)" >&2
+        return 1; }
+    rm -f "$cible/.jce"
+    reconstruire
+    local dest="$cible/JARVIS-COCKPIT-PORTABLE"
+    rsync -a --delete "$PAQUET/" "$dest/"
+    sync                      # la cle peut etre retiree des le retour du script
+    echo
+    echo "exporte : $dest"
+    echo "taille  : $(du -sh "$dest" | cut -f1)"
+    echo
+    echo "Sur la machine d'accueil :"
+    echo "  cd '$dest' && ./JARVIS-COCKPIT.sh --verifier"
+    echo "  puis ./JARVIS-COCKPIT.sh   (ou --web si PyQt6 est absent)"
+}
+
+case "${1:-}" in
+    "")               lister ;;
+    --reconstruire)   reconstruire ;;
+    *)                exporter "$1" ;;
+esac

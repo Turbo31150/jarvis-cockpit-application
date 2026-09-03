@@ -1,0 +1,18 @@
+[Unit]
+Description=JARVIS Planning Widget — backend dashboard :8899
+After=default.target
+StartLimitBurst=5
+StartLimitIntervalSec=120
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/jarvis/bin/jarvis-planning-widget.py
+WorkingDirectory=%h/jarvis
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=append:%h/jarvis/logs/planning-widget.log
+StandardError=append:%h/jarvis/logs/planning-widget.log
+
+[Install]
+WantedBy=default.target

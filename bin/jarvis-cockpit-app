@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# JARVIS COCKPIT APP LAUNCHER — M4 DESKTOP POSTE DE COMMANDE UNIFIÉ
+# ==============================================================================
+set -e
+
+export DISPLAY="${DISPLAY:-:0}"
+if [ -z "${XAUTHORITY:-}" ]; then
+    if [ -f "/run/user/1000/gdm/Xauthority" ]; then
+        export XAUTHORITY="/run/user/1000/gdm/Xauthority"
+    elif [ -f "$HOME/.Xauthority" ]; then
+        export XAUTHORITY="$HOME/.Xauthority"
+    fi
+fi
+
+COCKPIT_DIR="/home/pamerys/jarvis/cockpit"
+LOG_DIR="/home/pamerys/jarvis/logs"
+PROFILE_DIR="/home/pamerys/.config/jarvis-cockpit-profile"
+mkdir -p "$LOG_DIR" "$PROFILE_DIR"
+
+# 1. Gestion des arguments
+# 2026-09-03 : bascule du defaut sur "native". La demande est UNE application
+# de bureau unique (les 15 onglets PyQt6), pas une fenetre Chrome deguisee.
+# --pwa / --web restaure l'ancien comportement navigateur si besoin.
+MODE="native"
+for arg in "$@"; do
+    case "$arg" in
+        --gui|--native|--pyqt)
+            MODE="native"
+            ;;
+        --pwa|--web|--chrome)
+            MODE="pwa"
+            ;;
+        --restart|-r)
+            systemctl --user restart jarvis-cockpit.service jarvis-planning-widget.service 2>/dev/null || true
+            sleep 1
+            ;;
+    esac
+done
+
+# 2. S'assure que le serveur cockpit (:8600) tourne
+if ! ss -tulpn | grep -q ":8600 "; then
+    if systemctl --user is-enabled jarvis-cockpit.service >/dev/null 2>&1; then
+        systemctl --user start jarvis-cockpit.service
+    else
+        nohup python3 "$COCKPIT_DIR/serveur.py" > "$LOG_DIR/cockpit_serveur.log" 2>&1 &
+    fi
+    sleep 0.8
+fi
+
+# 3. Widget planning :8899 — RETIRE le 2026-09-03.
+# Mesure du jour : jarvis-planning-widget.service est "not-found" et rien
+# n'ecoute sur :8899. Ce bloc lancait donc un process detache a chaque
+# demarrage, pour une fenetre qui doublonne l'onglet "Board Plan & To-Do"
+# deja present dans l'application. Une seule application, un seul planning.
+# Le script ~/jarvis/bin/jarvis-planning-widget.py est conserve, pas supprime.
+
+# 4. Lancement de l'interface
+if [ "$MODE" = "native" ]; then
+    exec python3 "$COCKPIT_DIR/gui_app.py"
+fi
+
+# Mode Standalone PWA Dédié (Profil isolé, zéro collision avec onglets usuels)
+CHROME_BIN=""
+for c in google-chrome-stable /opt/google/chrome/google-chrome chromium /snap/bin/chromium google-chrome; do
+    if command -v "$c" >/dev/null 2>&1; then
+        CHROME_BIN="$c"
+        break
+    fi
+done
+
+if [ -n "$CHROME_BIN" ]; then
+    nohup "$CHROME_BIN" \
+        --user-data-dir="$PROFILE_DIR" \
+        --app="http://127.0.0.1:8600" \
+        --window-size=1650,1020 \
+        --class=JarvisCockpit \
+        --no-first-run \
+        --no-default-browser-check \
+        --disable-features=Translate \
+        > /dev/null 2>&1 &
+else
+    nohup xdg-open "http://127.0.0.1:8600" > /dev/null 2>&1 &
+fi

@@ -1,0 +1,29 @@
+🧬 VECTORISATION — 2026-08-25 20:27:30
+
+── BIBLIOTHÈQUE VIVANTE (board.db) ──
+   modele                                chunks  sans_vecteur
+   ------------------------------------  ------  ------------
+   text-embedding-nomic-embed-text-v1.5  326840  0           
+   nomic-embed-text:latest               104845  0           
+   nomic-v1.5-prefixe                    49777   0           
+   nomic-embed-text                      47524   0           
+
+   Homogénéisation vers « nomic-v1.5-prefixe » : 49777 / 528986  (9%)
+   [████··············································]
+
+── moteurs d'embeddings ──
+   M6 LM Studio :1234 ✖
+   M6 Ollama :11434  ✖
+   M4 Ollama :11434  ✅ (réservé — M4 en tension mémoire)
+
+   ⏸ moisson à l'arrêt — lancer : ~/jarvis/bin/moisson-vecto
+
+── journal ──
+       raise self._exception
+     File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+       result = self.fn(*self.args, **self.kwargs)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     File "/home/pamerys/jarvis/bin/moisson-vecto", line 81, in traite
+       try:
+           
+   sqlite3.OperationalError: database is locked

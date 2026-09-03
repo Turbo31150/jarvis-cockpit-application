@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# =============================================================================
+# jarvis-cockpit-vhdx — L'APPLICATION BUREAU COCKPIT JARVIS SUR DISQUE VIRTUEL
+#
+# Cree le 2026-09-03. L'application (15 onglets PyQt6) vit dans une VHDX
+# autonome sur /data, et non plus seulement dans l'arborescence du home.
+# Pourquoi /data : le disque systeme etait a 95 % (25 Go libres) quand /data
+# en avait 300 de libres. Une image qui grossit sur une partition saturee,
+# c'est la panne garantie.
+#
+#   monter | demonter | lancer | etat | synchroniser
+#
+# Le format VHDX est dynamique : 2 Go annonces, ~1 Mo reellement occupes.
+# =============================================================================
+set -euo pipefail
+
+VHDX="/data/jarvis/JARVIS-COCKPIT.vhdx"
+MNT="/mnt/jarvis-cockpit-vhdx"
+NBD="/dev/nbd0"
+SOURCE="$HOME/jarvis/cockpit"
+
+_nbd_pret() {
+    # Le module nbd n'est pas charge au demarrage : sans lui, /dev/nbd0
+    # n'existe pas et qemu-nbd echoue avec un message peu parlant.
+    [ -e "$NBD" ] || sudo -n modprobe nbd max_part=8
+}
+
+_attache() { sudo -n qemu-nbd --connect="$NBD" -f vhdx "$VHDX"; sleep 1.5; }
+
+monter() {
+    if mountpoint -q "$MNT"; then echo "deja monte : $MNT"; return 0; fi
+    [ -f "$VHDX" ] || { echo "VHDX introuvable : $VHDX" >&2; return 1; }
+    _nbd_pret
+    lsblk "$NBD" >/dev/null 2>&1 && sudo -n qemu-nbd --disconnect "$NBD" >/dev/null 2>&1 || true
+    _attache
+    sudo -n mkdir -p "$MNT"
+    sudo -n mount "$NBD" "$MNT"
+    sudo -n chown -R "$(id -u):$(id -g)" "$MNT"
+    echo "monte : $MNT"
+    df -h "$MNT" | tail -1
+}
+
+demonter() {
+    mountpoint -q "$MNT" && sudo -n umount "$MNT" || true
+    sudo -n qemu-nbd --disconnect "$NBD" >/dev/null 2>&1 || true
+    echo "demonte."
+}
+
+lancer() {
+    monter
+    cd "$MNT/cockpit"
+    exec python3 "$MNT/cockpit/gui_app.py" "$@"
+}
+
+synchroniser() {
+    # Recopie l'application du home vers la VHDX. Les caches et les
+    # sauvegardes horodatees restent dehors : ils gonflent l'image sans
+    # rien apporter a l'execution.
+    monter
+    rsync -a --delete \
+          --exclude='__pycache__' --exclude='*.bak-*' --exclude='*.avant-*' \
+          --exclude='.sql-cache.tsv' \
+          "$SOURCE/" "$MNT/cockpit/"
+    cp -a "$HOME/jarvis/bin/jarvis-cockpit-app" "$MNT/bin/" 2>/dev/null || true
+    echo "synchronise depuis $SOURCE"
+    du -sh "$MNT/cockpit"
+}
+
+etat() {
+    # Aucune commande de cette fonction ne doit interrompre le rapport :
+    # qemu-img refuse de lire l'image TANT QU'ELLE EST ATTACHEE a nbd0
+    # ("Failed to get shared write lock"), et sous set -e cela coupait
+    # l'affichage juste apres la premiere ligne. On rapporte, on n'echoue pas.
+    set +e
+    echo "VHDX     : $VHDX"
+    if [ -f "$VHDX" ]; then
+        echo "           fichier : $(du -h "$VHDX" 2>/dev/null | cut -f1) occupes sur le disque"
+        infos=$(qemu-img info "$VHDX" 2>/dev/null | grep -E 'virtual size|disk size')
+        if [ -n "$infos" ]; then
+            echo "$infos" | sed 's/^/           /'
+        else
+            echo "           (image attachee a $NBD : qemu-img ne peut pas la lire maintenant)"
+        fi
+    else
+        echo "           ABSENTE"
+    fi
+    if mountpoint -q "$MNT"; then
+        echo "montage  : $MNT (monte)"
+        df -h "$MNT" | tail -1 | sed 's/^/           /'
+        echo "contenu  : $(find "$MNT/cockpit" -name '*.py' 2>/dev/null | wc -l) fichiers python"
+    else
+        echo "montage  : non monte"
+    fi
+    set -e
+}
+
+case "${1:-etat}" in
+    monter)        monter ;;
+    demonter)      demonter ;;
+    lancer)        shift; lancer "$@" ;;
+    synchroniser)  synchroniser ;;
+    etat)          etat ;;
+    *) echo "usage: $(basename "$0") [monter|demonter|lancer|synchroniser|etat]" >&2; exit 2 ;;
+esac

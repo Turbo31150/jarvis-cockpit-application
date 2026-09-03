@@ -1,0 +1,2296 @@
+<!doctype html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>JARVIS MASTER COCKPIT OS — Application Bureau Unifiée</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/vendor/xterm.css">
+  <script src="/vendor/xterm.js"></script>
+  <script src="/vendor/xterm-addon-fit.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #07090e; color: #e2e8f0; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .glass { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .glass-card { background: rgba(30, 41, 59, 0.65); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.06); }
+    .glow-cyan { box-shadow: 0 0 15px rgba(6, 182, 212, 0.35); }
+    .glow-emerald { box-shadow: 0 0 15px rgba(16, 185, 129, 0.35); }
+    .glow-indigo { box-shadow: 0 0 15px rgba(99, 102, 241, 0.35); }
+    .active-nav { background: linear-gradient(90deg, rgba(6,182,212,0.25) 0%, rgba(6,182,212,0.05) 100%); border-left: 3px solid #06b6d4; color: #38bdf8 !important; }
+    .app-tuile { transition: transform .12s ease, border-color .12s ease, background .12s ease; }
+    .app-tuile:hover:not(:disabled) { transform: translateY(-2px); }
+    .app-tuile:disabled { opacity: .32; cursor: not-allowed; }
+    .term-onglet.actif { background: rgba(6,182,212,.2); border-color: #06b6d4; color: #67e8f9; }
+    #term-scene .xterm { padding: 10px 12px; height: 100%; }
+    #term-scene .xterm-viewport::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b0f17; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+  </style>
+</head>
+<body class="h-screen flex overflow-hidden select-none">
+
+  <!-- ===================================================================== -->
+  <!-- BARRE LATÉRALE DE NAVIGATION (SIDEBAR UNIFIÉE - 12 ONGLETS) -->
+  <!-- ===================================================================== -->
+  <aside class="w-64 glass flex flex-col justify-between border-r border-slate-800/80 z-20 shrink-0">
+    <div class="flex-1 flex flex-col min-h-0">
+      <!-- Header / Logo -->
+      <div class="p-4 flex items-center gap-3 border-b border-slate-800/80 shrink-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-500 flex items-center justify-center text-black font-black text-xl shadow-lg glow-cyan">
+          Ω
+        </div>
+        <div class="min-w-0">
+          <h1 class="font-bold text-sm tracking-wider text-slate-100 uppercase truncate">JARVIS COCKPIT</h1>
+          <span class="text-[11px] text-cyan-400 mono flex items-center gap-1.5 font-medium">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> M4 MASTER OS v6
+          </span>
+        </div>
+      </div>
+
+      <!-- Menu Items Scrollable -->
+      <nav class="flex-1 overflow-y-auto px-3 py-3 space-y-1 text-xs font-medium">
+        <button onclick="showTab('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg active-nav text-slate-300 hover:text-white transition">
+          <i class="fa-solid fa-gauge-high w-4 text-cyan-400"></i> Dashboard Cluster
+        </button>
+        <button onclick="showTab('avancements')" id="nav-avancements" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-arrows-rotate w-4 text-emerald-400"></i> Avancements & Sync
+        </button>
+        <button onclick="showTab('plan')" id="nav-plan" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-clipboard-list w-4 text-emerald-400"></i> Board Plan & To-Do
+        </button>
+        <button onclick="showTab('claude')" id="nav-claude" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-crown w-4 text-amber-400"></i> Claude Code Suite
+        </button>
+        <button onclick="showTab('terminal')" id="nav-terminal" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-terminal w-4 text-purple-400"></i> Terminal & TMUX
+        </button>
+        <button onclick="showTab('apps')" id="nav-apps" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-rocket w-4 text-sky-400"></i> Applications Bureau
+        </button>
+        <button onclick="showTab('tableronde')" id="nav-tableronde" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-users-viewfinder w-4 text-indigo-400"></i> Table Ronde IA
+        </button>
+        <button onclick="showTab('studio')" id="nav-studio" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-wand-magic-sparkles w-4 text-fuchsia-400"></i> Studio Création
+        </button>
+        <button onclick="showTab('mcps')" id="nav-mcps" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-boxes-stacked w-4 text-orange-400"></i> 48 Serveurs MCP
+        </button>
+        <button onclick="showTab('sql')" id="nav-sql" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-database w-4 text-teal-400"></i> 53 Bases SQL
+        </button>
+        <button onclick="showTab('swarm')" id="nav-swarm" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-brands fa-docker w-4 text-blue-400"></i> Swarm & Services
+        </button>
+        <button onclick="showTab('moisson')" id="nav-moisson" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-book-bookmark w-4 text-yellow-400"></i> Corpus Vivant & FTS5
+        </button>
+        <button onclick="showTab('swan')" id="nav-swan" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-water-ladder w-4 text-emerald-400"></i> SWAN Stream 768D
+        </button>
+        <button onclick="showTab('iaweb')" id="nav-iaweb" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-globe w-4 text-blue-400"></i> Hub IA Web & CDP
+        </button>
+        <button onclick="showTab('bureau')" id="nav-bureau" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-display w-4 text-rose-400"></i> Bureau GNOME & Verrous
+        </button>
+      </nav>
+    </div>
+
+    <!-- Pied de barre latérale -->
+    <div class="p-3 border-t border-slate-800/80 space-y-2 shrink-0">
+      <button onclick="triggerReplay()" class="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-md transition">
+        <i class="fa-solid fa-arrows-rotate"></i> Rejouer & Réparer 1-Clic
+      </button>
+      <div class="text-[10px] text-slate-500 text-center mono truncate">
+        Cluster M4 (78°C) · M6 RJ45 (10.42.0.230)
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- CONTENU PRINCIPAL SCROLLABLE -->
+  <!-- ===================================================================== -->
+  <main class="flex-1 flex flex-col min-w-0 bg-[#07090e] overflow-hidden">
+    
+    <!-- Top Bar Telemetry HUD -->
+    <header class="h-16 glass border-b border-slate-800/80 px-6 flex items-center justify-between z-10 shrink-0">
+      <div class="flex items-center gap-4 min-w-0">
+        <span id="section-title" class="font-bold text-base text-slate-100 truncate">Dashboard Cluster</span>
+        <div id="m6-badge" class="px-2.5 py-1 rounded-full bg-rose-950/60 border border-rose-800/80 text-rose-400 text-xs mono flex items-center gap-1.5 shrink-0">
+          <span class="w-2 h-2 rounded-full bg-rose-400"></span> M6 GPU : HORS LIGNE
+        </div>
+      </div>
+      <div class="flex items-center gap-4 text-xs mono shrink-0">
+        <div class="text-slate-400">
+          <i class="fa-solid fa-microchip text-sky-400 mr-1"></i> GPU VRAM: <span id="m4-vram" class="text-white font-bold">-- / 4096 MB</span>
+        </div>
+        <div class="text-slate-400">
+          <i class="fa-solid fa-temperature-half text-amber-400 mr-1"></i> T° CPU: <span id="m4-temp" class="text-white font-bold">--°C</span>
+        </div>
+        <div class="text-slate-400">
+          <i class="fa-solid fa-memory text-cyan-400 mr-1"></i> RAM: <span id="m4-ram" class="text-white font-bold">-- GB</span>
+        </div>
+        <div class="h-4 w-px bg-slate-800"></div>
+        <div id="clock" class="text-xs font-semibold text-slate-300">--:--:--</div>
+      </div>
+    </header>
+
+    <!-- Zone de travail scrollable -->
+    <div class="flex-1 overflow-y-auto p-6">
+
+      <!-- ================================================================= -->
+      <!-- TAB 1 : DASHBOARD -->
+      <!-- ================================================================= -->
+      <section id="tab-dashboard" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="glass-card p-4 rounded-xl border-l-4 border-cyan-500">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Principal (M4)</div>
+            <div class="text-xl font-black text-white mt-1 truncate">pamerys-m4</div>
+            <div class="text-xs text-cyan-400 mt-2 flex items-center justify-between">
+              <span>Gouverneur Performance</span>
+              <span class="text-emerald-400">Sécurisé 93°C</span>
+            </div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border-l-4 border-emerald-500">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Inférence (M6 GPU)</div>
+            <div class="text-xl font-black text-white mt-1">10.42.0.230</div>
+            <div class="text-xs text-emerald-400 mt-2 flex items-center justify-between">
+              <span>Lien direct RJ45</span>
+              <span>1.4 ms</span>
+            </div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border-l-4 border-indigo-500">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bibliothèque Vivante Board</div>
+            <div class="text-xl font-black text-white mt-1" id="dash-board-chunks">528 767 chunks</div>
+            <div class="text-xs text-indigo-400 mt-2">47 domaines · 88 experts</div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border-l-4 border-fuchsia-500">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Services Supervisés</div>
+            <div class="text-xl font-black text-white mt-1"><span id="services-up-count">12</span> / 12 UP</div>
+            <div class="text-xs text-fuchsia-400 mt-2">Auto-guérison active</div>
+          </div>
+        </div>
+
+        <!-- Matrice des 12 Services -->
+        <div class="glass-card p-5 rounded-xl">
+          <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-network-wired text-cyan-400"></i> Matrice des Services & Ponts Réseau
+          </h2>
+          <div id="services-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB : AVANCEMENTS & SYNCHRONISATION -->
+      <!-- ================================================================= -->
+      <section id="tab-avancements" class="hidden space-y-6">
+        <!-- Barre de commande supérieure -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 glass-card p-5 rounded-xl border-l-4 border-emerald-500">
+          <div>
+            <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+              <i class="fa-solid fa-arrows-rotate text-emerald-400"></i> Synchronisation & Avancements des Chantiers
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">Supervision bidirectionnelle temps réel de <code>production.db</code>, <code>jarvis_master.db</code>, Dépôts Git et Timers Système.</p>
+          </div>
+          <div class="flex flex-wrap gap-2.5">
+            <button onclick="syncAvancements()" id="btn-sync-all" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg glow-emerald transition">
+              <i class="fa-solid fa-bolt"></i> Synchroniser Tout (1-Clic)
+            </button>
+            <button onclick="ouvrirModalChantier()" class="px-3 py-2 bg-cyan-600/30 border border-cyan-500/50 hover:bg-cyan-600/50 text-cyan-300 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+              <i class="fa-solid fa-plus"></i> Nouveau Chantier
+            </button>
+            <button onclick="loadAvancements()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+              <i class="fa-solid fa-rotate"></i> Actualiser
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Cartes KPIs Avancements -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="glass-card p-4 rounded-xl border border-slate-800/80">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Chantiers de Prod</span>
+              <i class="fa-solid fa-list-check text-emerald-400"></i>
+            </div>
+            <div class="text-2xl font-black text-white mt-1" id="av-kpi-runs">--</div>
+            <div class="text-xs text-slate-400 mt-2 flex items-center justify-between">
+              <span id="av-kpi-runs-sub">0 ouverts · 0 livrés</span>
+              <span class="text-emerald-400 font-bold" id="av-kpi-global-pct">--%</span>
+            </div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border border-slate-800/80">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Sous-Tâches & Actions</span>
+              <i class="fa-solid fa-tasks text-cyan-400"></i>
+            </div>
+            <div class="text-2xl font-black text-white mt-1" id="av-kpi-taches">--</div>
+            <div class="text-xs text-cyan-400 mt-2 flex items-center justify-between">
+              <span id="av-kpi-taches-sub">-- faites</span>
+              <span class="text-slate-400" id="av-kpi-bloque">0 bloquées</span>
+            </div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border border-slate-800/80">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Synchronisation Git</span>
+              <i class="fa-brands fa-git-alt text-amber-400"></i>
+            </div>
+            <div class="text-2xl font-black text-white mt-1" id="av-kpi-git">--</div>
+            <div class="text-xs text-amber-400 mt-2 truncate" id="av-kpi-git-sub">
+              Branches & Commits
+            </div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border border-slate-800/80">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Timers & Automates</span>
+              <i class="fa-solid fa-clock text-indigo-400"></i>
+            </div>
+            <div class="text-2xl font-black text-white mt-1" id="av-kpi-timers">--</div>
+            <div class="text-xs text-indigo-400 mt-2 truncate" id="av-kpi-timers-sub">
+              Prochain cycle systemd
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Chantiers Vivants de Production -->
+        <div class="glass-card p-5 rounded-xl space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-diagram-project text-emerald-400"></i> Chantiers de Production & Pipeline Vivant (production.db)
+            </h3>
+            <span class="text-xs text-slate-400 mono" id="av-runs-count">0 chantiers</span>
+          </div>
+
+          <div id="av-runs-container" class="space-y-4">
+            <div class="p-8 text-center text-slate-500">Chargement des chantiers…</div>
+          </div>
+        </div>
+
+        <!-- Deux Colonnes : Dépôts Git & Journal des Derniers Gestes -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- Carte Dépôts Git -->
+          <div class="glass-card p-5 rounded-xl space-y-3">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-brands fa-github text-cyan-400"></i> État des Dépôts Git JARVIS
+              </h3>
+              <button onclick="syncGitNow()" class="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-400 px-2.5 py-1 rounded transition">
+                <i class="fa-solid fa-code-commit"></i> Checkpoint Git
+              </button>
+            </div>
+            <div id="av-git-list" class="space-y-2.5"></div>
+          </div>
+
+          <!-- Carte Journal des Derniers Gestes -->
+          <div class="glass-card p-5 rounded-xl space-y-3">
+            <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-clock-rotate-left text-yellow-400"></i> Journal Unique de Production (LOI 3)
+            </h3>
+            <div id="av-journal-list" class="space-y-2 max-h-[320px] overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 2 : BOARD PLAN & TO-DO LIST -->
+      <!-- ================================================================= -->
+      <section id="tab-plan" class="hidden space-y-6">
+        <div class="flex justify-between items-center glass-card p-4 rounded-xl">
+          <div>
+            <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+              <i class="fa-solid fa-clipboard-list text-emerald-400"></i> Board Plan & To-Do List Maître
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">Suivi temps réel des tâches orchestrées dans <code>jarvis_master.db</code>.</p>
+          </div>
+          <div class="flex gap-3">
+            <a href="http://127.0.0.1:8899" target="_blank" class="px-3 py-2 bg-emerald-600/30 border border-emerald-500/50 hover:bg-emerald-600/50 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Ouvrir Widget :8899
+            </a>
+            <button onclick="loadTasks()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+              <i class="fa-solid fa-rotate"></i> Actualiser
+            </button>
+          </div>
+        </div>
+
+        <!-- Ajout Rapide de Tâche -->
+        <div class="glass-card p-4 rounded-xl flex gap-3 items-center">
+          <input type="text" id="new-task-title" placeholder="Nouvelle tâche à planifier..." class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+          <select id="new-task-agent" class="bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none">
+            <option value="OMÉGA">OMÉGA</option>
+            <option value="CLAUDE">CLAUDE</option>
+            <option value="TURBO">TURBO</option>
+            <option value="SWARM">SWARM</option>
+            <option value="MISC-OPS">MISC-OPS</option>
+          </select>
+          <button onclick="createTask()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg text-xs flex items-center gap-2 transition">
+            <i class="fa-solid fa-plus"></i> Ajouter
+          </button>
+        </div>
+
+        <!-- Liste des Tâches -->
+        <div class="glass-card p-4 rounded-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-900/80 uppercase text-[10px] text-slate-400 border-b border-slate-700">
+                <tr>
+                  <th class="p-3">ID</th>
+                  <th class="p-3">Titre de la Tâche</th>
+                  <th class="p-3">Agent</th>
+                  <th class="p-3">Statut</th>
+                  <th class="p-3">Date</th>
+                  <th class="p-3">Action</th>
+                </tr>
+              </thead>
+              <tbody id="tasks-table" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 3 : CLAUDE CODE SUITE -->
+      <!-- ================================================================= -->
+      <section id="tab-claude" class="hidden space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Carte Statut Claude Code -->
+          <div class="glass-card p-5 rounded-xl border-l-4 border-amber-500 md:col-span-1 space-y-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-bold">
+                <i class="fa-solid fa-crown"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-sm text-slate-100">Claude Code Suite</h3>
+                <span id="claude-badge" class="text-xs text-amber-400 mono">Cascade Souveraine Active</span>
+              </div>
+            </div>
+            <div class="text-xs text-slate-400 space-y-1.5 pt-2 border-t border-slate-800">
+              <div>Version : <span id="claude-ver" class="text-white font-mono">--</span></div>
+              <div>Serveurs MCP : <span id="claude-mcp-count" class="text-white font-bold">48 connectés</span></div>
+              <div class="p-2 rounded bg-amber-950/40 border border-amber-800/60 text-[11px] text-amber-300 flex items-center gap-2">
+                <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                <span>Anti-529 Actif : repli transparent M4 Ollama / M6 si Cloud en panne</span>
+              </div>
+            </div>
+            <div class="space-y-2 pt-1">
+              <label class="flex items-center justify-between p-2 rounded bg-slate-900/90 border border-slate-800 text-xs cursor-pointer hover:border-slate-700 transition">
+                <span class="text-slate-300 font-medium">Forcer Mode Souverain (0-Cloud)</span>
+                <input type="checkbox" id="claude-force-local" class="accent-emerald-500 w-4 h-4 cursor-pointer">
+              </label>
+              <button onclick="ouvrirApp('claude')" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-2 transition shadow-md">
+                <i class="fa-solid fa-terminal"></i> Lancer Session Interactive
+              </button>
+              <button onclick="ouvrirApp('claude-doctor')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 rounded-lg text-xs flex items-center justify-center gap-2 transition">
+                <i class="fa-solid fa-stethoscope"></i> Claude Doctor Diag
+              </button>
+            </div>
+          </div>
+
+          <!-- Presets d'Orchestration -->
+          <div class="glass-card p-5 rounded-xl md:col-span-2 space-y-4">
+            <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-bolt text-amber-400"></i> Presets d'Exécution & Refactorisation
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="claude-presets-grid"></div>
+          </div>
+        </div>
+
+        <!-- Terminal Output Claude Prompt -->
+        <div class="glass-card p-5 rounded-xl space-y-3">
+          <h3 class="text-sm font-bold text-slate-200">Exécution Rapide Non-Interactive (<code>claude -p</code>)</h3>
+          <div class="flex gap-3">
+            <input type="text" id="claude-custom-prompt" placeholder="Ex: Analyse les logs de jarvis_master.db et résume les 3 tâches prioritaires..." class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500">
+            <button onclick="runClaudePrompt()" id="btn-claude-run" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-5 py-2.5 rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-play"></i> Exécuter
+            </button>
+          </div>
+          <pre id="claude-prompt-output" class="hidden text-xs mono text-amber-200 bg-slate-950 p-4 rounded-lg border border-slate-800 max-h-64 overflow-y-auto whitespace-pre-wrap"></pre>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 4 : TERMINAL & TMUX -->
+      <!-- ================================================================= -->
+      <section id="tab-terminal" class="hidden">
+        <div class="flex gap-4 h-[calc(100vh-9.5rem)]">
+          <!-- LANCEUR -->
+          <div class="w-72 shrink-0 glass-card rounded-xl flex flex-col overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-800/80 flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-300">
+                <i class="fa-solid fa-plug text-purple-400 mr-1.5"></i>Dialoguer avec
+              </span>
+              <button onclick="chargerApps()" title="Re-mesurer" class="text-slate-500 hover:text-cyan-400 text-xs">
+                <i class="fa-solid fa-rotate"></i>
+              </button>
+            </div>
+            <div id="term-lanceur" class="flex-1 overflow-y-auto p-3 space-y-4">
+              <div class="text-xs text-slate-500 mono">Mesure des applications…</div>
+            </div>
+            <div class="px-3 py-3 border-t border-slate-800/80 space-y-2">
+              <button onclick="tmuxToutOuvrir()" id="btn-tmux-tout" class="w-full bg-gradient-to-r from-purple-600 to-fuchsia-500 hover:from-purple-500 text-white py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2">
+                <i class="fa-solid fa-layer-group"></i> Ouvrir tous les hubs tmux
+              </button>
+            </div>
+          </div>
+
+          <!-- SCÈNE TERMINAL -->
+          <div class="flex-1 min-w-0 glass-card rounded-xl flex flex-col overflow-hidden">
+            <div class="px-3 py-2 border-b border-slate-800/80 flex items-center gap-2">
+              <div id="term-onglets" class="flex-1 flex items-center gap-1.5 overflow-x-auto">
+                <span class="text-xs text-slate-500 mono px-2">Aucune session — choisis une application à gauche.</span>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0 border-l border-slate-800 pl-2">
+                <button onclick="termSignal('INT')" title="Interrompre (Ctrl-C)" class="px-2.5 py-1.5 rounded-md bg-slate-800/70 hover:bg-amber-600/30 text-amber-400 text-xs"><i class="fa-solid fa-hand"></i></button>
+                <button onclick="termEffacer()" title="Effacer l'écran" class="px-2.5 py-1.5 rounded-md bg-slate-800/70 hover:bg-slate-700 text-slate-300 text-xs"><i class="fa-solid fa-eraser"></i></button>
+                <button onclick="termFermer()" title="Fermer la session" class="px-2.5 py-1.5 rounded-md bg-slate-800/70 hover:bg-rose-600/30 text-rose-400 text-xs"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+            </div>
+            <div id="term-scene" class="flex-1 bg-[#05070c] relative min-h-0">
+              <div id="term-vide" class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-3">
+                <i class="fa-solid fa-terminal text-5xl opacity-30"></i>
+                <p class="text-sm">Le terminal dialogue avec les applications de l'écosystème.</p>
+                <p class="text-xs mono opacity-60">Claude Code · Antigravity · Gemini · Board · JMO · Bash · SSH M6</p>
+              </div>
+            </div>
+            <div id="term-etat" class="px-3 py-1.5 border-t border-slate-800/80 text-[11px] mono text-slate-500 flex items-center gap-3">
+              <span>prêt</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 5 : APPLICATIONS BUREAU -->
+      <!-- ================================================================= -->
+      <section id="tab-apps" class="hidden space-y-6">
+        <div class="glass-card p-4 rounded-xl flex justify-between items-center gap-4">
+          <div class="flex-1">
+            <input type="text" id="app-search-input" onkeyup="filterApps()" placeholder="🔍 Rechercher une application ou script..." class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2 text-xs text-white focus:outline-none focus:border-cyan-500">
+          </div>
+          <div class="flex gap-2" id="app-category-filters">
+            <!-- Filtres catégories dynamiques -->
+          </div>
+        </div>
+        <div id="apps-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 6 : TABLE RONDE IA -->
+      <!-- ================================================================= -->
+      <section id="tab-tableronde" class="hidden space-y-6">
+        <div class="glass-card p-5 rounded-xl">
+          <h2 class="text-base font-bold text-slate-100 flex items-center gap-2 mb-3">
+            <i class="fa-solid fa-users-viewfinder text-indigo-400"></i> Délibération Multi-Agents (Conseil Souverain)
+          </h2>
+          <div class="flex gap-3">
+            <input type="text" id="tr-question" placeholder="Posez une question stratégique ou technique aux 3 experts..." 
+                   class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+            <button onclick="runTableRonde()" id="btn-tr" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition flex items-center gap-2">
+              <i class="fa-solid fa-paper-plane"></i> Délibérer
+            </button>
+          </div>
+        </div>
+        <div id="tr-results" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 7 : STUDIO CRÉATION -->
+      <!-- ================================================================= -->
+      <section id="tab-studio" class="hidden space-y-6">
+        <div class="glass-card p-5 rounded-xl">
+          <h2 class="text-base font-bold text-slate-100 flex items-center gap-2 mb-4">
+            <i class="fa-solid fa-wand-magic-sparkles text-fuchsia-400"></i> Studio de Création de Contenu IA
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label class="text-xs text-slate-400 font-semibold mb-1 block">Format de contenu</label>
+              <select id="studio-type" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+                <option value="linkedin">Post LinkedIn Haut Impact</option>
+                <option value="article">Article de Blog / Tech Deep-Dive</option>
+                <option value="prd">Document PRD & Spécifications</option>
+                <option value="code">Code de Production Typé (Python/Rust)</option>
+              </select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-xs text-slate-400 font-semibold mb-1 block">Sujet ou Thème</label>
+              <input type="text" id="studio-sujet" placeholder="Ex: Symbiose M4+M6 RJ45 et architecture modulaire" 
+                     class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+            </div>
+          </div>
+          <button onclick="runStudioCreate()" id="btn-studio" class="bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition flex items-center gap-2">
+            <i class="fa-solid fa-bolt"></i> Générer sur GPU M6
+          </button>
+        </div>
+        <div id="studio-output" class="glass-card p-5 rounded-xl hidden">
+          <div class="flex justify-between items-center mb-3">
+            <span id="studio-meta" class="text-xs mono text-cyan-400"></span>
+            <button onclick="copyStudioContent()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded transition">
+              <i class="fa-regular fa-copy"></i> Copier
+            </button>
+          </div>
+          <div id="studio-content" class="text-sm text-slate-200 whitespace-pre-wrap mono bg-slate-950/60 p-4 rounded-lg border border-slate-800 max-h-[500px] overflow-y-auto"></div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 8 : 48 SERVEURS MCP -->
+      <!-- ================================================================= -->
+      <section id="tab-mcps" class="hidden space-y-6">
+        <div class="glass-card p-4 rounded-xl flex justify-between items-center">
+          <div>
+            <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+              <i class="fa-solid fa-boxes-stacked text-orange-400"></i> Matrice des 48 Serveurs MCP
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">Outils et connecteurs Model Context Protocol déclarés dans <code>~/.claude.json</code>.</p>
+          </div>
+          <input type="text" id="mcp-filter" onkeyup="filterMcps()" placeholder="🔍 Filtrer un serveur..." class="bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2 text-xs text-white focus:outline-none focus:border-orange-500 w-64">
+        </div>
+        <div id="mcps-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 9 : 53 BASES SQL VIVANTES -->
+      <!-- ================================================================= -->
+      <section id="tab-sql" class="hidden space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Sélecteur de Base -->
+          <div class="glass-card p-4 rounded-xl md:col-span-1 space-y-3">
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-database text-teal-400"></i> 53 Bases SQLite Vivantes
+            </h3>
+            <div id="sql-bases-list" class="max-h-72 overflow-y-auto space-y-1.5 pr-1"></div>
+          </div>
+
+          <!-- Console & Tableau -->
+          <div class="glass-card p-4 rounded-xl md:col-span-2 space-y-3">
+            <div class="flex justify-between items-center">
+              <span id="selected-db-label" class="text-xs mono text-teal-300 font-bold truncate">Aucune base sélectionnée</span>
+              <button onclick="runSqlQuery()" class="bg-teal-600 hover:bg-teal-500 text-white font-semibold px-4 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-play"></i> Exécuter
+              </button>
+            </div>
+            <textarea id="sql-query-input" rows="3" class="w-full bg-slate-950/80 border border-slate-800 rounded-lg p-3 text-xs mono text-teal-200 focus:outline-none focus:border-teal-500" placeholder="SELECT * FROM ... LIMIT 20;"></textarea>
+            <div id="sql-results-box" class="overflow-x-auto max-h-64 border border-slate-800 rounded-lg">
+              <div class="p-4 text-xs text-slate-500 mono text-center">Sélectionnez une base ou saisissez une requête SQL.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 10 : SWARM & SERVICES DOCKER -->
+      <!-- ================================================================= -->
+      <section id="tab-swarm" class="hidden space-y-6">
+        <div class="glass-card p-4 rounded-xl flex justify-between items-center">
+          <div>
+            <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+              <i class="fa-brands fa-docker text-blue-400"></i> Infrastructure Docker Swarm & Services
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">Supervision des conteneurs isolés et endpoints réseau.</p>
+          </div>
+          <button onclick="loadSwarmData()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+            <i class="fa-solid fa-rotate"></i> Actualiser
+          </button>
+        </div>
+        <div id="swarm-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 11 : MOISSON & CORPUS VIVANT -->
+      <!-- ================================================================= -->
+      <section id="tab-moisson" class="hidden space-y-6">
+        <!-- Recherche FTS5 Board -->
+        <div class="glass-card p-5 rounded-xl space-y-3">
+          <h2 class="text-sm font-bold text-slate-100 flex items-center gap-2 uppercase tracking-wider">
+            <i class="fa-solid fa-magnifying-glass text-yellow-400"></i> Recherche FTS5 dans la Bibliothèque Vivante (528k Chunks)
+          </h2>
+          <div class="flex gap-3">
+            <input type="text" id="fts-query" placeholder="Rechercher par concept, mot-clé, expert ou domaine..." class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-500">
+            <button onclick="runFtsSearch()" class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-5 py-2.5 rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-search"></i> Explorer
+            </button>
+          </div>
+          <div id="fts-results" class="space-y-3 pt-2"></div>
+        </div>
+
+        <!-- Table Locomotive Moisson -->
+        <div class="glass-card p-5 rounded-xl">
+          <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Pages Locomotive Moissonnées</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-900/80 uppercase text-[10px] text-slate-400 border-b border-slate-700">
+                <tr>
+                  <th class="p-3">ID</th>
+                  <th class="p-3">Titre</th>
+                  <th class="p-3">Taille</th>
+                  <th class="p-3">Date</th>
+                  <th class="p-3">Lien</th>
+                </tr>
+              </thead>
+              <tbody id="locomotive-table" class="divide-y divide-slate-800/60"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 12 : SWAN & CLAIRE STREAM -->
+      <!-- ================================================================= -->
+      <section id="tab-swan" class="hidden space-y-6">
+        <div class="glass-card p-5 rounded-xl">
+          <h2 class="text-base font-bold text-slate-100 flex items-center gap-2 mb-4">
+            <i class="fa-solid fa-water-ladder text-emerald-400"></i> Ingestion Vectorielle Fluide (768D Nomic Embed)
+          </h2>
+          <div class="space-y-3">
+            <input type="text" id="swan-titre" placeholder="Titre du signal" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
+            <textarea id="swan-corps" rows="3" placeholder="Corps du flux à vectoriser et diffuser sans goulot..." class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"></textarea>
+            <button onclick="runSwanStream()" id="btn-swan" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition flex items-center gap-2">
+              <i class="fa-solid fa-satellite-dish"></i> Vectoriser et Diffuser
+            </button>
+          </div>
+        </div>
+        <div id="swan-log" class="glass-card p-4 rounded-xl mono text-xs text-emerald-400 bg-slate-950/80 border border-emerald-950 max-h-64 overflow-y-auto">
+          🌊 Prêt pour l'ingestion de flux.
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 13 : HUB IA WEB, CDP 9222 & NOTION VAULT -->
+      <!-- ================================================================= -->
+      <section id="tab-iaweb" class="hidden space-y-6">
+        <!-- 4 Cartes Accès Rapides IA Web -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <a href="https://chatgpt.com/" target="_blank" class="glass-card p-4 rounded-xl hover:border-emerald-500 transition flex items-center gap-3">
+            <i class="fa-solid fa-robot text-2xl text-emerald-400"></i>
+            <div><div class="font-bold text-sm text-slate-100">ChatGPT</div><div class="text-xs text-slate-400">OpenAI Web</div></div>
+          </a>
+          <a href="https://claude.ai/new" target="_blank" class="glass-card p-4 rounded-xl hover:border-amber-500 transition flex items-center gap-3">
+            <i class="fa-solid fa-brain text-2xl text-amber-400"></i>
+            <div><div class="font-bold text-sm text-slate-100">Claude.ai</div><div class="text-xs text-slate-400">Anthropic Web</div></div>
+          </a>
+          <a href="https://gemini.google.com/app" target="_blank" class="glass-card p-4 rounded-xl hover:border-blue-500 transition flex items-center gap-3">
+            <i class="fa-brands fa-google text-2xl text-blue-400"></i>
+            <div><div class="font-bold text-sm text-slate-100">Gemini AI</div><div class="text-xs text-slate-400">Google DeepMind</div></div>
+          </a>
+          <a href="https://www.perplexity.ai/" target="_blank" class="glass-card p-4 rounded-xl hover:border-cyan-500 transition flex items-center gap-3">
+            <i class="fa-solid fa-magnifying-glass text-2xl text-cyan-400"></i>
+            <div><div class="font-bold text-sm text-slate-100">Perplexity</div><div class="text-xs text-slate-400">Deep Research</div></div>
+          </a>
+        </div>
+
+        <!-- 2 Colonnes : CDP Authentifié 9222 & Notion Backup Vault -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          <!-- MODULE 1 : CDP AUTHENTIFIÉ PORT 9222 (LinkedIn / Upwork) -->
+          <div class="glass-card p-5 rounded-xl border-l-4 border-cyan-500 space-y-4">
+            <div class="flex justify-between items-center">
+              <div>
+                <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <i class="fa-brands fa-chrome text-cyan-400"></i> CDP AUTHENTIFIÉ · Port 9222
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">Session réelle LinkedIn & automatisation BrowserOS.</p>
+              </div>
+              <span id="cdp-status-badge" class="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-400 text-xs mono">
+                Sondage…
+              </span>
+            </div>
+
+            <!-- Commandes Rapides CDP -->
+            <div class="flex flex-wrap gap-2.5 pt-1">
+              <button onclick="actionCdp('start')" class="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-lg text-xs flex items-center gap-2 transition shadow">
+                <i class="fa-solid fa-play"></i> Démarrer CDP :9222
+              </button>
+              <button onclick="actionCdp('verify')" class="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 font-semibold rounded-lg text-xs flex items-center gap-2 transition">
+                <i class="fa-solid fa-user-check"></i> Tester Auth LinkedIn
+              </button>
+              <button onclick="actionCdp('stop')" class="px-3 py-2 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 font-semibold rounded-lg text-xs flex items-center gap-2 transition">
+                <i class="fa-solid fa-stop"></i> Arrêter
+              </button>
+            </div>
+
+            <!-- Liste des onglets actifs / Infos -->
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+              <div class="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span>Onglets CDP Actifs</span>
+                <span id="cdp-tabs-count" class="mono text-[10px] text-cyan-400">0 ouvert</span>
+              </div>
+              <div id="cdp-tabs-list" class="space-y-1 text-xs text-slate-400 max-h-36 overflow-y-auto">
+                <div class="text-slate-500">Aucun onglet ou CDP hors ligne.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MODULE 2 : NOTION JARVIS BACKUP & VAULT -->
+          <div class="glass-card p-5 rounded-xl border-l-4 border-indigo-500 space-y-4">
+            <div class="flex justify-between items-center">
+              <div>
+                <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <i class="fa-solid fa-box-archive text-indigo-400"></i> NOTION JARVIS BACKUP & VAULT
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">Coffre-fort des exports Markdown, CSV tables et schémas SQL.</p>
+              </div>
+              <button onclick="triggerNotionBackup()" id="btn-notion-snap" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 transition shadow">
+                <i class="fa-solid fa-camera"></i> Snapshot 1-Clic
+              </button>
+            </div>
+
+            <!-- Stats Notion -->
+            <div class="grid grid-cols-3 gap-2.5 text-center">
+              <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                <div class="text-[10px] text-slate-400 uppercase">Pages Markdown</div>
+                <div class="text-lg font-black text-white" id="notion-pages-count">--</div>
+              </div>
+              <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                <div class="text-[10px] text-slate-400 uppercase">Tables CSV</div>
+                <div class="text-lg font-black text-white" id="notion-csv-count">--</div>
+              </div>
+              <div class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                <div class="text-[10px] text-slate-400 uppercase">Schémas SQL</div>
+                <div class="text-lg font-black text-white" id="notion-schemas-count">--</div>
+              </div>
+            </div>
+
+            <!-- Explorateur Fichiers Notion -->
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+              <div class="text-xs font-bold text-slate-300">Documents Disponibles dans le Coffre</div>
+              <div id="notion-files-list" class="space-y-1.5 max-h-36 overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB 15 : BUREAU GNOME — BARRE, ICONES, VERROUS, ECRANS, TRACE -->
+      <!-- ================================================================= -->
+      <section id="tab-bureau" class="hidden space-y-6">
+
+        <!-- Bandeau de conformité -->
+        <div class="glass-card p-4 rounded-xl border-l-4 border-rose-500 flex justify-between items-center flex-wrap gap-3">
+          <div>
+            <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+              <i class="fa-solid fa-display text-rose-400"></i> Pilotage tracé du Bureau GNOME
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">
+              Chaque action est relue <b>après</b> écriture, journalisée dans <code>bureau_actions</code>
+              et reportée dans <b>ÉTOILE</b>. Rejouer une action déjà conforme ne change rien.
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="bureau-session" class="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-400 text-xs mono">…</span>
+            <span id="bureau-conforme" class="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-400 text-xs mono">…</span>
+            <button onclick="loadBureau()" class="px-3 py-2 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 font-semibold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-rotate"></i> Constat
+            </button>
+          </div>
+        </div>
+        <div id="bureau-derives" class="hidden glass-card p-3 rounded-xl border border-amber-700/50 bg-amber-950/20 text-[11px] text-amber-200"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- BARRE DES TACHES -->
+          <div class="glass-card p-5 rounded-xl border-l-4 border-cyan-500 space-y-3">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-bars text-cyan-400"></i> Barre des tâches
+              </h3>
+              <button onclick="actionBureau('barre.recharger')" class="px-2.5 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 rounded-lg text-[11px] font-semibold transition">
+                <i class="fa-solid fa-arrows-rotate"></i> Recharger le dock
+              </button>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+              <span class="text-[11px] text-slate-400 self-center">Position :</span>
+              <button onclick="actionBureau('barre.set',{cle:'dock-position',valeur:'BOTTOM'})" class="px-2.5 py-1 rounded-lg text-[11px] bg-slate-800 hover:bg-cyan-700 text-slate-200 transition">Bas</button>
+              <button onclick="actionBureau('barre.set',{cle:'dock-position',valeur:'LEFT'})" class="px-2.5 py-1 rounded-lg text-[11px] bg-slate-800 hover:bg-cyan-700 text-slate-200 transition">Gauche</button>
+              <button onclick="actionBureau('barre.set',{cle:'dock-position',valeur:'RIGHT'})" class="px-2.5 py-1 rounded-lg text-[11px] bg-slate-800 hover:bg-cyan-700 text-slate-200 transition">Droite</button>
+              <button onclick="actionBureau('barre.set',{cle:'dock-position',valeur:'TOP'})" class="px-2.5 py-1 rounded-lg text-[11px] bg-slate-800 hover:bg-cyan-700 text-slate-200 transition">Haut</button>
+            </div>
+            <div id="bureau-barre" class="space-y-1"></div>
+          </div>
+
+          <!-- ICONES DU BUREAU -->
+          <div class="glass-card p-5 rounded-xl border-l-4 border-emerald-500 space-y-3">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-icons text-emerald-400"></i> Icônes du bureau
+              </h3>
+              <div class="flex gap-2">
+                <button onclick="actionBureau('icones.deverrouiller')" class="px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-semibold transition">
+                  <i class="fa-solid fa-unlock"></i> Déverrouiller les lanceurs
+                </button>
+                <button onclick="actionBureau('icones.recharger')" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] transition">
+                  <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+              </div>
+            </div>
+            <div id="bureau-lanceurs" class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] mono text-slate-300"></div>
+            <div id="bureau-icones" class="space-y-1"></div>
+          </div>
+
+          <!-- VERROUS -->
+          <div class="glass-card p-5 rounded-xl border-l-4 border-amber-500 space-y-3">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-lock-open text-amber-400"></i> Verrous système
+              </h3>
+              <button onclick="actionBureau('verrous.tout-lever')" class="px-2.5 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 border border-amber-500/40 rounded-lg text-[11px] font-semibold transition">
+                <i class="fa-solid fa-unlock-keyhole"></i> Tout lever
+              </button>
+            </div>
+            <div id="bureau-dconf" class="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px] mono text-slate-300"></div>
+            <div id="bureau-verrous" class="space-y-1 max-h-56 overflow-y-auto"></div>
+          </div>
+
+          <!-- ECRANS -->
+          <div class="glass-card p-5 rounded-xl border-l-4 border-indigo-500 space-y-3">
+            <div class="flex justify-between items-center">
+              <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-tv text-indigo-400"></i> Écrans
+              </h3>
+              <div class="flex gap-2">
+                <button onclick="confirmerBureau('ecrans.miroir','Basculer les écrans en MIROIR ?')" class="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 rounded-lg text-[11px] font-semibold transition">Miroir</button>
+                <button onclick="confirmerBureau('ecrans.etendu','Basculer les écrans en ÉTENDU ?')" class="px-2.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 rounded-lg text-[11px] font-semibold transition">Étendu</button>
+              </div>
+            </div>
+            <div id="bureau-ecrans" class="space-y-1"></div>
+            <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-[10px] text-slate-400 leading-relaxed">
+              <b class="text-amber-300">HORS-LOGICIEL</b> — l'overscan d'un téléviseur (bords rognés) ne se corrige
+              pas sous Wayland : Mutter n'expose ni <code>underscan</code> ni <code>--transform</code>, et baisser la
+              définition n'y change rien, la TV zoome le signal quel qu'il soit. Réglage sur la télécommande :
+              <b>Menu → Image → Format d'image → Natif / Just Scan / Pixel par pixel / PC</b>.
+            </div>
+          </div>
+        </div>
+
+        <!-- TRACE -->
+        <div class="glass-card p-5 rounded-xl">
+          <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-clipboard-list text-rose-400"></i> Trace — 20 dernières actions
+            <span class="text-[10px] normal-case font-normal text-slate-500">jarvis_logs.db · bureau_actions</span>
+          </h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-[11px] mono">
+              <thead>
+                <tr class="text-slate-500 border-b border-slate-800">
+                  <th class="text-left py-1.5 px-2">Heure</th>
+                  <th class="text-left py-1.5 px-2">Domaine</th>
+                  <th class="text-left py-1.5 px-2">Clé</th>
+                  <th class="text-left py-1.5 px-2">Avant</th>
+                  <th class="text-left py-1.5 px-2">Après</th>
+                  <th class="text-left py-1.5 px-2">Verdict</th>
+                  <th class="text-left py-1.5 px-2">Preuve mesurée</th>
+                </tr>
+              </thead>
+              <tbody id="bureau-traces"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- LOGIQUE JAVASCRIPT UNIFIÉE -->
+  <!-- ===================================================================== -->
+  <script>
+    let ALL_APPS = [];
+    let ALL_MCPS = [];
+    let ALL_BASES = [];
+    let SELECTED_DB_PATH = "";
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent = now.toTimeString().split(' ')[0];
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function showTab(tabId) {
+      const tabs = ['dashboard', 'avancements', 'plan', 'claude', 'terminal', 'apps', 'tableronde', 'studio', 'mcps', 'sql', 'swarm', 'moisson', 'swan', 'iaweb', 'bureau'];
+      tabs.forEach(t => {
+        const el = document.getElementById('tab-' + t);
+        const nav = document.getElementById('nav-' + t);
+        if (!el || !nav) return;
+        if (t === tabId) {
+          el.classList.remove('hidden');
+          nav.classList.add('active-nav');
+          nav.classList.remove('text-slate-400');
+        } else {
+          el.classList.add('hidden');
+          nav.classList.remove('active-nav');
+          nav.classList.add('text-slate-400');
+        }
+      });
+
+      const titles = {
+        'dashboard': 'Dashboard Cluster',
+        'avancements': 'Synchronisation & Avancements des Chantiers (production.db)',
+        'plan': 'Board Plan & To-Do List Maître',
+        'claude': 'Claude Code Suite & CLI',
+        'terminal': 'Terminal & TMUX Multiplexeur',
+        'apps': 'Applications Bureau & Lanceurs',
+        'tableronde': 'Table Ronde IA Souveraine',
+        'studio': 'Studio de Création IA',
+        'mcps': '48 Serveurs MCP Connectés',
+        'sql': 'Explorateur de 53 Bases SQL Vivantes',
+        'swarm': 'Supervision Docker Swarm & Services',
+        'moisson': 'Corpus Vivant & FTS5 (528k Chunks)',
+        'swan': 'Flux SWAN & Ingestion 768D',
+        'iaweb': 'Hub IA Web & Automatisation CDP',
+        'bureau': 'Bureau GNOME — Barre, Icônes, Verrous, Écrans (tracé ÉTOILE)'
+      };
+      document.getElementById('section-title').textContent = titles[tabId] || 'JARVIS Cockpit';
+
+      if (tabId === 'avancements') loadAvancements();
+      if (tabId === 'plan') loadTasks();
+      if (tabId === 'claude') loadClaudeInfo();
+      if (tabId === 'apps') loadApps();
+      if (tabId === 'mcps') loadMcps();
+      if (tabId === 'sql') loadDatabases();
+      if (tabId === 'swarm') loadSwarmData();
+      if (tabId === 'moisson') loadLocomotiveData();
+      if (tabId === 'iaweb') {
+        loadCdpStatus();
+        loadNotionStats();
+      }
+      if (tabId === 'bureau') loadBureau();
+      if (tabId === 'terminal') {
+        chargerApps();
+        const s = TERM.sessions.get(TERM.actif);
+        if (s) setTimeout(() => { try { s.fit.fit(); s.term.focus(); ajusterTaille(TERM.actif); } catch (e) {} }, 60);
+      }
+    }
+
+    // ── TÉLÉMÉTRIE LIVE ──
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        
+        document.getElementById('m4-temp').textContent = data.m4.temp_c + '°C';
+        document.getElementById('m4-ram').textContent = (data.m4.mem_free_mb / 1024).toFixed(1) + ' GB Libres';
+        if (data.m4.vram_used_mb !== undefined) {
+          document.getElementById('m4-vram').textContent = `${data.m4.vram_used_mb} / ${data.m4.vram_total_mb} MB (${data.m4.vram_temp_c}°C)`;
+        }
+        
+        const m6Badge = document.getElementById('m6-badge');
+        if (data.m6.online) {
+          m6Badge.className = "px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-xs mono flex items-center gap-1.5 shrink-0";
+          m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> M6 GPU : EN LIGNE (${data.m6.latency_ms}ms)`;
+        } else {
+          m6Badge.className = "px-2.5 py-1 rounded-full bg-rose-950/60 border border-rose-800/80 text-rose-400 text-xs mono flex items-center gap-1.5 shrink-0";
+          m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400"></span> M6 GPU : HORS LIGNE`;
+        }
+
+        const grid = document.getElementById('services-grid');
+        if (grid) {
+          grid.innerHTML = '';
+          let upCount = 0;
+          data.services.forEach(s => {
+            if (s.up) upCount++;
+            const col = s.up ? 'border-emerald-500/40 text-emerald-400 bg-emerald-950/20' : 'border-rose-500/40 text-rose-400 bg-rose-950/20';
+            const dot = s.up ? 'bg-emerald-400' : 'bg-rose-400';
+            grid.innerHTML += `
+              <div class="p-3 rounded-lg border ${col} flex items-center justify-between text-xs">
+                <span class="font-semibold truncate">${s.name}</span>
+                <span class="w-2 h-2 rounded-full ${dot} shrink-0"></span>
+              </div>
+            `;
+          });
+          document.getElementById('services-up-count').textContent = upCount;
+        }
+      } catch (e) {
+        console.error("Erreur polling status:", e);
+      }
+    }
+    setInterval(fetchStatus, 3000);
+    fetchStatus();
+
+    // ── TÂCHES & PLANNING ──
+    async function loadTasks() {
+      try {
+        const res = await fetch('/api/tasks?limit=50');
+        const data = await res.json();
+        const tbody = document.getElementById('tasks-table');
+        tbody.innerHTML = '';
+        if (!data.tasks || !data.tasks.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">Aucune tâche trouvée</td></tr>';
+          return;
+        }
+        data.tasks.forEach(t => {
+          const isDone = t.status === 'done';
+          const badgeClass = isDone ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-amber-950 text-amber-400 border-amber-800';
+          tbody.innerHTML += `
+            <tr class="hover:bg-slate-800/30">
+              <td class="p-3 font-mono text-slate-500">#${t.id}</td>
+              <td class="p-3 font-medium text-white ${isDone ? 'line-through opacity-60' : ''}">${t.title}</td>
+              <td class="p-3 mono text-cyan-400">${t.category || 'GÉNÉRAL'}</td>
+              <td class="p-3"><span class="px-2 py-0.5 rounded border text-[10px] ${badgeClass}">${t.status.toUpperCase()}</span></td>
+              <td class="p-3 mono text-slate-500">${(t.created_at || '').split(' ')[0]}</td>
+              <td class="p-3">
+                <button onclick="toggleTaskStatus(${t.id}, '${isDone ? 'pending' : 'done'}')" class="text-xs text-slate-400 hover:text-emerald-400">
+                  <i class="fa-solid ${isDone ? 'fa-arrow-rotate-left' : 'fa-check'}"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+      } catch (e) {
+        console.error("Erreur tasks:", e);
+      }
+    }
+
+    async function createTask() {
+      const title = document.getElementById('new-task-title').value.trim();
+      const agent = document.getElementById('new-task-agent').value;
+      if (!title) return;
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title: title, category: agent})
+      });
+      document.getElementById('new-task-title').value = '';
+      loadTasks();
+    }
+
+    async function toggleTaskStatus(id, newStatus) {
+      await fetch('/api/tasks/status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id, status: newStatus})
+      });
+      loadTasks();
+    }
+
+    // ── CLAUDE CODE SUITE ──
+    async function loadClaudeInfo() {
+      try {
+        const res = await fetch('/api/claude');
+        const data = await res.json();
+        document.getElementById('claude-ver').textContent = data.info.version;
+        document.getElementById('claude-mcp-count').textContent = `${data.info.mcp_count} connectés`;
+
+        const grid = document.getElementById('claude-presets-grid');
+        grid.innerHTML = '';
+        data.presets.forEach(p => {
+          grid.innerHTML += `
+            <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-amber-500/50 transition flex flex-col justify-between">
+              <div>
+                <span class="text-[10px] text-amber-400 font-bold uppercase tracking-wider">${p.category}</span>
+                <h4 class="font-bold text-xs text-white mt-1">${p.title}</h4>
+                <p class="text-[11px] text-slate-400 mt-1 line-clamp-2">${p.prompt}</p>
+              </div>
+              <button onclick="injectClaudePrompt('${p.prompt.replace(/'/g, "\\'")}')" class="mt-3 text-xs bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 py-1.5 rounded flex items-center justify-center gap-1.5 transition">
+                <i class="fa-solid fa-play text-[10px]"></i> Préparer & Exécuter
+              </button>
+            </div>
+          `;
+        });
+      } catch (e) {
+        console.error("Erreur claude info:", e);
+      }
+    }
+
+    function injectClaudePrompt(p) {
+      document.getElementById('claude-custom-prompt').value = p;
+      runClaudePrompt();
+    }
+
+    async function runClaudePrompt() {
+      const prompt = document.getElementById('claude-custom-prompt').value.trim();
+      if (!prompt) return;
+      const forceLocal = document.getElementById('claude-force-local') ? document.getElementById('claude-force-local').checked : false;
+      const btn = document.getElementById('btn-claude-run');
+      const out = document.getElementById('claude-prompt-output');
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Exécution...';
+      btn.disabled = true;
+      out.classList.remove('hidden');
+      out.textContent = forceLocal ? '⚡ Inférence Souveraine Locale (M4/M6) en cours...' : '👑 Inférence Claude Code (avec protection anti-529)...';
+
+      try {
+        const res = await fetch('/api/claude/run', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({prompt: prompt, force_local: forceLocal})
+        });
+        const data = await res.json();
+        btn.innerHTML = '<i class="fa-solid fa-play"></i> Exécuter';
+        btn.disabled = false;
+        out.textContent = data.output || 'Terminé sans sortie.';
+        if (data.fallback_used) {
+          afficherToast(`Repli souverain appliqué (${data.reason || 'Cloud 529'})`, 'warning');
+        }
+      } catch (e) {
+        btn.innerHTML = '<i class="fa-solid fa-play"></i> Exécuter';
+        btn.disabled = false;
+        out.textContent = '❌ Erreur réseau: ' + e.message;
+      }
+    }
+
+    // ── CDP AUTHENTIFIÉ (PORT 9222) ──
+    async function loadCdpStatus() {
+      try {
+        const res = await fetch('/api/cdp/status');
+        const data = await res.json();
+        const badge = document.getElementById('cdp-status-badge');
+        const count = document.getElementById('cdp-tabs-count');
+        const list = document.getElementById('cdp-tabs-list');
+
+        if (data.alive) {
+          badge.className = 'px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-700 text-emerald-400 text-xs mono font-bold';
+          badge.innerHTML = '<i class="fa-solid fa-circle text-[8px] text-emerald-400 mr-1.5 animate-pulse"></i>CDP ACTIF :9222';
+          count.textContent = `${data.tabs_count} ouvert(s)`;
+
+          if (data.tabs && data.tabs.length > 0) {
+            list.innerHTML = data.tabs.map(t => `
+              <div class="p-2 rounded bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs hover:border-cyan-500/40 transition">
+                <div class="truncate pr-2">
+                  <div class="font-semibold text-slate-200 truncate">${t.title}</div>
+                  <div class="text-[10px] text-slate-500 truncate">${t.url}</div>
+                </div>
+                <a href="${t.url}" target="_blank" class="text-cyan-400 hover:text-cyan-300 text-[10px] mono px-2 py-0.5 rounded bg-cyan-950/50">Ouvrir</a>
+              </div>
+            `).join('');
+          } else {
+            list.innerHTML = '<div class="text-slate-500 p-2">CDP actif sans onglet ouvert.</div>';
+          }
+        } else {
+          badge.className = 'px-2.5 py-1 rounded-full bg-rose-950/80 border border-rose-800 text-rose-400 text-xs mono';
+          badge.textContent = 'CDP HORS LIGNE';
+          count.textContent = '0';
+          list.innerHTML = '<div class="text-slate-500 p-2">Clique sur "Démarrer CDP :9222" pour lever la session authentifiée.</div>';
+        }
+      } catch (e) {
+        console.error("Erreur CDP:", e);
+      }
+    }
+
+    async function actionCdp(act) {
+      afficherToast(`Action CDP ${act} en cours...`, 'info');
+      try {
+        const res = await fetch('/api/cdp/action', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: act})
+        });
+        const data = await res.json();
+        if (data.success !== false) {
+          afficherToast(data.message || data.output || 'Action CDP réussie', 'success');
+        } else {
+          afficherToast(data.error || 'Échec action CDP', 'error');
+        }
+        await loadCdpStatus();
+      } catch (e) {
+        afficherToast('Erreur CDP: ' + e.message, 'error');
+      }
+    }
+
+    // ── NOTION BACKUP & VAULT ──
+    async function loadNotionStats() {
+      try {
+        const res = await fetch('/api/notion/stats');
+        const data = await res.json();
+        if (!data.exists) return;
+
+        document.getElementById('notion-pages-count').textContent = data.pages_count;
+        document.getElementById('notion-csv-count').textContent = data.csv_count;
+        document.getElementById('notion-schemas-count').textContent = data.schemas_count;
+
+        const list = document.getElementById('notion-files-list');
+        let html = '';
+
+        (data.pages || []).forEach(p => {
+          html += `
+            <div class="flex items-center justify-between p-1.5 rounded bg-slate-950/60 border border-slate-800 text-xs">
+              <span class="text-slate-200 truncate flex items-center gap-1.5">
+                <i class="fa-regular fa-file-lines text-indigo-400"></i> ${p.name}
+              </span>
+              <span class="text-[10px] text-slate-500 mono">${p.size_kb} Ko</span>
+            </div>
+          `;
+        });
+
+        (data.csvs || []).forEach(c => {
+          html += `
+            <div class="flex items-center justify-between p-1.5 rounded bg-slate-950/60 border border-slate-800 text-xs">
+              <span class="text-slate-200 truncate flex items-center gap-1.5">
+                <i class="fa-solid fa-table text-emerald-400"></i> ${c.name}
+              </span>
+              <span class="text-[10px] text-slate-500 mono">${c.size_kb} Ko</span>
+            </div>
+          `;
+        });
+
+        list.innerHTML = html || '<div class="text-slate-500">Aucun fichier dans le coffre.</div>';
+      } catch (e) {
+        console.error("Erreur Notion:", e);
+      }
+    }
+
+    async function triggerNotionBackup() {
+      const btn = document.getElementById('btn-notion-snap');
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Snapshot...';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/notion/backup', {method: 'POST'});
+        const data = await res.json();
+        afficherToast(data.summary || 'Snapshot Notion terminé', 'success');
+        await loadNotionStats();
+      } catch (e) {
+        afficherToast('Erreur snapshot: ' + e.message, 'error');
+      } finally {
+        btn.innerHTML = '<i class="fa-solid fa-camera"></i> Snapshot 1-Clic';
+        btn.disabled = false;
+      }
+    }
+
+    // ── APPLICATIONS BUREAU ──
+    async function loadApps() {
+      try {
+        const res = await fetch('/api/apps/all');
+        const data = await res.json();
+        ALL_APPS = data.apps || [];
+        renderApps(ALL_APPS);
+      } catch (e) {
+        console.error("Erreur apps:", e);
+      }
+    }
+
+    function renderApps(apps) {
+      const grid = document.getElementById('apps-grid');
+      grid.innerHTML = '';
+      apps.forEach(a => {
+        grid.innerHTML += `
+          <div class="glass-card p-4 rounded-xl border border-slate-800 hover:border-cyan-500 transition flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] text-cyan-400 font-mono font-bold uppercase">${a.category}</span>
+                <i class="fa-solid fa-window-maximize text-xs text-slate-500"></i>
+              </div>
+              <h4 class="font-bold text-xs text-white">${a.name}</h4>
+              <p class="text-[11px] text-slate-400 mt-1 line-clamp-2">${a.comment || a.exec}</p>
+            </div>
+            <div class="mt-4 pt-2 border-t border-slate-800/80 flex gap-2">
+              <button onclick="launchNativeApp('${a.exec.replace(/'/g, "\\'")}')" class="flex-1 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300 py-1.5 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                <i class="fa-solid fa-play"></i> Lancer
+              </button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function filterApps() {
+      const q = document.getElementById('app-search-input').value.toLowerCase();
+      const filtered = ALL_APPS.filter(a => a.name.toLowerCase().includes(q) || a.category.toLowerCase().includes(q) || (a.comment || '').toLowerCase().includes(q));
+      renderApps(filtered);
+    }
+
+    async function launchNativeApp(execCmd) {
+      await fetch('/api/apps/launch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({exec: execCmd})
+      });
+    }
+
+    // ── 48 SERVEURS MCP ──
+    async function loadMcps() {
+      try {
+        const res = await fetch('/api/mcps');
+        const data = await res.json();
+        ALL_MCPS = data.mcps || [];
+        renderMcps(ALL_MCPS);
+      } catch (e) {
+        console.error("Erreur mcps:", e);
+      }
+    }
+
+    function renderMcps(mcps) {
+      const grid = document.getElementById('mcps-grid');
+      grid.innerHTML = '';
+      mcps.forEach(m => {
+        const isHttp = m.transport.includes('HTTP');
+        const badgeColor = isHttp ? 'bg-purple-950 text-purple-400 border-purple-800' : 'bg-orange-950 text-orange-400 border-orange-800';
+        grid.innerHTML += `
+          <div class="glass-card p-4 rounded-xl border border-slate-800 hover:border-orange-500/50 transition flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="font-bold text-xs text-white truncate">${m.name}</span>
+                <span class="px-2 py-0.5 rounded border text-[9px] ${badgeColor}">${m.transport}</span>
+              </div>
+              <p class="text-[11px] mono text-slate-400 break-all">${m.endpoint}</p>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 mono flex justify-between items-center">
+              <span>ENV: ${m.env.length} var(s)</span>
+              <span class="text-emerald-400">● ACTIF</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function filterMcps() {
+      const q = document.getElementById('mcp-filter').value.toLowerCase();
+      const filtered = ALL_MCPS.filter(m => m.name.toLowerCase().includes(q) || m.endpoint.toLowerCase().includes(q));
+      renderMcps(filtered);
+    }
+
+    // ── 53 BASES SQL VIVANTES ──
+    async function loadDatabases() {
+      try {
+        const res = await fetch('/api/databases');
+        const data = await res.json();
+        ALL_BASES = data.databases || [];
+        const list = document.getElementById('sql-bases-list');
+        list.innerHTML = '';
+        ALL_BASES.forEach(b => {
+          list.innerHTML += `
+            <button onclick="selectDatabase('${b.path.replace(/'/g, "\\'")}', '${b.name}', '${b.tables.join(', ')}')" class="w-full text-left p-2 rounded bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 hover:border-teal-500 transition flex items-center justify-between text-xs">
+              <span class="font-mono text-white truncate">${b.name}</span>
+              <span class="text-[10px] text-teal-400 mono shrink-0">${b.size_str} (${b.table_count}t)</span>
+            </button>
+          `;
+        });
+      } catch (e) {
+        console.error("Erreur databases:", e);
+      }
+    }
+
+    function selectDatabase(path, name, tables) {
+      SELECTED_DB_PATH = path;
+      document.getElementById('selected-db-label').textContent = `${name} • Tables: ${tables}`;
+      const firstTable = tables.split(',')[0].trim();
+      document.getElementById('sql-query-input').value = `SELECT * FROM ${firstTable} LIMIT 20;`;
+      runSqlQuery();
+    }
+
+    async function runSqlQuery() {
+      if (!SELECTED_DB_PATH) {
+        if (ALL_BASES.length > 0) {
+          selectDatabase(ALL_BASES[0].path, ALL_BASES[0].name, ALL_BASES[0].tables.join(', '));
+          return;
+        }
+      }
+      const sql = document.getElementById('sql-query-input').value.trim();
+      const box = document.getElementById('sql-results-box');
+      box.innerHTML = '<div class="p-4 text-xs text-teal-300 mono text-center">Exécution de la requête...</div>';
+
+      const res = await fetch('/api/sql/query', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({db_path: SELECTED_DB_PATH, sql: sql, limit: 30})
+      });
+      const data = await res.json();
+      if (data.error) {
+        box.innerHTML = `<div class="p-4 text-xs text-rose-400 mono">Erreur SQL: ${data.error}</div>`;
+        return;
+      }
+      if (!data.rows || !data.rows.length) {
+        box.innerHTML = `<div class="p-4 text-xs text-slate-500 mono text-center">Requête exécutée : 0 résultat.</div>`;
+        return;
+      }
+      let html = '<table class="w-full text-left text-xs text-slate-300"><thead class="bg-slate-900 uppercase text-[10px] text-slate-400 border-b border-slate-700"><tr>';
+      data.columns.forEach(c => html += `<th class="p-2">${c}</th>`);
+      html += '</tr></thead><tbody class="divide-y divide-slate-800">';
+      data.rows.forEach(r => {
+        html += '<tr class="hover:bg-slate-800/30">';
+        r.forEach(v => html += `<td class="p-2 mono truncate max-w-xs">${v !== null ? v : '<span class="text-slate-600">NULL</span>'}</td>`);
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      box.innerHTML = html;
+    }
+
+    // ── SWARM & SERVICES ──
+    async function loadSwarmData() {
+      try {
+        const res = await fetch('/api/swarm');
+        const data = await res.json();
+        const grid = document.getElementById('swarm-grid');
+        grid.innerHTML = '';
+        data.services.forEach(s => {
+          const col = s.online ? 'border-blue-500/40 text-blue-400 bg-blue-950/20' : 'border-rose-500/40 text-rose-400 bg-rose-950/20';
+          const dot = s.online ? 'bg-emerald-400' : 'bg-rose-400';
+          grid.innerHTML += `
+            <div class="glass-card p-4 rounded-xl border ${col} flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-bold text-xs text-white">${s.name}</span>
+                  <span class="w-2 h-2 rounded-full ${dot}"></span>
+                </div>
+                <p class="text-[11px] text-slate-400">${s.role}</p>
+              </div>
+              <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] mono text-slate-500 flex justify-between">
+                <span>${s.endpoint}</span>
+                <span class="text-cyan-400">${s.container}</span>
+              </div>
+            </div>
+          `;
+        });
+      } catch (e) {
+        console.error("Erreur swarm:", e);
+      }
+    }
+
+    // ── RECHERCHE FTS5 BOARD ──
+    async function runFtsSearch() {
+      const q = document.getElementById('fts-query').value.trim();
+      if (!q) return;
+      const resBox = document.getElementById('fts-results');
+      resBox.innerHTML = '<div class="text-xs text-yellow-300 mono">Recherche dans 528k chunks...</div>';
+
+      const res = await fetch('/api/board/search', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({query: q, limit: 8})
+      });
+      const data = await res.json();
+      resBox.innerHTML = '';
+      if (!data.results || !data.results.length) {
+        resBox.innerHTML = '<div class="text-xs text-slate-500 mono">Aucun résultat trouvé pour cette requête.</div>';
+        return;
+      }
+      data.results.forEach(r => {
+        resBox.innerHTML += `
+          <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-yellow-500/50 transition">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] text-yellow-400 font-bold uppercase mono">${r.domain} • Expert: ${r.expert}</span>
+              <span class="text-[10px] text-slate-500 mono">#${r.id}</span>
+            </div>
+            <h4 class="font-bold text-xs text-white mb-2">${r.title}</h4>
+            <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">${r.snippet}</p>
+          </div>
+        `;
+      });
+    }
+
+    // ── TABLE RONDE ──
+    async function runTableRonde() {
+      const q = document.getElementById('tr-question').value;
+      if (!q) return;
+      const btn = document.getElementById('btn-tr');
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Délibération...';
+      btn.disabled = true;
+
+      const res = await fetch('/api/table-ronde', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: q})
+      });
+      const data = await res.json();
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Délibérer';
+      btn.disabled = false;
+
+      const cont = document.getElementById('tr-results');
+      cont.innerHTML = '';
+      data.deliberation.forEach(d => {
+        cont.innerHTML += `
+          <div class="glass-card p-5 rounded-xl border-t-2 border-indigo-500">
+            <div class="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-2">${d.expert}</div>
+            <p class="text-sm text-slate-200 leading-relaxed">${d.opinion}</p>
+            <div class="mt-4 pt-2 border-t border-slate-800/80 text-[11px] mono text-slate-500 flex justify-between">
+              <span>${d.source}</span>
+              <span>${d.latency}s</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // ── STUDIO CRÉATION ──
+    async function runStudioCreate() {
+      const t = document.getElementById('studio-type').value;
+      const s = document.getElementById('studio-sujet').value;
+      if (!s) return;
+      const btn = document.getElementById('btn-studio');
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Inférence GPU...';
+      btn.disabled = true;
+
+      const res = await fetch('/api/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type: t, sujet: s})
+      });
+      const data = await res.json();
+      btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Générer sur GPU M6';
+      btn.disabled = false;
+
+      document.getElementById('studio-output').classList.remove('hidden');
+      document.getElementById('studio-meta').textContent = `${data.source} · ${data.latency}s · ${data.saved_to || ''}`;
+      document.getElementById('studio-content').textContent = data.content;
+    }
+
+    function copyStudioContent() {
+      const txt = document.getElementById('studio-content').textContent;
+      navigator.clipboard.writeText(txt);
+      alert('Copié dans le presse-papier !');
+    }
+
+    // ── SWAN STREAM ──
+    async function runSwanStream() {
+      const t = document.getElementById('swan-titre').value;
+      const c = document.getElementById('swan-corps').value;
+      if (!t || !c) return;
+      const log = document.getElementById('swan-log');
+      log.textContent = '🌊 Ingestion en cours sur M6 GPU...';
+
+      const res = await fetch('/api/swan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({titre: t, contenu: c})
+      });
+      const data = await res.json();
+      log.textContent = data.output;
+    }
+
+    // ── LOCOMOTIVE MOISSON ──
+    async function loadLocomotiveData() {
+      const res = await fetch('/api/locomotive');
+      const data = await res.json();
+      const tbody = document.getElementById('locomotive-table');
+      tbody.innerHTML = '';
+      data.pages.forEach(p => {
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-800/30">
+            <td class="p-3 font-bold text-yellow-400">#${p.id}</td>
+            <td class="p-3 font-medium text-white">${p.titre}</td>
+            <td class="p-3 mono">${(p.taille / 1024).toFixed(1)} KB</td>
+            <td class="p-3 mono text-slate-400">${(p.date || '').split('T')[0]}</td>
+            <td class="p-3">
+              <a href="${p.url}" target="_blank" class="text-cyan-400 hover:underline">Ouvrir</a>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    // ── REPLAY & GUÉRISON ──
+    async function triggerReplay() {
+      if (confirm('Lancer le rejeu complet et la réparation du cluster en arrière-plan ?')) {
+        await fetch('/api/replay', {method: 'POST'});
+        alert('Rejeu complet 1-clic initié.');
+      }
+    }
+
+    // ===================================================================
+    // TERMINAL & TMUX PTY ENGINE
+    // ===================================================================
+    const TERM = {
+      sessions: new Map(),
+      actif: null,
+      apps: [],
+    };
+
+    const b64versOctets = (b64) => {
+      const bin = atob(b64);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      return u8;
+    };
+    const texteVersB64 = (txt) => {
+      const u8 = new TextEncoder().encode(txt);
+      let bin = '';
+      for (let i = 0; i < u8.length; i += 8192) bin += String.fromCharCode(...u8.subarray(i, i + 8192));
+      return btoa(bin);
+    };
+
+    function termEtat(txt, couleur) {
+      const el = document.getElementById('term-etat');
+      if (el) el.innerHTML = `<span style="color:${couleur || '#64748b'}">${txt}</span>`;
+    }
+
+    async function chargerApps() {
+      const box = document.getElementById('term-lanceur');
+      try {
+        const r = await fetch('/api/term/apps');
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'refus du serveur');
+        TERM.apps = d.apps;
+
+        const groupes = {};
+        d.apps.forEach(a => { (groupes[a.groupe] = groupes[a.groupe] || []).push(a); });
+
+        let html = '';
+        for (const [groupe, apps] of Object.entries(groupes)) {
+          html += `<div><div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5 px-1">${groupe}</div><div class="grid grid-cols-2 gap-1.5">`;
+          apps.forEach(a => {
+            const titre = a.dispo ? `${a.desc}\n${a.cmd}` : `${a.nom} n'est pas installé sur cette machine`;
+            html += `<button class="app-tuile flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-600"
+                       ${a.dispo ? '' : 'disabled'} title="${titre.replace(/"/g, '&quot;')}"
+                       onclick="ouvrirApp('${a.id}')">
+                       <i class="fa-solid ${a.icone}" style="color:${a.couleur}"></i>
+                       <span class="text-[10px] text-slate-300 leading-tight text-center">${a.nom}</span>
+                     </button>`;
+          });
+          html += `</div></div>`;
+        }
+
+        html += `<div><div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5 px-1">
+                   Sessions tmux vivantes <span class="text-slate-600">(${d.tmux.length})</span></div><div class="space-y-1">`;
+        if (!d.tmux_dispo) {
+          html += `<div class="text-[11px] text-rose-400/80 mono px-1">tmux absent de cette machine</div>`;
+        } else if (!d.tmux.length) {
+          html += `<div class="text-[11px] text-slate-600 mono px-1">aucune session</div>`;
+        } else {
+          d.tmux.forEach(t => {
+            const pastille = t.attachee ? '#34d399' : '#64748b';
+            html += `<button onclick="ouvrirVue('${t.nom}')"
+                       class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-slate-900/60 border border-slate-800 hover:border-cyan-700 text-left"
+                       title="${t.detail.join('\n').replace(/"/g, '&quot;')}">
+                       <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${pastille}"></span>
+                       <span class="text-[11px] mono text-slate-300 truncate flex-1">${t.nom}</span>
+                       <span class="text-[10px] text-slate-500">${t.fenetres}f</span>
+                     </button>`;
+          });
+        }
+        html += `</div></div>`;
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<div class="text-xs text-rose-400 mono">Terminal indisponible : ${e.message}</div>`;
+      }
+    }
+
+    function dessinerOnglets() {
+      const barre = document.getElementById('term-onglets');
+      if (!TERM.sessions.size) {
+        barre.innerHTML = `<span class="text-xs text-slate-500 mono px-2">Aucune session — choisis une application à gauche.</span>`;
+        document.getElementById('term-vide').style.display = 'flex';
+        return;
+      }
+      document.getElementById('term-vide').style.display = 'none';
+      let html = '';
+      TERM.sessions.forEach((s, id) => {
+        const actif = id === TERM.actif ? 'actif' : 'text-slate-400 border-slate-800';
+        const etat = s.mort ? '<i class="fa-solid fa-circle text-[6px] text-rose-500 ml-1"></i>'
+                            : '<i class="fa-solid fa-circle text-[6px] text-emerald-400 ml-1"></i>';
+        html += `<button onclick="activerSession('${id}')"
+                   class="term-onglet ${actif} shrink-0 px-3 py-1.5 rounded-md border bg-slate-900/60 text-xs mono flex items-center gap-1">
+                   ${s.nom}${etat}</button>`;
+      });
+      barre.innerHTML = html;
+    }
+
+    function activerSession(id) {
+      TERM.actif = id;
+      TERM.sessions.forEach((s, sid) => {
+        s.conteneur.style.display = (sid === id) ? 'block' : 'none';
+      });
+      const s = TERM.sessions.get(id);
+      if (s) {
+        setTimeout(() => { try { s.fit.fit(); s.term.focus(); ajusterTaille(id); } catch (e) {} }, 30);
+        termEtat(`${s.nom} — session ${id}${s.tmux ? ' · tmux ' + s.tmux : ''}`, '#22d3ee');
+      }
+      dessinerOnglets();
+    }
+
+    async function ouvrirApp(appId) {
+      showTab('terminal');
+      await ouvrirSession({ app: appId });
+    }
+    async function ouvrirVue(nom)   { await ouvrirSession({ tmux: nom }); }
+
+    async function ouvrirSession(cible) {
+      termEtat('ouverture…', '#fbbf24');
+      const scene = document.getElementById('term-scene');
+      const cols = Math.max(40, Math.floor((scene.clientWidth - 26) / 8.5));
+      const rows = Math.max(10, Math.floor((scene.clientHeight - 20) / 17));
+      try {
+        const r = await fetch('/api/term/open', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...cible, cols, rows })
+        });
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'ouverture refusée');
+
+        const conteneur = document.createElement('div');
+        conteneur.style.cssText = 'position:absolute;inset:0;';
+        scene.appendChild(conteneur);
+
+        const term = new Terminal({
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 13, cursorBlink: true,
+          scrollback: 8000, allowProposedApi: true,
+          theme: { background: '#05070c', foreground: '#cbd5e1', cursor: '#22d3ee', selectionBackground: 'rgba(6,182,212,.28)' }
+        });
+        const fit = new FitAddon.FitAddon();
+        term.loadAddon(fit);
+        term.open(conteneur);
+        fit.fit();
+
+        const s = { term, fit, conteneur, offset: 0, nom: d.nom, app: d.app,
+                    tmux: d.tmux, mort: false, timer: null, echecs: 0,
+                    aEnvoyer: '', envoiPlanifie: false, chaine: Promise.resolve() };
+        TERM.sessions.set(d.id, s);
+
+        term.onData(txt => {
+          s.aEnvoyer += txt;
+          if (s.envoiPlanifie) return;
+          s.envoiPlanifie = true;
+          setTimeout(() => {
+            s.envoiPlanifie = false;
+            const charge = s.aEnvoyer;
+            if (!charge) return;
+            s.aEnvoyer = '';
+            s.chaine = s.chaine.then(() => fetch('/api/term/input', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: d.id, data: texteVersB64(charge), b64: true })
+            })).catch(() => {});
+          }, 0);
+        });
+
+        boucleLecture(d.id);
+        activerSession(d.id);
+        chargerApps();
+      } catch (e) {
+        termEtat('échec : ' + e.message, '#fb7185');
+      }
+    }
+
+    function boucleLecture(id) {
+      const tick = async () => {
+        const s = TERM.sessions.get(id);
+        if (!s || s.mort) return;
+        try {
+          const r = await fetch(`/api/term/output?id=${id}&offset=${s.offset}&attente=20`);
+          const d = await r.json();
+          const vivante = TERM.sessions.get(id);
+          if (!vivante) return;
+          if (!d.success) { s.mort = true; dessinerOnglets(); return; }
+          if (d.data) { s.term.write(b64versOctets(d.data)); s.offset = d.offset; }
+          if (!d.vivante) {
+            s.mort = true;
+            s.term.write(`\r\n\x1b[38;5;244m── session terminée (code ${d.code_sortie}) ──\x1b[0m\r\n`);
+            dessinerOnglets();
+            if (id === TERM.actif) termEtat(`${s.nom} — terminée (code ${d.code_sortie})`, '#fb7185');
+            return;
+          }
+          s.echecs = 0;
+          s.timer = setTimeout(tick, 0);
+        } catch (e) {
+          s.echecs = (s.echecs || 0) + 1;
+          if (s.echecs > 12) { s.mort = true; dessinerOnglets(); return; }
+          s.timer = setTimeout(tick, Math.min(500 * s.echecs, 4000));
+        }
+      };
+      tick();
+    }
+
+    let minuteurTaille = null;
+    function ajusterTaille(id) {
+      const s = TERM.sessions.get(id);
+      if (!s || s.mort) return;
+      clearTimeout(minuteurTaille);
+      minuteurTaille = setTimeout(() => {
+        fetch('/api/term/resize', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, cols: s.term.cols, rows: s.term.rows })
+        }).catch(() => {});
+      }, 180);
+    }
+
+    function termSignal(sig) {
+      if (!TERM.actif) return;
+      fetch('/api/term/signal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: TERM.actif, sig })
+      }).catch(() => {});
+    }
+
+    function termEffacer() {
+      const s = TERM.sessions.get(TERM.actif);
+      if (s) s.term.clear();
+    }
+
+    async function termFermer() {
+      const id = TERM.actif;
+      const s = TERM.sessions.get(id);
+      if (!s) return;
+      clearTimeout(s.timer);
+      await fetch('/api/term/close', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      }).catch(() => {});
+      s.term.dispose();
+      s.conteneur.remove();
+      TERM.sessions.delete(id);
+      TERM.actif = null;
+      const reste = TERM.sessions.keys().next();
+      if (!reste.done) activerSession(reste.value); else { dessinerOnglets(); termEtat('prêt'); }
+      chargerApps();
+    }
+
+    async function tmuxToutOuvrir() {
+      const b = document.getElementById('btn-tmux-tout');
+      const memo = b.innerHTML;
+      b.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ouverture…';
+      b.disabled = true;
+      try {
+        const r = await fetch('/api/term/tmux-tout-ouvrir', { method: 'POST' });
+        const d = await r.json();
+        termEtat(d.success ? 'hubs tmux à jour' : 'échec : ' + (d.sortie || d.error), d.success ? '#34d399' : '#fb7185');
+      } catch (e) {
+        termEtat('échec : ' + e.message, '#fb7185');
+      } finally {
+        b.innerHTML = memo; b.disabled = false; chargerApps();
+      }
+    }
+
+    // ── AVANCEMENTS & SYNCHRONISATION ──
+    let avancementsInterval = null;
+    async function loadAvancements() {
+      try {
+        const res = await fetch('/api/avancements');
+        const data = await res.json();
+        if (!data.success) return;
+
+        // KPIs
+        const k = data.kpis;
+        document.getElementById('av-kpi-runs').textContent = `${k.runs_ouverts} en cours`;
+        document.getElementById('av-kpi-runs-sub').textContent = `${k.runs_ouverts} ouverts · ${k.runs_livres} livrés`;
+        document.getElementById('av-kpi-global-pct').textContent = `${k.global_progress}%`;
+
+        document.getElementById('av-kpi-taches').textContent = `${k.fait_taches} / ${k.total_taches}`;
+        document.getElementById('av-kpi-taches-sub').textContent = `${k.fait_taches} faites (${k.global_progress}%)`;
+        document.getElementById('av-kpi-bloque').textContent = `${k.bloque_taches} en souffrance`;
+        document.getElementById('av-kpi-bloque').className = k.bloque_taches > 0 ? "text-rose-400 font-bold" : "text-slate-400";
+
+        // Git KPI
+        const gRepos = data.git_repos || [];
+        const syncedCount = gRepos.filter(r => r.synced).length;
+        document.getElementById('av-kpi-git').textContent = `${syncedCount} / ${gRepos.length} Synchro`;
+        const totalMod = gRepos.reduce((acc, r) => acc + (r.modified_files || 0), 0);
+        document.getElementById('av-kpi-git-sub').textContent = totalMod > 0 ? `${totalMod} fichiers modifiés` : 'Dépôts synchronisés';
+
+        // Timers KPI
+        const timers = data.timers || [];
+        document.getElementById('av-kpi-timers').textContent = `${timers.length} Actifs`;
+        if (timers.length > 0) {
+          document.getElementById('av-kpi-timers-sub').textContent = `Prochain : ${timers[0].left || timers[0].next}`;
+        }
+
+        // Chantiers Container
+        const rContainer = document.getElementById('av-runs-container');
+        document.getElementById('av-runs-count').textContent = `${data.runs.length} chantiers enregistrés`;
+        rContainer.innerHTML = '';
+        if (!data.runs || data.runs.length === 0) {
+          rContainer.innerHTML = '<div class="p-8 text-center text-slate-500">Aucun chantier de production actif. Cliquez sur "Nouveau Chantier" pour démarrer.</div>';
+        } else {
+          data.runs.forEach(r => {
+            const isLivre = r.etat === 'livre';
+            const badgeColor = isLivre ? 'bg-emerald-950/80 text-emerald-400 border-emerald-700' : 'bg-cyan-950/80 text-cyan-400 border-cyan-700';
+            const etapeBadge = r.etape ? `<span class="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-amber-300 font-mono">Étape : ${r.etape.toUpperCase()}</span>` : '';
+            
+            let tachesHtml = '';
+            if (r.taches && r.taches.length > 0) {
+              tachesHtml = '<div class="mt-3 pt-3 border-t border-slate-800/80 space-y-1.5">';
+              r.taches.forEach(t => {
+                const tDone = t.etat === 'fait';
+                const tBloq = t.etat === 'bloque' || t.etat === 'echec';
+                const statusIcon = tDone ? 'fa-circle-check text-emerald-400' : (tBloq ? 'fa-circle-xmark text-rose-400' : 'fa-circle text-slate-600');
+                const nextSt = tDone ? 'pending' : 'fait';
+                tachesHtml += `
+                  <div class="flex items-center justify-between text-xs py-1 px-2.5 rounded bg-slate-900/60 hover:bg-slate-800/60 transition">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <button onclick="toggleTacheChantier(${t.id}, '${nextSt}')" class="text-xs hover:scale-110 transition">
+                        <i class="fa-solid ${statusIcon}"></i>
+                      </button>
+                      <span class="${tDone ? 'line-through text-slate-500' : 'text-slate-200'} truncate">${t.intitule}</span>
+                      <span class="text-[10px] font-mono text-cyan-500/80">${t.specialite || 'omega'}</span>
+                    </div>
+                    <span class="text-[10px] text-slate-500 font-mono">${(t.cree_le || '').split(' ')[1] || ''}</span>
+                  </div>
+                `;
+              });
+              tachesHtml += '</div>';
+            }
+
+            rContainer.innerHTML += `
+              <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 hover:border-slate-700 transition space-y-3">
+                <div class="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                  <div class="flex items-center gap-2.5 flex-wrap">
+                    <span class="font-mono text-xs font-bold text-slate-400">#${r.run_id}</span>
+                    <span class="px-2 py-0.5 rounded border text-[10px] font-bold ${badgeColor}">${r.etat.toUpperCase()}</span>
+                    ${etapeBadge}
+                    <span class="text-xs text-slate-400">· ${r.famille} / ${r.domaine}</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-xs font-mono text-slate-400">
+                    <span>${r.fait_taches}/${r.total_taches} tâches</span>
+                    <span class="text-emerald-400 font-bold">(${r.progress_pct}%)</span>
+                  </div>
+                </div>
+
+                <div class="text-sm font-semibold text-white">${r.besoin}</div>
+
+                <!-- Barre de progression visuelle -->
+                <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                  <div class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full rounded-full transition-all duration-500" style="width: ${r.progress_pct}%"></div>
+                </div>
+
+                <!-- Actions Chantiers -->
+                <div class="flex flex-wrap gap-2 pt-1">
+                  <button onclick="actionChantier('realiser', '${r.run_id}')" class="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/30 rounded text-xs flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-play text-[10px]"></i> ⑦ Réaliser
+                  </button>
+                  <button onclick="actionChantier('verifier', '${r.run_id}')" class="px-2.5 py-1 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 rounded text-xs flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-check-double text-[10px]"></i> ⑧ Vérifier
+                  </button>
+                  <button onclick="actionChantier('persister', '${r.run_id}')" class="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded text-xs flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-floppy-disk text-[10px]"></i> ⑨ Persister
+                  </button>
+                  <button onclick="actionChantier('eclater', '${r.run_id}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-bars-staggered text-[10px]"></i> ⑤ Éclater
+                  </button>
+                  <button onclick="actionChantier('doctor', '${r.run_id}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-stethoscope text-[10px]"></i> Doctor
+                  </button>
+                </div>
+
+                ${tachesHtml}
+              </div>
+            `;
+          });
+        }
+
+        // Git List
+        const gitList = document.getElementById('av-git-list');
+        gitList.innerHTML = '';
+        gRepos.forEach(g => {
+          const modBadge = g.modified_files > 0 ? `<span class="text-amber-400 font-bold">${g.modified_files} modifiés</span>` : `<span class="text-emerald-400 font-bold">Propre</span>`;
+          gitList.innerHTML += `
+            <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800 flex justify-between items-center text-xs">
+              <div>
+                <div class="font-bold text-slate-200 flex items-center gap-2">
+                  <i class="fa-solid fa-code-branch text-cyan-400"></i> ${g.name}
+                  <span class="font-mono text-[10px] text-slate-400">(${g.branch})</span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1 truncate max-w-md">${g.last_commit}</div>
+              </div>
+              <div class="text-right">
+                ${modBadge}
+              </div>
+            </div>
+          `;
+        });
+
+        // Journal List
+        const jList = document.getElementById('av-journal-list');
+        jList.innerHTML = '';
+        (data.journal || []).forEach(j => {
+          jList.innerHTML += `
+            <div class="p-2.5 rounded bg-slate-900/60 border border-slate-800/80 flex items-start gap-2.5 text-xs">
+              <span class="font-mono text-[10px] text-slate-500 shrink-0">${(j.horodate || '').split(' ')[1] || j.horodate}</span>
+              <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono text-cyan-400 shrink-0">${j.brique}</span>
+              <span class="text-slate-300 truncate">${j.message}</span>
+            </div>
+          `;
+        });
+
+      } catch (e) {
+        console.error("Erreur avancements:", e);
+      }
+    }
+
+    async function syncAvancements() {
+      const btn = document.getElementById('btn-sync-all');
+      const memo = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Synchronisation en cours…';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/sync/run', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({auto_git: false})
+        });
+        const d = await res.json();
+        afficherToast(d.summary || 'Synchronisation effectuée avec succès', d.success ? 'success' : 'error');
+        loadAvancements();
+      } catch (e) {
+        afficherToast('Erreur de synchronisation : ' + e.message, 'error');
+      } finally {
+        btn.innerHTML = memo;
+        btn.disabled = false;
+      }
+    }
+
+    async function syncGitNow() {
+      try {
+        const res = await fetch('/api/sync/run', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({auto_git: true, commit_message: 'feat(cockpit): synchronisation globale des avancements'})
+        });
+        const d = await res.json();
+        afficherToast(d.summary || 'Checkpoint Git validé', 'success');
+        loadAvancements();
+      } catch (e) {
+        afficherToast('Erreur Git : ' + e.message, 'error');
+      }
+    }
+
+    function ouvrirModalChantier() {
+      document.getElementById('modal-chantier').classList.remove('hidden');
+    }
+
+    function fermerModalChantier() {
+      document.getElementById('modal-chantier').classList.add('hidden');
+    }
+
+    async function soumettreNouveauChantier() {
+      const besoin = document.getElementById('modal-chantier-besoin').value.trim();
+      const famille = document.getElementById('modal-chantier-famille').value;
+      const domaine = document.getElementById('modal-chantier-domaine').value;
+      if (!besoin) {
+        alert('Veuillez décrire le besoin du chantier.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/chantiers/nouveau', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({besoin, famille, domaine})
+        });
+        const d = await res.json();
+        if (d.success) {
+          afficherToast(`Chantier #${d.run_id} ouvert !`, 'success');
+          document.getElementById('modal-chantier-besoin').value = '';
+          fermerModalChantier();
+          loadAvancements();
+        } else {
+          afficherToast('Erreur : ' + (d.error || 'inconnue'), 'error');
+        }
+      } catch (e) {
+        afficherToast('Erreur réseau : ' + e.message, 'error');
+      }
+    }
+
+    async function toggleTacheChantier(id, status) {
+      try {
+        await fetch('/api/chantiers/tache', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({id, status})
+        });
+        loadAvancements();
+      } catch (e) {}
+    }
+
+    async function actionChantier(action, runId) {
+      afficherToast(`Exécution de prod-${action}…`, 'info');
+      try {
+        const res = await fetch('/api/chantiers/action', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action, run_id: runId})
+        });
+        const d = await res.json();
+        if (d.success) {
+          afficherToast(`Action prod-${action} terminée !`, 'success');
+        } else {
+          afficherToast(`Action prod-${action} : ${d.stderr || 'Erreur'}`, 'warning');
+        }
+        loadAvancements();
+      } catch (e) {
+        afficherToast(`Erreur prod-${action} : ` + e.message, 'error');
+      }
+    }
+
+    // ── BUREAU GNOME — BARRE, ICONES, VERROUS, ECRANS, TRACE ──
+    const VERDICT_TON = {
+      'APPLIQUE': 'success', 'CONSTAT': 'info', 'ECHEC': 'error', 'HORS-LOGICIEL': 'warning'
+    };
+    const VERDICT_CSS = {
+      'APPLIQUE': 'text-emerald-400', 'CONSTAT': 'text-cyan-400',
+      'ECHEC': 'text-rose-400', 'HORS-LOGICIEL': 'text-amber-400'
+    };
+
+    function echapper(s) {
+      return String(s === null || s === undefined ? '—' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function ligneCle(c) {
+      const v = c.valeur;
+      const affiche = (typeof v === 'boolean') ? (v ? 'oui' : 'non') : echapper(v);
+      const ton = (typeof v === 'boolean')
+        ? (v ? 'text-emerald-400' : 'text-slate-500') : 'text-slate-200';
+      const cadenas = c.writable === false
+        ? ' <i class="fa-solid fa-lock text-rose-400" title="verrouillée par dconf"></i>' : '';
+      return `<div class="flex justify-between items-center py-1 px-2 rounded hover:bg-slate-800/40 text-[11px]">
+                <span class="text-slate-400">${echapper(c.libelle)}${cadenas}</span>
+                <span class="mono font-semibold ${ton}">${affiche}</span>
+              </div>`;
+    }
+
+    async function loadBureau() {
+      try {
+        const res = await fetch('/api/bureau/etat');
+        const d = await res.json();
+        if (!d.success) { afficherToast(d.error || 'Constat impossible', 'error'); return; }
+
+        document.getElementById('bureau-session').textContent =
+          `${d.session.type} · ${d.session.bureau}`;
+        const bc = document.getElementById('bureau-conforme');
+        bc.textContent = d.conforme ? '● CONFORME' : `● ${d.derives.length} DÉRIVE(S)`;
+        bc.className = 'px-2.5 py-1 rounded-full text-xs mono border ' + (d.conforme
+          ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+          : 'bg-amber-950 text-amber-400 border-amber-800');
+
+        const dv = document.getElementById('bureau-derives');
+        if (d.derives.length) {
+          dv.classList.remove('hidden');
+          dv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <b>Dérives constatées :</b> '
+            + d.derives.map(echapper).join(' · ');
+        } else { dv.classList.add('hidden'); }
+
+        document.getElementById('bureau-barre').innerHTML = d.barre.cles.map(ligneCle).join('');
+        document.getElementById('bureau-icones').innerHTML = d.icones.cles.map(ligneCle).join('');
+        document.getElementById('bureau-verrous').innerHTML = d.verrous.cles.map(ligneCle).join('');
+
+        const l = d.icones.lanceurs;
+        const sain = l.a_traiter === 0;
+        document.getElementById('bureau-lanceurs').innerHTML =
+          `<span class="${sain ? 'text-emerald-400' : 'text-amber-400'}">
+             <i class="fa-solid fa-${sain ? 'circle-check' : 'triangle-exclamation'}"></i>
+           </span> ${l.total} lanceurs · ${l.executables} exécutables · ${l.trusted} fiables
+           · <b>${l.a_traiter} à traiter</b><br><span class="text-slate-500">${echapper(l.repertoire)}</span>`;
+
+        const dc = d.verrous.dconf;
+        document.getElementById('bureau-dconf').innerHTML =
+          `dconf : ${dc.locks.length} fichier(s) de verrous · <b class="${dc.inertes ? 'text-amber-400' : 'text-emerald-400'}">${dc.inertes} clé(s) inerte(s)</b>
+           <br><span class="text-slate-500">profil « user » ${dc.profil_user ? 'présent' : 'absent'} →
+           ${dc.profil_user ? 'les bases système sont chargées' : 'aucune base système n\'est chargée, ces verrous ne mordent pas'}</span>`;
+
+        const ec = d.ecrans;
+        document.getElementById('bureau-ecrans').innerHTML =
+          `<div class="flex justify-between text-[11px] py-1 px-2">
+             <span class="text-slate-400">Mode</span>
+             <span class="mono font-semibold text-indigo-300">${echapper(ec.mode)}</span>
+           </div>
+           <div class="flex justify-between text-[11px] py-1 px-2">
+             <span class="text-slate-400">Pilotage</span>
+             <span class="mono text-slate-300">${echapper(ec.via)}</span>
+           </div>`
+          + (ec.moniteurs || []).map(m => `
+           <div class="flex justify-between text-[11px] py-1 px-2 rounded hover:bg-slate-800/40">
+             <span class="text-slate-400">${echapper(m.connecteur)}${m.builtin ? ' <span class="text-[9px] text-slate-600">(intégré)</span>' : ''}</span>
+             <span class="mono text-slate-200">${echapper(m.nom || m.modele)} · ${echapper(m.mode_courant)}</span>
+           </div>`).join('');
+
+        rendreTraces(d.traces || []);
+      } catch (e) {
+        afficherToast('Erreur bureau : ' + e.message, 'error');
+      }
+    }
+
+    function rendreTraces(traces) {
+      const tb = document.getElementById('bureau-traces');
+      if (!traces.length) {
+        tb.innerHTML = '<tr><td colspan="7" class="py-3 px-2 text-slate-500">Aucune action tracée pour le moment.</td></tr>';
+        return;
+      }
+      tb.innerHTML = traces.map(t => `
+        <tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
+          <td class="py-1.5 px-2 text-slate-500">${echapper((t.horodatage || '').slice(11))}</td>
+          <td class="py-1.5 px-2 text-slate-300">${echapper(t.domaine)}</td>
+          <td class="py-1.5 px-2 text-slate-400">${echapper((t.cle || '').replace('org.gnome.shell.extensions.', ''))}</td>
+          <td class="py-1.5 px-2 text-slate-500">${echapper(t.valeur_avant)}</td>
+          <td class="py-1.5 px-2 text-slate-200">${echapper(t.valeur_apres)}</td>
+          <td class="py-1.5 px-2 font-bold ${VERDICT_CSS[t.verdict] || 'text-slate-400'}">${echapper(t.verdict)}</td>
+          <td class="py-1.5 px-2 text-slate-500">${echapper(t.mesure)}</td>
+        </tr>`).join('');
+    }
+
+    async function actionBureau(action, params) {
+      afficherToast(`Action « ${action} » en cours…`, 'info');
+      try {
+        const res = await fetch('/api/bureau/action', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action: action, params: params || {}})
+        });
+        const d = await res.json();
+        const ton = VERDICT_TON[d.verdict] || (d.success !== false ? 'success' : 'error');
+        afficherToast(d.message || d.error || `Action ${action} terminée`, ton);
+        await loadBureau();
+      } catch (e) {
+        afficherToast('Erreur action bureau : ' + e.message, 'error');
+      }
+    }
+
+    function confirmerBureau(action, question) {
+      if (confirm(question + '\n\nUn retour arrière est tracé dans la colonne « reversible ».')) {
+        actionBureau(action);
+      }
+    }
+
+    function afficherToast(msg, type='info') {
+      const toast = document.createElement('div');
+      const colors = {
+        success: 'bg-emerald-950/90 border-emerald-600 text-emerald-200',
+        error: 'bg-rose-950/90 border-rose-600 text-rose-200',
+        warning: 'bg-amber-950/90 border-amber-600 text-amber-200',
+        info: 'bg-slate-900/90 border-cyan-600 text-cyan-200'
+      };
+      toast.className = `fixed bottom-6 right-6 px-4 py-3 rounded-xl border text-xs font-semibold shadow-2xl backdrop-blur-md z-50 transition-all transform translate-y-4 opacity-0 ${colors[type] || colors.info}`;
+      toast.innerHTML = `<div class="flex items-center gap-2"><i class="fa-solid fa-circle-info"></i> <span>${msg}</span></div>`;
+      document.body.appendChild(toast);
+      setTimeout(() => { toast.classList.remove('translate-y-4', 'opacity-0'); }, 10);
+      setTimeout(() => {
+        toast.classList.add('translate-y-4', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    window.addEventListener('resize', () => {
+      const s = TERM.sessions.get(TERM.actif);
+      if (s) { try { s.fit.fit(); ajusterTaille(TERM.actif); } catch (e) {} }
+    });
+  </script>
+
+  <!-- Modal Nouveau Chantier -->
+  <div id="modal-chantier" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-card bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center">
+        <h3 class="font-bold text-base text-white flex items-center gap-2">
+          <i class="fa-solid fa-rocket text-emerald-400"></i> Ouvrir un Nouveau Chantier de Production
+        </h3>
+        <button onclick="fermerModalChantier()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Besoin / Objectif</label>
+        <textarea id="modal-chantier-besoin" rows="3" placeholder="Ex: Mettre en place la surveillance temps réel des services et notifier en direct..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-white focus:border-emerald-500 focus:outline-none"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Famille</label>
+          <select id="modal-chantier-famille" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none">
+            <option value="GENERAL">GÉNÉRAL</option>
+            <option value="IA">INGÉNIERIE IA</option>
+            <option value="SYSTEME">SYSTÈME & RESEAU</option>
+            <option value="PROSPECTION">PROSPECTION</option>
+            <option value="AUTOMATION">AUTOMATISATION</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Domaine</label>
+          <select id="modal-chantier-domaine" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none">
+            <option value="M4_LOCAL">M4 LOCAL</option>
+            <option value="CLUSTER_M6">CLUSTER M6</option>
+            <option value="DOCKER_SWARM">DOCKER SWARM</option>
+            <option value="WEB_SAAS">WEB & SAAS</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button onclick="fermerModalChantier()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition font-medium">Annuler</button>
+        <button onclick="soumettreNouveauChantier()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition flex items-center gap-2">
+          <i class="fa-solid fa-play"></i> Lancer le Chantier
+        </button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

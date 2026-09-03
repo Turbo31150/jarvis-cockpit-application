@@ -1,0 +1,14 @@
+{
+  "name": "JARVIS Cockpit",
+  "short_name": "JARVIS",
+  "description": "Pilotage vocal du cluster JARVIS — M4, tour GPU M6 et téléphone",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "lang": "fr",
+  "icons": [
+    {"src": "/icone.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
