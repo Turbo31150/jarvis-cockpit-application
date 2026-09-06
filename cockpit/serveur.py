@@ -42,6 +42,7 @@ from core.database import (
 from core.mcp_registry import get_all_mcp_servers
 from core.swarm_manager import get_swarm_services_status
 from core.apps_registry import scan_all_applications
+from core.telemetry import get_vram_info
 from core.claude_engine import (
     get_claude_info, run_claude_prompt, launch_claude_interactive, CLAUDE_PRESETS
 )
@@ -96,15 +97,15 @@ def get_cluster_telemetry():
             mem_used = int(parts[2])
             mem_free = int(parts[6])
 
+    # VRAM agrégée sur les 4 GPU du rig via get_vram_info() (multi-GPU correct +
+    # garde thermique doctrine excluant la 1660S). L'ancien parse inline supposait
+    # 1 seul GPU : sur 4 cartes nvidia-smi rend 4 lignes → split(',') plantait
+    # (ValueError) et retombait sur 0/4096 ; timeout=1 s trop court sous charge.
     vram_used, vram_total, vram_temp = 0, 4096, 0
     try:
-        r_vram = subprocess.run(
-            ["nvidia-smi", "--query-gpu=memory.used,memory.total,temperature.gpu", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=1
-        )
-        if r_vram.returncode == 0 and r_vram.stdout.strip():
-            parts = [int(p.strip()) for p in r_vram.stdout.strip().split(",")]
-            vram_used, vram_total, vram_temp = parts[0], parts[1], parts[2]
+        _v = get_vram_info()
+        if _v.get("available"):
+            vram_used, vram_total, vram_temp = _v["used"], _v["total"], _v["temp"]
     except Exception:
         pass
 
