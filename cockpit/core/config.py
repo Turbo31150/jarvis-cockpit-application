@@ -11,6 +11,35 @@ import socket
 HOSTNAME = socket.gethostname()
 MACHINE_NAME = os.environ.get("JARVIS_MACHINE", HOSTNAME.upper())
 
+
+def _load_jarvis_env():
+    """Injecte les clés/API JARVIS depuis les .env connus vers os.environ.
+
+    Rend disponibles au cockpit les clés déjà configurées (MISTRAL_API_KEY, etc.)
+    sans les exposer ni écraser une valeur déjà présente dans l'environnement.
+    """
+    for _p in (os.path.expanduser("~/jarvis/.env"),
+               os.path.expanduser("~/.config/jarvis/.env.jarvis"),
+               os.path.expanduser("~/.env")):
+        try:
+            if not os.path.isfile(_p):
+                continue
+            with open(_p, "r", encoding="utf-8", errors="ignore") as _fh:
+                for _line in _fh:
+                    _line = _line.strip()
+                    if not _line or _line.startswith("#") or "=" not in _line:
+                        continue
+                    _k, _, _v = _line.partition("=")
+                    _k = _k.replace("export ", "").strip()
+                    _v = _v.strip().strip('"').strip("'")
+                    if _k and _k not in os.environ:
+                        os.environ[_k] = _v
+        except Exception:
+            pass
+
+
+_load_jarvis_env()
+
 # Base paths
 #
 # JARVIS_HOME rend l'application DEPLACABLE — ajoute le 2026-09-03 pour la
@@ -64,6 +93,23 @@ OLLAMA_EMBED_URL = f"http://{M4_HOST}:11436"   # GTX 1660S(idx2) → nomic-embed
 CHAT_MODEL_3080  = "qwen3:8b"
 CHAT_MODEL_2060  = "qwen2.5:7b"
 EMBED_MODEL      = "nomic-embed-text"
+
+# ── Fournisseurs cloud externes (câblés — actifs uniquement si joignables/clé posée) ──
+# Décharge le CPU 2 cœurs vers le cloud (API texte = léger sur le tether). Les clés
+# sont lues à l'exécution depuis l'environnement, JAMAIS écrites ici.
+GEMINI_PROXY_URL = f"http://{M4_HOST}:18793"       # gemini-openai-proxy.js (requiert le CLI 'gemini' OAuth)
+GEMINI_MODEL     = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+MISTRAL_API_URL  = os.environ.get("MISTRAL_API_URL", "https://api.mistral.ai/v1")  # OpenAI-compat, clé MISTRAL_API_KEY
+MISTRAL_MODEL    = os.environ.get("MISTRAL_MODEL", "mistral-large-latest")
+MANUS_API_URL    = os.environ.get("MANUS_API_URL", "")   # à renseigner (endpoint OpenAI-compat), clé MANUS_API_KEY
+MANUS_MODEL      = os.environ.get("MANUS_MODEL", "manus")
+# Fournisseurs cloud actifs = ceux dont la condition (proxy up / clé env présente) est remplie.
+# chat_url = endpoint OpenAI-compat complet ; probe = host:port pour test TCP ; key_env = variable clé.
+CLOUD_PROVIDERS = {
+    "gemini":  {"kind": "proxy",  "chat_url": f"{GEMINI_PROXY_URL}/v1/chat/completions", "probe": GEMINI_PROXY_URL, "model": GEMINI_MODEL,  "key_env": None},
+    "mistral": {"kind": "openai", "chat_url": f"{MISTRAL_API_URL}/chat/completions",     "probe": MISTRAL_API_URL,  "model": MISTRAL_MODEL, "key_env": "MISTRAL_API_KEY"},
+    "manus":   {"kind": "openai", "chat_url": (f"{MANUS_API_URL}/chat/completions" if MANUS_API_URL else ""), "probe": MANUS_API_URL, "model": MANUS_MODEL, "key_env": "MANUS_API_KEY"},
+}
 
 CHAT_PROXY_PORT = 18800
 CHAT_PROXY_URL = f"http://{M4_HOST}:{CHAT_PROXY_PORT}"

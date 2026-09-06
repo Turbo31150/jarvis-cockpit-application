@@ -6,13 +6,15 @@ Multi-tier local LLM inference cascade (M6 GPU direct link -> Ollama local M4 ->
 Ensures 0-token cost, strict reasoning token padding (>=512 tokens) and transparent fallback.
 """
 
+import os
 import json
 import time
 import socket
 import urllib.request
 from urllib.parse import urlparse
 from .config import (M6_URL, OLLAMA_URL, CHAT_PROXY_URL,
-                     OLLAMA_2060_URL, OLLAMA_EMBED_URL, EMBED_MODEL)
+                     OLLAMA_2060_URL, OLLAMA_EMBED_URL, EMBED_MODEL,
+                     CLOUD_PROVIDERS)
 
 
 def _port_open(url: str, timeout: float = 0.5) -> bool:
@@ -204,3 +206,77 @@ def embed(inputs, timeout: float = 60.0) -> dict:
     except Exception as e:
         return {"embeddings": [], "model": EMBED_MODEL, "source": "AUCUN",
                 "latency": 0.0, "success": False, "error": str(e)}
+
+
+# ── Fournisseurs cloud externes (Gemini / Mistral / Manus) ─────────────────────
+# Déchargent le CPU local vers le cloud. Les clés sont lues DANS L'ENVIRONNEMENT
+# au runtime (jamais stockées dans le code). Un fournisseur est "disponible" si
+# son proxy local répond (Gemini) ou si sa clé + son URL sont présentes (OpenAI-compat).
+
+def _cloud_key(prov):
+    ke = prov.get("key_env")
+    return os.environ.get(ke) if ke else None
+
+
+def cloud_available(name):
+    prov = CLOUD_PROVIDERS.get(name)
+    if not prov or not prov.get("chat_url"):
+        return False
+    if prov["kind"] == "openai":
+        return bool(_cloud_key(prov))
+    if prov["kind"] == "proxy":
+        return _port_open(prov["probe"])
+    return False
+
+
+def list_cloud_available():
+    """Retourne la liste des fournisseurs cloud actuellement utilisables."""
+    return [n for n in CLOUD_PROVIDERS if cloud_available(n)]
+
+
+def generate_cloud(prompt, sys_prompt="Tu es JARVIS, assistant IA d'élite.",
+                   provider=None, max_tokens=1024, temperature=0.3, timeout=120):
+    """Inférence via un fournisseur cloud OpenAI-compat (Gemini proxy / Mistral / Manus).
+
+    provider=None → essaie dans l'ordre gemini, mistral, manus (premier dispo qui répond).
+    Retourne le dict standard {content, source, latency, success, model, provider}.
+    """
+    order = [provider] if provider else ["gemini", "mistral", "manus"]
+    last_err = ""
+    for name in order:
+        prov = CLOUD_PROVIDERS.get(name)
+        if not prov or not cloud_available(name):
+            continue
+        try:
+            headers = {"Content-Type": "application/json"}
+            key = _cloud_key(prov)
+            if key:
+                headers["Authorization"] = f"Bearer {key}"
+            payload = json.dumps({
+                "model": prov["model"],
+                "messages": [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": temperature,
+                "max_tokens": max(max_tokens, 256),
+            }).encode("utf-8")
+            req = urllib.request.Request(prov["chat_url"], data=payload, headers=headers)
+            t0 = time.time()
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode())
+                content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+                if content:
+                    return {
+                        "content": content,
+                        "source": f"Cloud {name} ({prov['model']})",
+                        "latency": round(time.time() - t0, 2),
+                        "success": True,
+                        "model": prov["model"],
+                        "provider": name,
+                    }
+        except Exception as e:
+            last_err = f"{name}: {e}"
+            continue
+    return {"content": "", "source": "AUCUN cloud dispo", "latency": 0.0,
+            "success": False, "model": "none", "error": last_err}
