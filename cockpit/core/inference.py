@@ -51,18 +51,30 @@ def _lmstudio_base(timeout: float = 0.5):
 
 
 def _lmstudio_local_model(base_url: str, timeout: float = 2.0):
-    """Choisit un modèle de chat disponible dans le LM Studio (hors embeddings)."""
+    """Modèle de chat RÉSIDENT (déjà chargé en VRAM) du LM Studio local.
+
+    Doctrine rig "mining" (Notion ⛏️ « rig de minage reconverti ») : les 3 GPU
+    sont sur des risers PCIe x1 → charger un modèle ~9 Go prend des MINUTES et
+    fige l'API (« Engine protocol startup was aborted », HTTP 000). On ne doit
+    JAMAIS déclencher de chargement JIT depuis le cockpit. On lit donc
+    /api/v0/models (endpoint natif LM Studio, champ `state`) et on ne retient
+    qu'un modèle déjà `loaded`. Si aucun n'est résident → None (tier-0 sauté,
+    repli Ollama). Une fois chargé, l'inférence tourne en VRAM en ~2 s.
+    """
     try:
-        req = urllib.request.Request(f"{base_url}/v1/models")
+        req = urllib.request.Request(f"{base_url}/api/v0/models")
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            ids = [m.get("id") for m in json.loads(resp.read().decode()).get("data", [])]
-        ids = [i for i in ids if i and "embed" not in i.lower()]
-        if not ids:
+            data = json.loads(resp.read().decode()).get("data", [])
+        loaded = [m.get("id") for m in data
+                  if m.get("state") == "loaded"
+                  and m.get("type") != "embeddings"
+                  and m.get("id") and "embed" not in m.get("id", "").lower()]
+        if not loaded:
             return None
         for pref in _LMSTUDIO_PREFERRED:
-            if pref in ids:
+            if pref in loaded:
                 return pref
-        return ids[0]
+        return loaded[0]
     except Exception:
         return None
 
@@ -116,6 +128,11 @@ def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant 
                     content = (choice.get("content") or "").strip()
                     if not content and "reasoning_content" in choice:
                         content = choice["reasoning_content"].strip()
+                    # Reasoning-runaway (doctrine Notion) : qwen3.x/deepseek-r1
+                    # peuvent renvoyer le raisonnement dans <think>…</think> suivi
+                    # de la réponse — on ne garde que ce qui suit le think fermé.
+                    if "</think>" in content:
+                        content = content.split("</think>")[-1].strip()
                     if content:
                         return {
                             "content": content,

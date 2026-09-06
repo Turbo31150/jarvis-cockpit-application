@@ -51,7 +51,15 @@ def get_vram_info() -> dict:
             if gpus:
                 tot_used = sum(g["used"] for g in gpus)
                 tot_total = sum(g["total"] for g in gpus)
-                max_temp = max(g["temp"] for g in gpus)
+                # Garde thermique — doctrine rig "mining" (Notion ⛏️, règle #3) :
+                # la GTX 1660 SUPER n'a plus de ventilateur (82-91 °C à 1 % d'usage).
+                # Prendre le max ferait sonner l'alerte en permanence à cause de cette
+                # carte oisive. On l'exclut du garde-fou (sans masquer son détail dans
+                # `gpus`), et on retombe sur la médiane si la liste devenait vide.
+                temps_garde = [g["temp"] for g in gpus if "1660" not in g["name"]]
+                if not temps_garde:
+                    temps_garde = sorted(g["temp"] for g in gpus)[len(gpus) // 2:len(gpus) // 2 + 1]
+                max_temp = max(temps_garde)
                 avg_util = round(sum(g["util"] for g in gpus) / len(gpus))
                 if len(gpus) == 1:
                     name_summary = gpus[0]["name"]
