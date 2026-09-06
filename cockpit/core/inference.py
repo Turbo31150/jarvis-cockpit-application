@@ -39,7 +39,17 @@ _LMSTUDIO_CANDIDATES = [
     "http://127.0.0.1:1234",
     "http://192.168.42.241:1234",
 ]
-_LMSTUDIO_PREFERRED = ["qwen3-8b", "qwen2.5-7b", "mistral-7b-instruct", "gemma3-4b", "qwen3-1.7b"]
+# Ordre de préférence LM Studio (surchargé par JARVIS_LMSTUDIO_MODELS, CSV).
+# La sélection reste RÉSIDENT-only : un nom absent/non chargé est simplement ignoré,
+# donc lister gemma3.5 (pas encore installé) est sans risque.
+_LMSTUDIO_PREFERRED = [m.strip() for m in os.environ.get(
+    "JARVIS_LMSTUDIO_MODELS",
+    "qwen3-8b, gemma3.5, gemma3-4b, qwen2.5-7b, mistral-7b-instruct, deepseek-r1-7b, qwen3-1.7b"
+).split(",") if m.strip()]
+
+# Modèles à raisonnement : on préfixe le prompt de « /nothink » (usage documenté
+# sur GitHub, jarvis/docs/ARCHITECTURE.md) pour couper le <think> à la source.
+_NOTHINK_MODELS = ("qwen3", "deepseek-r1", "deepseek-r1-7b", "-r1")
 
 
 def _lmstudio_base(timeout: float = 0.5):
@@ -110,11 +120,15 @@ def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant 
         if base:
             modele = _lmstudio_local_model(base)
             if modele:
+                # /nothink pour qwen3/deepseek-r1 (usage GitHub) → réponse directe.
+                user_content = prompt
+                if any(tag in modele.lower() for tag in _NOTHINK_MODELS):
+                    user_content = "/nothink\n" + prompt
                 payload = json.dumps({
                     "model": modele,
                     "messages": [
                         {"role": "system", "content": sys_prompt},
-                        {"role": "user", "content": prompt}
+                        {"role": "user", "content": user_content}
                     ],
                     "temperature": temperature,
                     "max_tokens": effective_max_tokens
