@@ -11,7 +11,8 @@ import time
 import socket
 import urllib.request
 from urllib.parse import urlparse
-from .config import M6_URL, OLLAMA_URL, CHAT_PROXY_URL
+from .config import (M6_URL, OLLAMA_URL, CHAT_PROXY_URL,
+                     OLLAMA_2060_URL, OLLAMA_EMBED_URL, EMBED_MODEL)
 
 
 def _port_open(url: str, timeout: float = 0.5) -> bool:
@@ -24,7 +25,8 @@ def _port_open(url: str, timeout: float = 0.5) -> bool:
         return False
 
 # Ordre de préférence si présents ; complété dynamiquement par /api/tags.
-_OLLAMA_PREFERRED = ["qwen2.5:7b", "gemma3:4b", "qwen2.5:1.5b"]
+# Rig "mining" : qwen3:8b (RTX 3080) prioritaire, puis repli local.
+_OLLAMA_PREFERRED = ["qwen3:8b", "qwen2.5:7b", "gemma3:4b", "qwen2.5:1.5b"]
 
 
 def list_ollama_models(timeout: float = 1.5) -> list:
@@ -114,6 +116,32 @@ def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant 
         except Exception:
             continue
 
+    # 2b. Tier 2b : délestage RTX 2060 (127.0.0.1:11435, qwen2.5:7b épinglé)
+    #     Utile quand la 3080 (:11434) est occupée par un autre client (cockpit, IDE).
+    try:
+        if _port_open(OLLAMA_2060_URL):
+            ol_payload = json.dumps({
+                "model": "qwen2.5:7b",
+                "prompt": full_prompt,
+                "stream": False,
+                "options": {"num_predict": max(64, min(max_tokens, 384)), "temperature": temperature}
+            }).encode("utf-8")
+            req_ol = urllib.request.Request(f"{OLLAMA_2060_URL}/api/generate", data=ol_payload, headers={"Content-Type": "application/json"})
+            t0 = time.time()
+            with urllib.request.urlopen(req_ol, timeout=90) as resp_ol:
+                data_ol = json.loads(resp_ol.read().decode())
+                content = data_ol.get("response", "").strip()
+                if content:
+                    return {
+                        "content": content,
+                        "source": "RTX 2060 (Ollama qwen2.5:7b, délestage)",
+                        "latency": round(time.time() - t0, 2),
+                        "success": True,
+                        "model": "qwen2.5:7b"
+                    }
+    except Exception:
+        pass
+
     # 3. Tier 3 : Chat Proxy (127.0.0.1:18800)
     try:
         proxy_payload = json.dumps({
@@ -147,3 +175,32 @@ def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant 
         "success": False,
         "model": "none"
     }
+
+
+def embed(inputs, timeout: float = 30.0) -> dict:
+    """Vectorisation permanente via la GTX 1660S (Ollama :11436, nomic-embed-text résident).
+
+    inputs : str ou list[str]. Retourne {"embeddings": [...], "model", "source", "success"}.
+    Le modèle reste chargé (KEEP_ALIVE=-1) → pas de coût de rechargement.
+    """
+    if isinstance(inputs, str):
+        inputs = [inputs]
+    try:
+        if not _port_open(OLLAMA_EMBED_URL):
+            raise ConnectionError("instance embeddings (1660S) hors-ligne")
+        payload = json.dumps({"model": EMBED_MODEL, "input": inputs}).encode("utf-8")
+        req = urllib.request.Request(f"{OLLAMA_EMBED_URL}/api/embed", data=payload, headers={"Content-Type": "application/json"})
+        t0 = time.time()
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode())
+            embs = data.get("embeddings") or ([data["embedding"]] if "embedding" in data else [])
+            return {
+                "embeddings": embs,
+                "model": EMBED_MODEL,
+                "source": "GTX 1660S (Ollama nomic-embed-text)",
+                "latency": round(time.time() - t0, 2),
+                "success": bool(embs),
+            }
+    except Exception as e:
+        return {"embeddings": [], "model": EMBED_MODEL, "source": "AUCUN",
+                "latency": 0.0, "success": False, "error": str(e)}

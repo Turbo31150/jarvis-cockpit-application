@@ -55,6 +55,16 @@ M4_HOST = "127.0.0.1"
 OLLAMA_PORT = 11434
 OLLAMA_URL = f"http://{M4_HOST}:{OLLAMA_PORT}"
 
+# ── Rig GPU local "mining" (MàJ 2026-09-06) ────────────────────────────────
+# 3 GPU NVIDIA épinglés à 3 instances Ollama dédiées (Vulkan off, PCI_BUS_ID,
+# persistence mode ON, swap 32 Go). Chaque instance ne voit QUE sa carte.
+OLLAMA_3080_URL  = f"http://{M4_HOST}:11434"   # RTX 3080 (idx1) → qwen3:8b     (chat principal, ~65 tok/s)
+OLLAMA_2060_URL  = f"http://{M4_HOST}:11435"   # RTX 2060 (idx0) → qwen2.5:7b   (secondaire / délestage)
+OLLAMA_EMBED_URL = f"http://{M4_HOST}:11436"   # GTX 1660S(idx2) → nomic-embed-text (vectorisation permanente, KEEP_ALIVE=-1)
+CHAT_MODEL_3080  = "qwen3:8b"
+CHAT_MODEL_2060  = "qwen2.5:7b"
+EMBED_MODEL      = "nomic-embed-text"
+
 CHAT_PROXY_PORT = 18800
 CHAT_PROXY_URL = f"http://{M4_HOST}:{CHAT_PROXY_PORT}"
 
@@ -71,8 +81,9 @@ ORGANES = [
     ("CDP authentifié",             "127.0.0.1", 9222,  "Session navigateur réelle (LinkedIn/Upwork)"),
     ("BrowserOS serve",             "127.0.0.1", 9201,  "Service BrowserOS"),
     ("OpenClaw daemon",             "127.0.0.1", 18789, "Moteur multi-agents ACP"),
-    ("Ollama Local M4",             "127.0.0.1", 11434, "Inférence locale (gemma3:4b, qwen2.5:7b)"),
-    ("LM Studio M6 (Câble direct)", "10.42.0.230", 1234, "Lien USB-C/RJ45 direct · 4 GPU"),
+    ("Ollama RTX 3080 (chat)",      "127.0.0.1", 11434, "qwen3:8b épinglé RTX 3080 · ~65 tok/s"),
+    ("Ollama RTX 2060 (délestage)", "127.0.0.1", 11435, "qwen2.5:7b épinglé RTX 2060"),
+    ("Ollama GTX 1660S (vecto)",    "127.0.0.1", 11436, "nomic-embed-text · vectorisation permanente"),
     ("Board OS Serveur",            "127.0.0.1", 8795,  "Serveur de corpus FTS5 & experts"),
     ("Cockpit Web PWA",             "127.0.0.1", 8600,  "Serveur applicatif desktop & web"),
     ("PostgreSQL 15 Swarm",         "127.0.0.1", 5432,  "Base jarvis_agents relationnelle/vecto"),

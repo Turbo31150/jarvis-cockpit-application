@@ -72,37 +72,37 @@ SIEGES = [
     {
         "id": "remi", "nom": "Rémi (Nœud Stratégique M1)",
         "role": "Superviseur d'infrastructure et garant de la continuité opérationnelle du cluster distribué.",
-        "avatar": "fa-server text-emerald-400", "badge": f"M1 · {REMI_IP}", "preferred": "m1",
+        "avatar": "fa-server text-emerald-400", "badge": f"M1 · {REMI_IP}", "preferred": "ollama:qwen2.5:1.5b",
     },
     {
         "id": "claude", "nom": "Claude Code (Architecte Code & Logique)",
         "role": "Architecte logiciel, vérificateur de syntaxe, rigueur formelle et conception de code propre.",
-        "avatar": "fa-crown text-amber-400", "badge": "Anthropic CLI", "preferred": None,
+        "avatar": "fa-crown text-amber-400", "badge": "Anthropic CLI", "preferred": "ollama:qwen2.5:1.5b",
     },
     {
         "id": "gemini", "nom": "Gemini AI Studio (Synthèse & Multimodal)",
         "role": "Analyse rapide de grands volumes de données, créativité et projection écosystème.",
-        "avatar": "fa-wand-magic-sparkles text-sky-400", "badge": "Google AI Studio", "preferred": None,
+        "avatar": "fa-wand-magic-sparkles text-sky-400", "badge": "Google AI Studio", "preferred": "ollama:qwen2.5:1.5b",
     },
     {
         "id": "ollama", "nom": "Qwen 2.5 Local (Souveraineté 0-Token)",
         "role": "Calcul d'inférence déconnecté, sécurité totale sans fuite de données hors de la machine.",
-        "avatar": "fa-shield-halved text-cyan-400", "badge": "Local :11434", "preferred": "ollama:qwen2.5:7b",
+        "avatar": "fa-shield-halved text-cyan-400", "badge": "Local :11434", "preferred": "ollama:qwen2.5:1.5b",
     },
     {
         "id": "openclaw", "nom": "Manus / OpenClaw (Agent Exécutant & PWA)",
         "role": "Exécution d'actions sur le système d'exploitation, orchestration des outils MCP et navigation.",
-        "avatar": "fa-robot text-purple-400", "badge": "Gateway :18789", "preferred": None,
+        "avatar": "fa-robot text-purple-400", "badge": "Gateway :18789", "preferred": "ollama:qwen2.5:1.5b",
     },
     {
         "id": "chatgpt", "nom": "ChatGPT (Gouvernance & Stratégie Produit)",
         "role": "Alignement stratégique, modélisation des besoins utilisateurs et vision globale.",
-        "avatar": "fa-comments text-teal-400", "badge": "Browser OS Hub", "preferred": None,
+        "avatar": "fa-comments text-teal-400", "badge": "Browser OS Hub", "preferred": "ollama:qwen2.5:1.5b",
     },
     {
         "id": "mistral", "nom": "Mistral AI (Spécialiste Algorithmique)",
         "role": "Optimisation des performances brutes, latences GPU et logique européenne souveraine.",
-        "avatar": "fa-wind text-orange-400", "badge": "Inférence Rapide", "preferred": "ollama:mistral",
+        "avatar": "fa-wind text-orange-400", "badge": "Inférence Rapide", "preferred": "ollama:qwen2.5:1.5b",
     },
 ]
 
@@ -366,6 +366,11 @@ def _formater_content(question: str, deliberations: list, consensus: dict,
     lignes.append("═" * 68)
     lignes.append(f"  TABLE RONDE — « {question} »")
     lignes.append(f"  {len(deliberations)} experts · {confiance}% d'avis réels (LLM) · {total_latency}s")
+    moteurs = sorted({d["source"] for d in deliberations if d.get("reel")})
+    if len(moteurs) == 1:
+        lignes.append(f"  ⚠️ Diversité limitée : un seul moteur répond pour tous les sièges — {moteurs[0]}")
+    elif len(moteurs) > 1:
+        lignes.append(f"  Moteurs distincts : {len(moteurs)} ({', '.join(moteurs)})")
     lignes.append("═" * 68)
     lignes.append("")
     for i, d in enumerate(deliberations, 1):
@@ -488,6 +493,7 @@ def run_table_ronde_deliberation(question: str, injecter_browser: bool = True,
         "sources_count": sources_count,           # ← attendu par l'onglet PyQt6
         "source": f"Table Ronde · {confiance}% réel · {consensus['source']}",
         "confidence": confiance,
+        "moteurs_distincts": sorted({d["source"] for d in deliberations if d.get("reel")}),
         "total_latency": total_time,
         "browser_context_included": injecter_browser,
         "board_context_included": injecter_board,
