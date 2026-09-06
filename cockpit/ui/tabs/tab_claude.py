@@ -87,7 +87,9 @@ class TabClaude(QWidget):
         preset_grid = QGridLayout()
         preset_grid.setSpacing(8)
         for idx, p in enumerate(CLAUDE_PRESETS):
-            b = QPushButton(p["title"])
+            display_title = p["title"].replace("&", "&&")
+            b = QPushButton(display_title)
+            b.setProperty("class", "ghost")
             b.clicked.connect(lambda _, prompt_text=p["prompt"]: self.load_preset_prompt(prompt_text))
             r, col = divmod(idx, 3)
             preset_grid.addWidget(b, r, col)
@@ -118,12 +120,44 @@ class TabClaude(QWidget):
         self.progress.setVisible(False)
         layout.addWidget(self.progress)
 
+        # Cyber Terminal Container
+        term_frame = QFrame()
+        term_frame.setStyleSheet("""
+            background-color: #030712;
+            border: 1px solid rgba(192, 132, 252, 0.3);
+            border-radius: 10px;
+        """)
+        tf_layout = QVBoxLayout(term_frame)
+        tf_layout.setContentsMargins(0, 0, 0, 0)
+        tf_layout.setSpacing(0)
+
+        # Terminal Title Bar
+        title_bar = QFrame()
+        title_bar.setStyleSheet("background: rgba(15, 23, 42, 0.8); border-bottom: 1px solid rgba(192, 132, 252, 0.2); border-top-left-radius: 9px; border-top-right-radius: 9px; padding: 4px 10px;")
+        tb_layout = QHBoxLayout(title_bar)
+        tb_layout.setContentsMargins(4, 2, 4, 2)
+        tb_layout.setSpacing(6)
+
+        dots = QLabel("🔴  🟡  🟢")
+        dots.setFont(QFont("Ubuntu", 8))
+        tb_layout.addWidget(dots)
+
+        term_title = QLabel("CLAUDE CODE CONSOLE • MONOPASSE / EXECUTION")
+        term_title.setFont(QFont("JetBrains Mono", 9, QFont.Weight.Bold))
+        term_title.setStyleSheet("color: #c084fc;")
+        tb_layout.addWidget(term_title)
+        tb_layout.addStretch()
+
+        tf_layout.addWidget(title_bar)
+
         # Output Console
         self.output_console = QTextEdit()
         self.output_console.setReadOnly(True)
-        self.output_console.setStyleSheet("background-color: #030712; color: #f8fafc; font-family: 'Fira Code', monospace; line-height: 1.4;")
+        self.output_console.setStyleSheet("background-color: transparent; border: none; color: #f8fafc; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 8px; line-height: 1.4;")
         self.output_console.setPlaceholderText("La sortie textuelle de Claude Code s'affichera ici en temps réel...")
-        layout.addWidget(self.output_console)
+        tf_layout.addWidget(self.output_console)
+
+        layout.addWidget(term_frame)
 
         # Bottom Bar: Copy & Clear
         bot_h = QHBoxLayout()

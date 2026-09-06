@@ -6,9 +6,20 @@ Centralized database manager for SQLite living databases, FTS5 Board corpus, Mas
 """
 
 import os
+import re
 import sqlite3
 import subprocess
 from .config import JARVIS_DIR, MASTER_DB, BOARD_DB, VECTOR_DB, SQL_CACHE
+
+
+def _fts_query(query: str) -> str:
+    """Transforme une question libre en requête FTS5 sûre (mots quotés, joints par OR).
+
+    Évite les erreurs de syntaxe FTS5 sur la ponctuation ('?', ':', etc.) et le
+    scan complet d'un LIKE sans correspondance sur les 528k chunks.
+    """
+    mots = re.findall(r"\w{3,}", query, flags=re.UNICODE)
+    return " OR ".join(f'"{m}"' for m in mots[:12])
 
 def get_board_stats() -> dict:
     """Lit les métriques exactes de board.db sans jamais recourir à des valeurs figées."""
@@ -33,35 +44,62 @@ def get_board_stats() -> dict:
     except Exception as e:
         return {"chunks": 0, "sources": 0, "domains": 0, "experts": 0, "status": f"Erreur: {e}", "summary": "Indisponible"}
 
+def _rows_to_chunks(rows: list) -> list[dict]:
+    return [
+        {
+            "id": r[0],
+            "domain": r[1],
+            "expert": r[2],
+            "title": r[3] or "Sans titre",
+            "snippet": (r[4][:300] + "...") if r[4] and len(r[4]) > 300 else (r[4] or ""),
+            "source": r[5] or "",
+        }
+        for r in rows
+    ]
+
+
 def search_board_fts(query: str, limit: int = 8) -> list[dict]:
-    """Recherche plein texte dans le corpus de la Bibliothèque Vivante board.db."""
+    """Recherche plein texte dans board.db via l'index FTS5 (rapide), repli LIKE borné."""
     if not os.path.exists(BOARD_DB) or not query.strip():
         return []
+    con = None
     try:
         con = sqlite3.connect(f"file:{BOARD_DB}?mode=ro", uri=True, timeout=4.0)
         c = con.cursor()
+
+        # 1. Voie rapide : index FTS5 (chunks_fts) avec requête sanitisée
+        fts = _fts_query(query)
+        if fts:
+            try:
+                c.execute("""
+                    SELECT c.id, c.domain_id, c.expert_id, s.title, c.text, s.url
+                    FROM chunks_fts f
+                    JOIN chunks c  ON c.rowid = f.rowid
+                    JOIN sources s ON c.source_id = s.id
+                    WHERE chunks_fts MATCH ?
+                    ORDER BY bm25(chunks_fts)
+                    LIMIT ?
+                """, (fts, limit))
+                rows = c.fetchall()
+                if rows:
+                    return _rows_to_chunks(rows)
+            except sqlite3.OperationalError:
+                pass  # index absent/corrompu → repli LIKE
+
+        # 2. Repli LIKE borné sur le titre (jamais de scan LIKE non borné sur text)
         c.execute("""
             SELECT c.id, c.domain_id, c.expert_id, s.title, c.text, s.url
-            FROM chunks c
-            JOIN sources s ON c.source_id = s.id
-            WHERE c.text LIKE ? OR s.title LIKE ?
+            FROM sources s
+            JOIN chunks c ON c.source_id = s.id
+            WHERE s.title LIKE ?
             LIMIT ?
-        """, (f"%{query}%", f"%{query}%", limit))
-        rows = c.fetchall()
-        con.close()
-        return [
-            {
-                "id": r[0],
-                "domain": r[1],
-                "expert": r[2],
-                "title": r[3] or "Sans titre",
-                "snippet": (r[4][:300] + "...") if len(r[4]) > 300 else r[4],
-                "source": r[5] or ""
-            }
-            for r in rows
-        ]
+        """, (f"%{query[:60]}%", limit))
+        return _rows_to_chunks(c.fetchall())
     except Exception:
         return []
+    finally:
+        if con is not None:
+            con.close()
 
 def get_vector_store_stats() -> dict:
     """Lit les métriques du store vectoriel (768D Nomic / document_vectors)."""

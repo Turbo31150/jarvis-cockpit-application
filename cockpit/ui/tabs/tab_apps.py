@@ -5,9 +5,10 @@ JARVIS COCKPIT — TAB 2 : APPLICATIONS DU BUREAU
 Comprehensive Hub scanning 100+ desktop applications and scripts with real-time search & filters.
 """
 
+import subprocess
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
-    QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QAbstractItemView
+    QTableWidget, QTableWidgetItem, QHeaderView, QFrame, QAbstractItemView, QGridLayout
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor, QIcon
@@ -46,20 +47,84 @@ class TabApps(QWidget):
         top_h.addWidget(btn_rescan)
         layout.addLayout(top_h)
 
-        # Categories Filter Pills Bar
-        cat_bar = QHBoxLayout()
-        cat_bar.setSpacing(6)
+        # Quick Launch Suite Bar (Boutons d'accès direct natifs en grille 2x6)
+        quick_frame = QFrame()
+        quick_frame.setStyleSheet("""
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(11, 19, 41, 0.9), stop:1 rgba(6, 12, 26, 0.95));
+            border: 1px solid rgba(0, 240, 255, 0.25);
+            border-radius: 12px;
+        """)
+        quick_grid = QGridLayout(quick_frame)
+        quick_grid.setContentsMargins(8, 8, 8, 8)
+        quick_grid.setSpacing(8)
+
+        quick_apps = [
+            ("👑 Claude Desktop", "purple", ["/usr/bin/claude-desktop"]),
+            ("🛰 Antigravity IDE", "purple", ["gnome-terminal", "--title=Google Antigravity", "--", "agy"]),
+            ("🖥 AnyDesk", "red", ["/home/turbo/.local/bin/anydesk"]),
+            ("🔌 Terminal Rémi", "cyan", ["/home/turbo/jarvis/scripts/terminal_direct_remi.sh"]),
+            ("🖥 Terminal M1", "cyan", ["gnome-terminal", "--title=Terminal M1", "--", "ssh", "turbo@192.168.1.85"]),
+            ("👤 Chrome Franck", "ghost", ["google-chrome", "--profile-directory=Profile 1"]),
+            ("⛏ Chrome Mining", "ghost", ["google-chrome", "--profile-directory=Profile 2"]),
+            ("👩 Chrome Claire", "ghost", ["google-chrome", "--profile-directory=Profile 3"]),
+            ("🎙️ Whisper STT", "green", ["bash", "-c", "notify-send 'Whisper' 'Enregistrement 5s...'; /home/turbo/jarvis/scripts/lumen/lumen-cli.sh record 5"]),
+            ("🌊 WhisperFlow", "purple", ["google-chrome", "--app=file:///home/turbo/jarvis/whisperflow/widget.html", "--window-size=450,600"]),
+            ("💡 Lumen Micro", "cyan", ["/home/turbo/jarvis/scripts/lumen/lumen-toggle-mic.sh"]),
+            ("💾 Sauvegarde Disque", "green", ["/home/turbo/jarvis/scripts/ouvrir_sauvegarde.sh"]),
+        ]
+
+        for idx, (name, cls, cmd) in enumerate(quick_apps):
+            btn = QPushButton(name)
+            if cls:
+                btn.setProperty("class", cls)
+            btn.clicked.connect(lambda _, c=cmd: subprocess.Popen(c, start_new_session=True))
+            r, c = divmod(idx, 6)
+            quick_grid.addWidget(btn, r, c)
+
+        layout.addWidget(quick_frame)
+
+        # Categories Filter Pills Bar (2 rangées cybernétiques pour zéro troncature)
+        cat_frame = QFrame()
+        cat_frame.setStyleSheet("background: transparent;")
+        cat_grid = QGridLayout(cat_frame)
+        cat_grid.setContentsMargins(0, 2, 0, 2)
+        cat_grid.setSpacing(6)
+
         self.cat_buttons = {}
-        for cat in APP_CATEGORIES:
-            b = QPushButton(cat)
+        for idx, cat in enumerate(APP_CATEGORIES):
+            display_title = cat.replace("&", "&&")
+            b = QPushButton(display_title)
             b.setCheckable(True)
+            b.setStyleSheet("""
+                QPushButton {
+                    background: rgba(15, 23, 42, 0.7);
+                    border: 1px solid rgba(0, 240, 255, 0.3);
+                    color: #94a3b8;
+                    font-size: 11px;
+                    font-weight: bold;
+                    padding: 5px 12px;
+                    border-radius: 6px;
+                }
+                QPushButton:hover {
+                    background: rgba(2, 132, 199, 0.25);
+                    color: #38bdf8;
+                    border-color: #38bdf8;
+                }
+                QPushButton:checked {
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284c7, stop:1 #00f0ff);
+                    color: #040817;
+                    font-weight: 800;
+                    border: 1px solid #38bdf8;
+                }
+            """)
             if cat == "TOUTES":
                 b.setChecked(True)
             b.clicked.connect(lambda _, c=cat: self.select_category(c))
-            cat_bar.addWidget(b)
+            r, c = divmod(idx, 5)
+            cat_grid.addWidget(b, r, c)
             self.cat_buttons[cat] = b
-        cat_bar.addStretch()
-        layout.addLayout(cat_bar)
+
+        layout.addWidget(cat_frame)
 
         # Applications Table
         self.table = QTableWidget()

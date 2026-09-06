@@ -6,6 +6,10 @@ Centralized configuration, paths, ports, cluster topology, and organ registries.
 """
 
 import os
+import socket
+
+HOSTNAME = socket.gethostname()
+MACHINE_NAME = os.environ.get("JARVIS_MACHINE", HOSTNAME.upper())
 
 # Base paths
 #

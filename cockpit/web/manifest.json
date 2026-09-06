@@ -1,14 +1,27 @@
 {
-  "name": "JARVIS Cockpit",
+  "name": "JARVIS COCKPIT OS",
   "short_name": "JARVIS",
-  "description": "Pilotage vocal du cluster JARVIS — M4, tour GPU M6 et téléphone",
+  "description": "Poste de commande unifié JARVIS — Terminals, IA, Outils & Téléphonie",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#0b0f14",
-  "theme_color": "#0b0f14",
+  "orientation": "any",
+  "background_color": "#040711",
+  "theme_color": "#040711",
   "lang": "fr",
   "icons": [
-    {"src": "/icone.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+    {
+      "src": "/icone-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icone.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }

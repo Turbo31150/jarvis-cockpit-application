@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# =============================================================================
+# TTX — MULTIPLEXEUR TMUX MAÎTRE 14 FENÊTRES (JARVIS OS COCKPIT)
+# =============================================================================
+# 14 fenêtres spécialisées unifiées :
+#  0: HUD-Master      - Shell maître interactif, alias JARVIS & supervision
+#  1: Claude-Code     - Claude Code CLI premier ordre
+#  2: Table-Ronde     - Débat d'experts multi-agents (Omega, Shield, Turbo)
+#  3: Planning-ToDo   - Board Plan & To-Do unifié (jarvis_master.db)
+#  4: Swarm-Services  - Docker Swarm, Conteneurs & Services système
+#  5: OpenClaw        - Daemon OpenClaw Gateway multi-agents
+#  6: Omega           - Agent Oméga Souverain
+#  7: Manus           - Agent Manus Autonome
+#  8: Mistral-Local   - LLM local Ollama / Modèles M4 souverains
+#  9: Web-CDP         - Navigateur Chrome CDP (:9222) & BrowserOS
+# 10: Gemini-CLI      - Google Gemini CLI (mode YOLO)
+# 11: Antigravity     - Agent Google Antigravity (agy)
+# 12: Widget-Cockpit  - API Cockpit (:8600) & Planning Widget
+# 13: Cluster-M6      - Nœud M6 GPU Câble direct (10.42.0.230)
+# =============================================================================
+set -uo pipefail
+
+SESSION="JARVIS-COCKPIT"
+
+if ! command -v tmux >/dev/null 2>&1; then
+    echo "Erreur: tmux n'est pas installé." >&2
+    exit 1
+fi
+
+case "${1:-}" in
+    --kill|-k)
+        tmux kill-session -t "$SESSION" 2>/dev/null && echo "Session $SESSION arrêtée." || echo "Session $SESSION inexistante."
+        exit 0
+        ;;
+    --list|-l)
+        tmux list-windows -t "$SESSION" 2>/dev/null || echo "Session $SESSION non active."
+        exit 0
+        ;;
+esac
+
+# Initialisation de la session si elle n'existe pas encore
+if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+    echo "Initialisation du multiplexeur TTX (14 fenêtres) : $SESSION..."
+
+    # 0: HUD-Master
+    tmux new-session -d -s "$SESSION" -n 'HUD-Master' -c "$HOME"
+    tmux send-keys -t "$SESSION:0" 'echo "═══ [0/13] JARVIS OS — HUD MASTER COCKPIT ═══" && jos status 2>/dev/null || true' C-m
+    tmux split-window -v -t "$SESSION:0" -c "$HOME"
+    tmux send-keys -t "$SESSION:0.1" 'echo "Console active JARVIS OS • Tapez ttx, jos cockpit, ou vos commandes." && bash' C-m
+
+    # 1: Claude-Code
+    tmux new-window -t "$SESSION:1" -n 'Claude-Code' -c "$HOME"
+    tmux send-keys -t "$SESSION:1" 'echo "═══ [1/13] CLAUDE CODE CLI ═══" && if [ -x "$HOME/.local/bin/claude" ]; then $HOME/.local/bin/claude; else echo "Claude CLI non configuré sur ce path"; bash; fi' C-m
+
+    # 2: Table-Ronde
+    tmux new-window -t "$SESSION:2" -n 'Table-Ronde' -c "$HOME"
+    tmux send-keys -t "$SESSION:2" 'echo "═══ [2/13] TABLE RONDE MULTI-AGENTS ═══" && if [ -f "$HOME/jarvis/board/dispatch_table_ronde.py" ]; then python3 "$HOME/jarvis/board/dispatch_table_ronde.py"; else echo "Prêt pour délibération d experts."; bash; fi' C-m
+
+    # 3: Planning-ToDo
+    tmux new-window -t "$SESSION:3" -n 'Planning-ToDo' -c "$HOME"
+    tmux send-keys -t "$SESSION:3" 'echo "═══ [3/13] PLANNING & TO-DO UNIFIÉ ═══" && if [ -f "$HOME/jarvis/bin/jarvis-planning-widget.py" ]; then python3 "$HOME/jarvis/bin/jarvis-planning-widget.py" 8899; else watch -n 3 "sqlite3 $HOME/jarvis/jarvis_master.db \"SELECT id, title, status FROM tasks ORDER BY id DESC LIMIT 15;\" 2>/dev/null || echo \"Base prête.\""; fi' C-m
+
+    # 4: Swarm-Services
+    tmux new-window -t "$SESSION:4" -n 'Swarm-Services' -c "$HOME"
+    tmux send-keys -t "$SESSION:4" 'echo "═══ [4/13] DOCKER SWARM & SERVICES ═══" && docker service ls 2>/dev/null || docker ps 2>/dev/null || systemctl --user list-units --type=service | grep jarvis' C-m
+
+    # 5: OpenClaw
+    tmux new-window -t "$SESSION:5" -n 'OpenClaw' -c "$HOME"
+    tmux send-keys -t "$SESSION:5" 'echo "═══ [5/13] OPENCLAW GATEWAY MULTI-AGENTS ═══" && journalctl --user -u openclaw-gateway -f --no-tail -n 30 2>/dev/null || echo "OpenClaw Gateway active sur ws://127.0.0.1:18789"' C-m
+
+    # 6: Omega
+    tmux new-window -t "$SESSION:6" -n 'Omega' -c "$HOME"
+    tmux send-keys -t "$SESSION:6" 'echo "═══ [6/13] AGENT OMÉGA SOUVERAIN ═══" && bash' C-m
+
+    # 7: Manus
+    tmux new-window -t "$SESSION:7" -n 'Manus' -c "$HOME"
+    tmux send-keys -t "$SESSION:7" 'echo "═══ [7/13] AGENT MANUS AUTONOME ═══" && bash' C-m
+
+    # 8: Mistral-Local
+    tmux new-window -t "$SESSION:8" -n 'Mistral-Local' -c "$HOME"
+    tmux send-keys -t "$SESSION:8" 'echo "═══ [8/13] INFÉRENCE LOCALE M4 (OLLAMA / MISTRAL) ═══" && ollama ps 2>/dev/null || echo "Ollama local actif sur :11434"' C-m
+
+    # 9: Web-CDP
+    tmux new-window -t "$SESSION:9" -n 'Web-CDP' -c "$HOME"
+    tmux send-keys -t "$SESSION:9" 'echo "═══ [9/13] CHROME DEVTOOLS PROTOCOL (:9222) ═══" && curl -s http://127.0.0.1:9222/json/version 2>/dev/null || echo "CDP Port 9222"' C-m
+
+    # 10: Gemini-CLI
+    tmux new-window -t "$SESSION:10" -n 'Gemini-CLI' -c "$HOME"
+    tmux send-keys -t "$SESSION:10" 'echo "═══ [10/13] GEMINI CLI (YOLO MODE) ═══" && if [ -x "$HOME/.local/bin/gemini" ]; then $HOME/.local/bin/gemini; else echo "Gemini CLI non présent"; bash; fi' C-m
+
+    # 11: Antigravity
+    tmux new-window -t "$SESSION:11" -n 'Antigravity' -c "$HOME"
+    tmux send-keys -t "$SESSION:11" 'echo "═══ [11/13] ANTIGRAVITY IDE (AGY) ═══" && if [ -x "$HOME/.local/bin/agy" ]; then $HOME/.local/bin/agy; else echo "Antigravity CLI (agy)"; bash; fi' C-m
+
+    # 12: Widget-Cockpit
+    tmux new-window -t "$SESSION:12" -n 'Widget-Cockpit' -c "$HOME"
+    tmux send-keys -t "$SESSION:12" 'echo "═══ [12/13] SERVEUR COCKPIT & WIDGET (:8600) ═══" && curl -s http://127.0.0.1:8600/api/status 2>/dev/null || echo "Cockpit port :8600"' C-m
+
+    # 13: Cluster-M6
+    tmux new-window -t "$SESSION:13" -n 'Cluster-M6' -c "$HOME"
+    tmux send-keys -t "$SESSION:13" 'echo "═══ [13/13] CLUSTER M6 GPU (10.42.0.230 CÂBLE DIRECT) ═══" && ping -c 2 10.42.0.230 2>/dev/null || true' C-m
+
+    # Retour à la fenêtre 0
+    tmux select-window -t "$SESSION:0"
+    echo "Multiplexeur TTX 14 fenêtres initialisé avec succès."
+else
+    # S'assurer que les fenêtres 6 à 13 existent si la session n'en avait que 6
+    NW=$(tmux list-windows -t "$SESSION" 2>/dev/null | wc -l)
+    if [ "$NW" -lt 14 ]; then
+        echo "Complétion de la session $SESSION ($NW fenêtres existantes) vers 14 fenêtres..."
+        for idx in $(seq "$NW" 13); do
+            case "$idx" in
+                6) nom="Omega"; cmd='echo "═══ [6/13] AGENT OMÉGA SOUVERAIN ═══" && bash' ;;
+                7) nom="Manus"; cmd='echo "═══ [7/13] AGENT MANUS AUTONOME ═══" && bash' ;;
+                8) nom="Mistral-Local"; cmd='echo "═══ [8/13] INFÉRENCE LOCALE M4 (OLLAMA) ═══" && ollama ps 2>/dev/null || bash' ;;
+                9) nom="Web-CDP"; cmd='echo "═══ [9/13] CHROME CDP (:9222) ═══" && curl -s http://127.0.0.1:9222/json/version 2>/dev/null || bash' ;;
+                10) nom="Gemini-CLI"; cmd='echo "═══ [10/13] GEMINI CLI ═══" && bash' ;;
+                11) nom="Antigravity"; cmd='echo "═══ [11/13] ANTIGRAVITY IDE (AGY) ═══" && bash' ;;
+                12) nom="Widget-Cockpit"; cmd='echo "═══ [12/13] COCKPIT (:8600) ═══" && curl -s http://127.0.0.1:8600/api/status 2>/dev/null || bash' ;;
+                13) nom="Cluster-M6"; cmd='echo "═══ [13/13] CLUSTER M6 GPU ═══" && ping -c 2 10.42.0.230 2>/dev/null || bash' ;;
+                *) nom="Extra-$idx"; cmd="bash" ;;
+            esac
+            tmux new-window -t "$SESSION:$idx" -n "$nom" -c "$HOME"
+            tmux send-keys -t "$SESSION:$idx" "$cmd" C-m
+        done
+    fi
+fi
+
+if [ "${1:-}" = "--init-only" ]; then
+    exit 0
+fi
+
+# Si déjà dans tmux, basculer vers la session
+if [ -n "${TMUX:-}" ]; then
+    tmux switch-client -t "$SESSION"
+else
+    exec tmux attach-session -t "$SESSION"
+fi

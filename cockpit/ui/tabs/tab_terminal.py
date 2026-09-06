@@ -43,8 +43,8 @@ class TabTerminal(QWidget):
             ("🚀 TTX Multiplexeur (14 Fenêtres)", "", "ttx"),
             ("👑 Claude Code (tmux)", "purple", "claude"),
             ("🛰 Antigravity IDE (agy)", "purple", "agy"),
-            ("🏛 Board OS Console", "", "python3 ~/jarvis/scripts/jarvis_board_app.py"),
-            ("💻 Shell Turbo M4", "green", "~/jarvis/scripts/start-turbo-m1.sh"),
+            ("🏛 Board OS Console", "", "/home/turbo/jarvis/board/launch_table_ronde_terminal.sh"),
+            ("💻 Shell Turbo M4", "green", "bash"),
         ]:
             b = QPushButton(title)
             if cls:

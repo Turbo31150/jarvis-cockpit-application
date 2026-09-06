@@ -53,6 +53,10 @@ from core.notion_engine import get_notion_stats, read_notion_file, run_notion_ba
 from core.bureau_engine import get_bureau_etat, run_bureau_action
 from core.inventaire import (get_postgres, get_tailscale,
                              get_peripheriques, get_inventaire_complet)
+from core.settings_engine import get_cockpit_settings, save_cockpit_settings
+from core.table_ronde_engine import (
+    run_table_ronde_deliberation, check_agent_status, get_browser_os_context
+)
 
 PORT = int(os.environ.get("COCKPIT_PORT", "8600"))
 M6_URL = f"http://{M6_HOST}:{M6_PORT}"
@@ -357,6 +361,20 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json({"success": True, "inventaire": get_inventaire_complet()})
             return
 
+        # ── PARAMÈTRES & CONFIGURATION ──
+        elif path == "/api/settings":
+            self.respond_json(get_cockpit_settings())
+            return
+
+        # ── STATUT DES AGENTS TABLE RONDE & BROWSER OS ──
+        elif path == "/api/table-ronde/status":
+            self.respond_json({
+                "success": True,
+                "agents": check_agent_status(),
+                "browser_context": get_browser_os_context()
+            })
+            return
+
         # ── SERVEURS MCP ──
         elif path == "/api/mcps":
             mcps = get_all_mcp_servers()
@@ -622,20 +640,25 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json(res)
             return
 
-        # ── TABLE RONDE MULTI-AGENTS ──
+        # ── PARAMÈTRES & CONFIGURATION ──
+        elif path == "/api/settings":
+            res = save_cockpit_settings(req_data)
+            self.respond_json(res)
+            return
+
+        # ── TABLE RONDE SOUVERAINE & BROWSER OS ──
         elif path == "/api/table-ronde":
-            question = req_data.get("question", "Stratégie de résilience du cluster.")
-            experts = [
-                ("Architecte Système (Omega)", "Tu es l'Architecte Système en Chef. Analyse d'un point de vue architectural."),
-                ("Stratège Résilience (Shield)", "Tu es le Responsable de la Sécurité et Résilience. Analyse les risques et tolérances aux pannes."),
-                ("Expert Performance (Turbo)", "Tu es le Lead Performance Engine. Analyse les latences, GPU et optimisations.")
-            ]
-            opinions = []
-            for name, role in experts:
-                p = f"Question du Conseil : '{question}'. Donne ton avis d'expert synthétique et percutant en 3-4 phrases."
-                r = run_inference_engine(p, sys_prompt=role, max_tokens=350)
-                opinions.append({"expert": name, "opinion": r["content"], "source": r["source"], "latency": r["latency"]})
-            self.respond_json({"success": True, "question": question, "deliberation": opinions})
+            question = req_data.get("question", "Stratégie opérationnelle globale du cluster.")
+            inject_browser = bool(req_data.get("injecter_browser", True))
+            inject_board = bool(req_data.get("injecter_board", True))
+            selected_agents = req_data.get("agents", None)
+            res = run_table_ronde_deliberation(
+                question=question,
+                injecter_browser=inject_browser,
+                injecter_board=inject_board,
+                agents_selectionnes=selected_agents
+            )
+            self.respond_json(res)
             return
 
         # ── SWAN STREAM ──

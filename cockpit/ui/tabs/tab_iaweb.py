@@ -4,7 +4,7 @@
 JARVIS COCKPIT — TAB : HUB IA WEB, CDP 9222 & NOTION VAULT
 """
 
-import webbrowser
+import subprocess
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QTextEdit, QSplitter
@@ -48,19 +48,23 @@ class TabIaWeb(QWidget):
         lbl_title.setStyleSheet("color: #38bdf8;")
         layout.addWidget(lbl_title)
 
-        # ── ACCÈS RAPIDES WEB ──
-        row_links = QHBoxLayout()
-        links = [
-            ("🤖 ChatGPT", "https://chatgpt.com/"),
-            ("👑 Claude.ai", "https://claude.ai/new"),
-            ("💎 Gemini AI", "https://gemini.google.com/app"),
-            ("🔍 Perplexity", "https://www.perplexity.ai/")
+        # ── APPLICATIONS IA DE BUREAU ──
+        row_apps = QHBoxLayout()
+        row_apps.setSpacing(8)
+        apps_list = [
+            ("👑 Claude Desktop", "purple", ["/usr/bin/claude-desktop"]),
+            ("⚡ Claude Code CLI", "", ["gnome-terminal", "--title=Claude Code CLI", "--", "claude"]),
+            ("🛰 Antigravity IDE", "purple", ["gnome-terminal", "--title=Google Antigravity", "--", "agy"]),
+            ("🌐 BrowserOS App", "cyan", ["/home/turbo/Téléchargements/BrowserOS.AppImage"]),
+            ("🤖 Chat Local Ollama", "amber", ["gnome-terminal", "--title=Inférence Locale Ollama", "--", "ollama", "run", "qwen2.5:1.5b"]),
         ]
-        for name, url in links:
+        for name, cls, cmd in apps_list:
             b = QPushButton(name)
-            b.clicked.connect(lambda _, u=url: webbrowser.open(u))
-            row_links.addWidget(b)
-        layout.addLayout(row_links)
+            if cls:
+                b.setProperty("class", cls)
+            b.clicked.connect(lambda _, c=cmd: subprocess.Popen(c, start_new_session=True))
+            row_apps.addWidget(b)
+        layout.addLayout(row_apps)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 

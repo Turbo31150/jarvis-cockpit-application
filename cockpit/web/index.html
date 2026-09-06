@@ -4,31 +4,87 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>JARVIS MASTER COCKPIT OS — Application Bureau Unifiée</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#040711">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="JARVIS">
+  <link rel="apple-touch-icon" href="/icone-192.png">
+  <link rel="icon" type="image/png" href="/icone-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/vendor/xterm.css">
   <script src="/vendor/xterm.js"></script>
   <script src="/vendor/xterm-addon-fit.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;600;700;800&display=swap');
-    body { font-family: 'Inter', sans-serif; background-color: #07090e; color: #e2e8f0; }
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=Orbitron:wght@600;800;900&display=swap');
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #040711;
+      background-image:
+        radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.12) 0%, transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+        linear-gradient(rgba(0, 240, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.015) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+      color: #e2e8f0;
+      letter-spacing: -0.01em;
+    }
+    .hud-title { font-family: 'Orbitron', 'Inter', sans-serif; letter-spacing: 0.08em; }
     .mono { font-family: 'JetBrains Mono', monospace; }
-    .glass { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
-    .glass-card { background: rgba(30, 41, 59, 0.65); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.06); }
-    .glow-cyan { box-shadow: 0 0 15px rgba(6, 182, 212, 0.35); }
-    .glow-emerald { box-shadow: 0 0 15px rgba(16, 185, 129, 0.35); }
-    .glow-indigo { box-shadow: 0 0 15px rgba(99, 102, 241, 0.35); }
-    .active-nav { background: linear-gradient(90deg, rgba(6,182,212,0.25) 0%, rgba(6,182,212,0.05) 100%); border-left: 3px solid #06b6d4; color: #38bdf8 !important; }
-    .app-tuile { transition: transform .12s ease, border-color .12s ease, background .12s ease; }
-    .app-tuile:hover:not(:disabled) { transform: translateY(-2px); }
+    .glass {
+      background: rgba(8, 14, 27, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(0, 240, 255, 0.12);
+    }
+    .glass-card {
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.75) 0%, rgba(7, 12, 24, 0.85) 100%);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(0, 240, 255, 0.12);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glass-card:hover {
+      border-color: rgba(0, 240, 255, 0.38);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.14), 0 8px 30px rgba(0, 0, 0, 0.55);
+      transform: translateY(-2px);
+    }
+    .glow-cyan { box-shadow: 0 0 20px rgba(0, 240, 255, 0.45); }
+    .glow-emerald { box-shadow: 0 0 20px rgba(16, 185, 129, 0.45); }
+    .glow-indigo { box-shadow: 0 0 20px rgba(99, 102, 241, 0.45); }
+    .glow-amber { box-shadow: 0 0 20px rgba(245, 158, 11, 0.45); }
+    .glow-rose { box-shadow: 0 0 20px rgba(244, 63, 94, 0.45); }
+    .active-nav {
+      background: linear-gradient(90deg, rgba(0, 240, 255, 0.22) 0%, rgba(0, 240, 255, 0.04) 100%) !important;
+      border-left: 3px solid #00f0ff !important;
+      color: #38bdf8 !important;
+      box-shadow: inset 0 0 15px rgba(0, 240, 255, 0.12);
+      text-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+    }
+    .app-tuile {
+      transition: transform .18s cubic-bezier(0.16, 1, 0.3, 1), border-color .18s ease, box-shadow .18s ease;
+    }
+    .app-tuile:hover:not(:disabled) {
+      transform: translateY(-3px) scale(1.01);
+      box-shadow: 0 10px 25px rgba(0, 240, 255, 0.15);
+      border-color: rgba(0, 240, 255, 0.5);
+    }
     .app-tuile:disabled { opacity: .32; cursor: not-allowed; }
-    .term-onglet.actif { background: rgba(6,182,212,.2); border-color: #06b6d4; color: #67e8f9; }
-    #term-scene .xterm { padding: 10px 12px; height: 100%; }
+    .term-onglet.actif {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.25) 0%, rgba(14, 165, 233, 0.15) 100%);
+      border-color: #00f0ff;
+      color: #e0f2fe;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+    }
+    #term-scene .xterm { padding: 12px 14px; height: 100%; }
     #term-scene .xterm-viewport::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #0b0f17; }
-    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    ::-webkit-scrollbar-track { background: #040711; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; border: 1px solid rgba(0, 240, 255, 0.1); }
+    ::-webkit-scrollbar-thumb:hover { background: #00f0ff; box-shadow: 0 0 10px #00f0ff; }
   </style>
 </head>
 <body class="h-screen flex overflow-hidden select-none">
@@ -39,12 +95,12 @@
   <aside class="w-64 glass flex flex-col justify-between border-r border-slate-800/80 z-20 shrink-0">
     <div class="flex-1 flex flex-col min-h-0">
       <!-- Header / Logo -->
-      <div class="p-4 flex items-center gap-3 border-b border-slate-800/80 shrink-0">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-500 flex items-center justify-center text-black font-black text-xl shadow-lg glow-cyan">
+      <div class="p-4 flex items-center gap-3 border-b border-cyan-500/20 shrink-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-sky-400 to-indigo-500 flex items-center justify-center text-black font-black text-xl shadow-lg glow-cyan">
           Ω
         </div>
         <div class="min-w-0">
-          <h1 class="font-bold text-sm tracking-wider text-slate-100 uppercase truncate">JARVIS COCKPIT</h1>
+          <h1 class="font-black text-sm tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-200 to-indigo-300 uppercase truncate hud-title">JARVIS COCKPIT</h1>
           <span class="text-[11px] text-cyan-400 mono flex items-center gap-1.5 font-medium">
             <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> M4 MASTER OS v6
           </span>
@@ -96,7 +152,10 @@
           <i class="fa-solid fa-globe w-4 text-blue-400"></i> Hub IA Web & CDP
         </button>
         <button onclick="showTab('bureau')" id="nav-bureau" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
-          <i class="fa-solid fa-display w-4 text-rose-400"></i> Bureau GNOME & Verrous
+          <i class="fa-solid fa-display w-4 text-rose-400"></i> <span data-i18n="nav_bureau">Bureau GNOME & Verrous</span>
+        </button>
+        <button onclick="showTab('settings')" id="nav-settings" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-sliders w-4 text-cyan-400"></i> <span data-i18n="nav_settings">Paramètres & Affichage</span>
         </button>
       </nav>
     </div>
@@ -105,6 +164,9 @@
     <div class="p-3 border-t border-slate-800/80 space-y-2 shrink-0">
       <button onclick="triggerReplay()" class="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-md transition">
         <i class="fa-solid fa-arrows-rotate"></i> Rejouer & Réparer 1-Clic
+      </button>
+      <button onclick="installerAppMobile()" class="w-full bg-slate-800/80 hover:bg-slate-700/80 text-cyan-300 border border-cyan-500/30 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition">
+        <i class="fa-solid fa-mobile-screen-button text-cyan-400"></i> Installer sur Téléphone
       </button>
       <div class="text-[10px] text-slate-500 text-center mono truncate">
         Cluster M4 (78°C) · M6 RJ45 (10.42.0.230)
@@ -115,28 +177,34 @@
   <!-- ===================================================================== -->
   <!-- CONTENU PRINCIPAL SCROLLABLE -->
   <!-- ===================================================================== -->
-  <main class="flex-1 flex flex-col min-w-0 bg-[#07090e] overflow-hidden">
+  <main class="flex-1 flex flex-col min-w-0 bg-transparent overflow-hidden">
     
     <!-- Top Bar Telemetry HUD -->
-    <header class="h-16 glass border-b border-slate-800/80 px-6 flex items-center justify-between z-10 shrink-0">
+    <header class="h-16 glass border-b border-cyan-500/20 px-6 flex items-center justify-between z-10 shrink-0 shadow-lg">
       <div class="flex items-center gap-4 min-w-0">
-        <span id="section-title" class="font-bold text-base text-slate-100 truncate">Dashboard Cluster</span>
-        <div id="m6-badge" class="px-2.5 py-1 rounded-full bg-rose-950/60 border border-rose-800/80 text-rose-400 text-xs mono flex items-center gap-1.5 shrink-0">
+        <span id="section-title" class="font-black text-base tracking-wide text-slate-100 truncate hud-title">Dashboard Cluster</span>
+        <div id="m6-badge" class="px-2.5 py-1 rounded-full bg-rose-950/60 border border-rose-700/80 text-rose-300 text-xs mono flex items-center gap-1.5 shrink-0 glow-rose">
           <span class="w-2 h-2 rounded-full bg-rose-400"></span> M6 GPU : HORS LIGNE
+        </div>
+        <div class="px-2.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-700/80 text-cyan-300 text-xs mono flex items-center gap-1.5 shrink-0">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span> OLLAMA QWEN2.5 : ACTIF
         </div>
       </div>
       <div class="flex items-center gap-4 text-xs mono shrink-0">
-        <div class="text-slate-400">
-          <i class="fa-solid fa-microchip text-sky-400 mr-1"></i> GPU VRAM: <span id="m4-vram" class="text-white font-bold">-- / 4096 MB</span>
+        <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
+          <i class="fa-solid fa-microchip text-sky-400 mr-1"></i> GPU: <span id="m4-vram" class="text-cyan-300 font-bold">5 GPU OK</span>
         </div>
-        <div class="text-slate-400">
-          <i class="fa-solid fa-temperature-half text-amber-400 mr-1"></i> T° CPU: <span id="m4-temp" class="text-white font-bold">--°C</span>
+        <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
+          <i class="fa-solid fa-temperature-half text-amber-400 mr-1"></i> T° CPU: <span id="m4-temp" class="text-amber-300 font-bold">--°C</span>
         </div>
-        <div class="text-slate-400">
+        <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
           <i class="fa-solid fa-memory text-cyan-400 mr-1"></i> RAM: <span id="m4-ram" class="text-white font-bold">-- GB</span>
         </div>
-        <div class="h-4 w-px bg-slate-800"></div>
-        <div id="clock" class="text-xs font-semibold text-slate-300">--:--:--</div>
+        <div class="h-5 w-px bg-cyan-500/20"></div>
+        <button id="btn-pwa-install" onclick="installerAppMobile()" class="px-3 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow glow-cyan transition" title="Installer l'application sur votre téléphone">
+          <i class="fa-solid fa-mobile-screen-button"></i> <span>Installer sur Tél</span>
+        </button>
+        <div id="clock" class="text-xs font-bold text-cyan-300 px-2.5 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/30 glow-cyan">--:--:--</div>
       </div>
     </header>
 
@@ -478,22 +546,82 @@
       </section>
 
       <!-- ================================================================= -->
-      <!-- TAB 6 : TABLE RONDE IA -->
+      <!-- TAB 6 : TABLE RONDE IA SOUVERAINE & BROWSER OS -->
       <!-- ================================================================= -->
       <section id="tab-tableronde" class="hidden space-y-6">
-        <div class="glass-card p-5 rounded-xl">
-          <h2 class="text-base font-bold text-slate-100 flex items-center gap-2 mb-3">
-            <i class="fa-solid fa-users-viewfinder text-indigo-400"></i> Délibération Multi-Agents (Conseil Souverain)
-          </h2>
+        <!-- Bandeau d'état des 7 Sièges IA & Connecteurs -->
+        <div class="glass-card p-4 rounded-xl border-l-4 border-indigo-500">
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+            <div>
+              <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-users-viewfinder text-indigo-400"></i> <span data-i18n="tr_title">Conseil des 7 Sièges IA & Browser OS</span>
+              </h2>
+              <p class="text-xs text-slate-400 mt-0.5" data-i18n="tr_subtitle">Délibération collective souveraine avec injection directe des contextes Chrome CDP, Profils, Cookies, Historique et Chunks Board OS.</p>
+            </div>
+            <button onclick="loadTableRondeStatus()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700/50 flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-rotate text-cyan-400"></i> <span data-i18n="tr_btn_status">Statut Sièges</span>
+            </button>
+          </div>
+          <div id="tr-agent-badges" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-[11px] mono">
+            <!-- Badges chargés dynamiquement -->
+          </div>
+        </div>
+
+        <!-- Contexte Browser OS & Options d'Injection -->
+        <div class="glass-card p-4 rounded-xl border border-cyan-500/20 bg-cyan-950/20 flex flex-wrap items-center justify-between gap-4 text-xs">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 font-bold mono">
+              <i class="fa-solid fa-globe mr-1"></i> BROWSER OS
+            </span>
+            <span id="tr-browser-summary" class="text-slate-300">CDP :9222 connecté · Profils ChatGPT, Gemini, Claude, Mistral</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2 cursor-pointer text-slate-300">
+              <input type="checkbox" id="tr-chk-browser" checked class="rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0">
+              <span data-i18n="tr_inject_browser">Injecter Cookies & Historique</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer text-slate-300">
+              <input type="checkbox" id="tr-chk-board" checked class="rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-0">
+              <span data-i18n="tr_inject_board">Injecter Board OS (528k chunks)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Barre de Question & Presets -->
+        <div class="glass-card p-5 rounded-xl space-y-3">
+          <div class="flex flex-wrap gap-2 text-xs">
+            <span class="text-slate-400 font-semibold py-1" data-i18n="tr_presets_title">Presets rapides :</span>
+            <button onclick="setTRQuestion('Comment orchestrer les 5 GPU et synchroniser Browser OS avec Rémi ?')" class="px-2.5 py-1 rounded bg-slate-800/70 hover:bg-slate-700 text-slate-300 transition">5-GPU & Rémi M1</button>
+            <button onclick="setTRQuestion('Stratégie de résilience et sauvegarde complète Bare-Metal / VHDX')" class="px-2.5 py-1 rounded bg-slate-800/70 hover:bg-slate-700 text-slate-300 transition">Sauvegarde VHDX & BM</button>
+            <button onclick="setTRQuestion('Audit de sécurité des tokens et serveurs MCP connectés')" class="px-2.5 py-1 rounded bg-slate-800/70 hover:bg-slate-700 text-slate-300 transition">Audit Sécurité MCP</button>
+          </div>
           <div class="flex gap-3">
-            <input type="text" id="tr-question" placeholder="Posez une question stratégique ou technique aux 3 experts..." 
+            <input type="text" id="tr-question" placeholder="Posez une directive stratégique ou technique aux 7 sièges IA du Conseil..." 
                    class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
-            <button onclick="runTableRonde()" id="btn-tr" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition flex items-center gap-2">
-              <i class="fa-solid fa-paper-plane"></i> Délibérer
+            <button onclick="runTableRonde()" id="btn-tr" class="bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition flex items-center gap-2 shadow-lg glow-indigo">
+              <i class="fa-solid fa-paper-plane"></i> <span data-i18n="tr_btn_deliberer">Délibérer au Conseil</span>
             </button>
           </div>
         </div>
-        <div id="tr-results" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+
+        <!-- Grille des Résultats & Délibérations des 7 Sièges -->
+        <div id="tr-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+        <!-- Carte Synthèse Souveraine (Consensus) -->
+        <div id="tr-consensus-card" class="glass-card p-5 rounded-xl border-l-4 border-emerald-500 hidden">
+          <div class="flex justify-between items-start gap-4 mb-2">
+            <h3 class="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-certificate"></i> <span data-i18n="tr_consensus_title">Consensus Souverain du Conseil</span>
+            </h3>
+            <span id="tr-latency-tag" class="text-xs mono text-slate-400"></span>
+          </div>
+          <div id="tr-consensus-text" class="text-sm text-slate-200 leading-relaxed bg-slate-950/50 p-4 rounded-lg border border-slate-800"></div>
+          <div class="mt-4 flex justify-end gap-3">
+            <button onclick="creerChantierDepuisConsensus()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition shadow">
+              <i class="fa-solid fa-bolt"></i> <span data-i18n="tr_btn_creer_chantier">Créer Chantier de Production 1-Clic</span>
+            </button>
+          </div>
+        </div>
       </section>
 
       <!-- ================================================================= -->
@@ -896,6 +1024,33 @@
   <!-- LOGIQUE JAVASCRIPT UNIFIÉE -->
   <!-- ===================================================================== -->
   <script>
+    // Enregistrement PWA Service Worker pour installation mobile
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('PWA SW err:', err));
+      });
+    }
+
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    function installerAppMobile() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('App installée sur le téléphone');
+          }
+          deferredPrompt = null;
+        });
+      } else {
+        alert("📲 Pour installer JARVIS COCKPIT OS sur votre téléphone :\n\n• Android (Chrome / Brave / Edge) :\n  Appuyez sur le menu (les 3 points en haut à droite)\n  puis sur « Installer l'application » ou « Ajouter à l'écran d'accueil ».\n\n• iPhone / iPad (Safari) :\n  Appuyez sur l'icône Partager (carré avec flèche vers le haut)\n  puis sur « Sur l'écran d'accueil ».\n\nL'application s'ouvrira ensuite en plein écran comme une application native !");
+      }
+    }
+
     let ALL_APPS = [];
     let ALL_MCPS = [];
     let ALL_BASES = [];

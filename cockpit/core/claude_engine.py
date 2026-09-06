@@ -188,7 +188,7 @@ def launch_claude_interactive(mode: str = "default", cwd: str = None) -> bool:
     work_dir = cwd or JARVIS_DIR
     
     if mode == "tmux":
-        cmd = os.path.join(HOME, "Bureau", "OUVRIR_CLAUDE_CODE_TMUX.sh")
+        cmd = "/home/turbo/jarvis/bin/ouvrir-claude-code-tmux.sh"
     elif mode == "resume":
         cmd = f"cd '{work_dir}' && {CLAUDE_BIN} -r"
     elif mode == "doctor":

@@ -12,7 +12,7 @@ import json
 import time
 import urllib.request
 from .config import (
-    M6_HOST, M6_PORT, M6_URL, OLLAMA_URL, ORGANES
+    M6_HOST, M6_PORT, M6_URL, OLLAMA_URL, ORGANES, MACHINE_NAME
 )
 
 def is_port_open(host: str, port: int, timeout: float = 0.25) -> bool:
@@ -27,26 +27,50 @@ def is_port_open(host: str, port: int, timeout: float = 0.25) -> bool:
         return False
 
 def get_vram_info() -> dict:
-    """Récupère les métriques du GPU NVIDIA local RTX 3050 Laptop."""
+    """Récupère les métriques GPU NVIDIA (support mono et multi-GPU)."""
     try:
         r = subprocess.run(
             ["nvidia-smi", "--query-gpu=name,memory.used,memory.total,temperature.gpu,utilization.gpu", "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=1
         )
         if r.returncode == 0 and r.stdout.strip():
-            parts = [p.strip() for p in r.stdout.strip().split(",")]
-            if len(parts) >= 5:
+            gpus = []
+            for line in r.stdout.strip().splitlines():
+                parts = [p.strip() for p in line.split(",") if p.strip()]
+                if len(parts) >= 5:
+                    try:
+                        gpus.append({
+                            "name": parts[0],
+                            "used": int(parts[1]),
+                            "total": int(parts[2]),
+                            "temp": int(parts[3]),
+                            "util": int(parts[4]),
+                        })
+                    except ValueError:
+                        continue
+            if gpus:
+                tot_used = sum(g["used"] for g in gpus)
+                tot_total = sum(g["total"] for g in gpus)
+                max_temp = max(g["temp"] for g in gpus)
+                avg_util = round(sum(g["util"] for g in gpus) / len(gpus))
+                if len(gpus) == 1:
+                    name_summary = gpus[0]["name"]
+                else:
+                    short_names = [g["name"].replace("NVIDIA GeForce ", "").replace("NVIDIA ", "") for g in gpus]
+                    name_summary = f"{len(gpus)}x GPUs ({', '.join(short_names)})"
                 return {
-                    "name": parts[0],
-                    "used": int(parts[1]),
-                    "total": int(parts[2]),
-                    "temp": int(parts[3]),
-                    "util": int(parts[4]),
-                    "available": True
+                    "name": name_summary,
+                    "used": tot_used,
+                    "total": tot_total,
+                    "temp": max_temp,
+                    "util": avg_util,
+                    "available": True,
+                    "count": len(gpus),
+                    "gpus": gpus
                 }
     except Exception:
         pass
-    return {"name": "NVIDIA RTX 3050 Laptop", "used": 0, "total": 4096, "temp": 0, "util": 0, "available": False}
+    return {"name": "Aucun GPU NVIDIA", "used": 0, "total": 0, "temp": 0, "util": 0, "available": False, "count": 0, "gpus": []}
 
 def get_ram_info() -> dict:
     """Lit /proc/meminfo pour des métriques précises sans spawn de process."""
@@ -188,15 +212,18 @@ def get_organes_status() -> list[dict]:
 
 def get_full_telemetry() -> dict:
     """Rassemble l'ensemble des sondes télémétriques."""
+    local_metrics = {
+        "vram": get_vram_info(),
+        "ram": get_ram_info(),
+        "cpu": get_cpu_info(),
+        "storage": get_storage_info()
+    }
     return {
         "timestamp": time.time(),
         "datetime": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "m4": {
-            "vram": get_vram_info(),
-            "ram": get_ram_info(),
-            "cpu": get_cpu_info(),
-            "storage": get_storage_info()
-        },
+        "machine": MACHINE_NAME,
+        "local": local_metrics,
+        "m4": local_metrics,
         "m6": get_m6_status(),
         "organes": get_organes_status()
     }

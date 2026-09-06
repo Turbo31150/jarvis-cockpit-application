@@ -45,16 +45,20 @@ class TabSwarm(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         layout.addWidget(self.table)
 
-        # Quick Web Openers
+        # Actions Bureau & Outils Système
         bot_h = QHBoxLayout()
-        for title, url in [
-            ("⚡ n8n (:5678)", "http://127.0.0.1:5678"),
-            ("🐳 Portainer (:9000)", "http://127.0.0.1:9000"),
-            ("🌐 Cockpit Web (:8600)", "http://127.0.0.1:8600"),
-            ("🎤 Whisper Voice (:9742)", "http://127.0.0.1:9742"),
-        ]:
+        bot_h.setSpacing(8)
+        actions = [
+            ("⚡ Journal des Services", "cyan", ["gnome-terminal", "--title=Journal des Services JARVIS", "--", "bash", "-lc", "journalctl --user -u 'jarvis*' -n 50 -f"]),
+            ("🐳 Conteneurs Docker", "", ["gnome-terminal", "--title=Docker Conteneurs Swarm", "--", "bash", "-lc", "docker ps -a 2>/dev/null || echo 'Docker non démarré'; exec bash"]),
+            ("🎤 Pilote Vocal Whisper", "green", ["gnome-terminal", "--title=JARVIS Whisper Voice", "--", "bash", "-lc", "python3 /home/turbo/jarvis/scripts/voice_pilot.py 2>/dev/null || bash"]),
+            ("🔍 Audit Santé Système", "amber", ["gnome-terminal", "--title=Audit Santé Système", "--", "bash", "-lc", "/home/turbo/jarvis/scripts/quick_health.sh 2>/dev/null || echo 'Diagnostic terminé'; read -p 'Entrée pour fermer'"]),
+        ]
+        for title, cls, cmd in actions:
             b = QPushButton(title)
-            b.clicked.connect(lambda _, u=url: subprocess.Popen(["xdg-open", u], start_new_session=True))
+            if cls:
+                b.setProperty("class", cls)
+            b.clicked.connect(lambda _, c=cmd: subprocess.Popen(c, start_new_session=True))
             bot_h.addWidget(b)
         bot_h.addStretch()
         layout.addLayout(bot_h)

@@ -8,16 +8,54 @@ Ensures 0-token cost, strict reasoning token padding (>=512 tokens) and transpar
 
 import json
 import time
+import socket
 import urllib.request
+from urllib.parse import urlparse
 from .config import M6_URL, OLLAMA_URL, CHAT_PROXY_URL
+
+
+def _port_open(url: str, timeout: float = 0.5) -> bool:
+    """Sonde TCP rapide : évite d'attendre le timeout HTTP complet sur un nœud absent."""
+    try:
+        p = urlparse(url)
+        with socket.create_connection((p.hostname, p.port or 80), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+# Ordre de préférence si présents ; complété dynamiquement par /api/tags.
+_OLLAMA_PREFERRED = ["qwen2.5:7b", "gemma3:4b", "qwen2.5:1.5b"]
+
+
+def list_ollama_models(timeout: float = 1.5) -> list:
+    """Retourne les modèles Ollama réellement installés (vide si service absent)."""
+    try:
+        req = urllib.request.Request(f"{OLLAMA_URL}/api/tags")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode())
+            return [m.get("name") for m in data.get("models", []) if m.get("name")]
+    except Exception:
+        return []
+
+
+def _ollama_candidates() -> list:
+    """Modèles à essayer : préférés présents d'abord, puis le reste des installés."""
+    installed = list_ollama_models()
+    if not installed:
+        return list(_OLLAMA_PREFERRED)  # tentative à l'aveugle si /api/tags échoue
+    ordered = [m for m in _OLLAMA_PREFERRED if m in installed]
+    ordered += [m for m in installed if m not in ordered]
+    return ordered
 
 def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant IA d'élite.", max_tokens: int = 1024, temperature: float = 0.3) -> dict:
     """Cascade d'inférence robuste : M6 GPU direct -> M4 Ollama -> Chat Proxy."""
     # Règle M4/M6 : max_tokens >= 512 pour éviter les sorties vides sur modèles à raisonnement
     effective_max_tokens = max(max_tokens, 512)
     
-    # 1. Tier 1 : Nœud M6 GPU (Lien direct 10.42.0.230)
+    # 1. Tier 1 : Nœud M6 GPU (Lien direct 10.42.0.230) — sondé avant appel
     try:
+        if not _port_open(M6_URL):
+            raise ConnectionError("M6 hors-ligne")
         payload = json.dumps({
             "model": "qwen2.5-coder-14b-instruct",
             "messages": [
@@ -47,20 +85,22 @@ def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant 
     except Exception:
         pass
 
-    # 2. Tier 2 : Ollama Local M4 (127.0.0.1:11434)
+    # 2. Tier 2 : Ollama Local M4 (127.0.0.1:11434) — modèles auto-découverts
     full_prompt = sys_prompt + "\n\n" + prompt
-    for model_name in ["gemma3:4b", "qwen2.5:7b"]:
+    for model_name in _ollama_candidates():
         try:
+            # Ollama (souvent CPU) : on respecte le budget demandé, sans le gonfler
+            # à 512 comme pour M6 — sinon un petit modèle dépasse le timeout.
             ol_payload = json.dumps({
                 "model": model_name,
                 "prompt": full_prompt,
                 "stream": False,
-                "options": {"num_predict": effective_max_tokens, "temperature": temperature}
+                "options": {"num_predict": max(64, min(max_tokens, 384)), "temperature": temperature}
             }).encode("utf-8")
-            
+
             req_ol = urllib.request.Request(f"{OLLAMA_URL}/api/generate", data=ol_payload, headers={"Content-Type": "application/json"})
             t0 = time.time()
-            with urllib.request.urlopen(req_ol, timeout=25) as resp_ol:
+            with urllib.request.urlopen(req_ol, timeout=90) as resp_ol:
                 data_ol = json.loads(resp_ol.read().decode())
                 content = data_ol.get("response", "").strip()
                 if content:

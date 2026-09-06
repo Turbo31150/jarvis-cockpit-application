@@ -2,18 +2,23 @@
 Version=1.0
 Type=Application
 Name=JARVIS Cockpit OS
-Comment=Application Bureau Unifiée de Pilotage et Création JARVIS-OMEGA
-Exec=/home/pamerys/jarvis/bin/jarvis-cockpit-app
-Icon=/home/pamerys/jarvis/cockpit/web/icone.png
+Comment=Application Bureau Unifiée de Pilotage et Création JARVIS-OMEGA (15 Onglets Natifs)
+Exec=/home/turbo/jarvis/bin/jarvis-cockpit-app --native
+Icon=/home/turbo/jarvis/cockpit/web/icone.png
 Terminal=false
 Categories=Utility;Development;System;
 StartupWMClass=JarvisCockpit
-Actions=NativeGUI;Restart;
+Actions=NativeGUI;WebPWA;Restart;
 
 [Desktop Action NativeGUI]
 Name=Ouvrir en Mode Natif PyQt6
-Exec=/home/pamerys/jarvis/bin/jarvis-cockpit-app --native
+Exec=/home/turbo/jarvis/bin/jarvis-cockpit-app --native
+
+[Desktop Action WebPWA]
+Name=Ouvrir en Mode Navigateur Web PWA
+Exec=/home/turbo/jarvis/bin/jarvis-cockpit-app --pwa
 
 [Desktop Action Restart]
 Name=Redémarrer les Services Cockpit
-Exec=/home/pamerys/jarvis/bin/jarvis-cockpit-app --restart
+Exec=/home/turbo/jarvis/bin/jarvis-cockpit-app --restart
+
