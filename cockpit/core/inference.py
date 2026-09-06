@@ -100,13 +100,28 @@ def list_ollama_models(timeout: float = 1.5) -> list:
         return []
 
 
+def _ollama_resident_models(timeout: float = 1.5) -> list:
+    """Modèles Ollama actuellement CHARGÉS en VRAM (via /api/ps)."""
+    try:
+        req = urllib.request.Request(f"{OLLAMA_URL}/api/ps")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode())
+            return [m.get("name") for m in data.get("models", []) if m.get("name")]
+    except Exception:
+        return []
+
+
 def _ollama_candidates() -> list:
-    """Modèles à essayer : préférés présents d'abord, puis le reste des installés."""
+    """Modèles à essayer, doctrine « résident d'abord » (rig PCIe x1) : on privilégie
+    le modèle DÉJÀ chargé pour ne pas déclencher un cold-load de ~9 Go qui traîne sur
+    le bus x1 ; ensuite les préférés présents, puis le reste des installés."""
     installed = list_ollama_models()
+    resident = _ollama_resident_models()
     if not installed:
-        return list(_OLLAMA_PREFERRED)  # tentative à l'aveugle si /api/tags échoue
-    ordered = [m for m in _OLLAMA_PREFERRED if m in installed]
-    ordered += [m for m in installed if m not in ordered]
+        return resident or list(_OLLAMA_PREFERRED)  # tentative à l'aveugle si /api/tags échoue
+    ordered = [m for m in resident if m in installed]                       # 1) déjà en VRAM
+    ordered += [m for m in _OLLAMA_PREFERRED if m in installed and m not in ordered]  # 2) préférés
+    ordered += [m for m in installed if m not in ordered]                  # 3) reste
     return ordered
 
 def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant IA d'élite.", max_tokens: int = 1024, temperature: float = 0.3) -> dict:
