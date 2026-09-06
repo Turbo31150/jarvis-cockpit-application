@@ -24,7 +24,7 @@ DEFAULT_SETTINGS = {
     "voice_pitch": 1.0,
     "telemetry_interval": 2000,
     "cpu_temp_alert": 88,
-    "ai_engine": "qwen2.5:1.5b",
+    "ai_engine": "qwen3:8b",
     "auto_refresh": True,
     # Moteur Whisper (Reconnaissance Vocale Locale)
     "whisper_model": "distil-large-v3",

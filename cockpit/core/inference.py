@@ -177,7 +177,7 @@ def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant 
     }
 
 
-def embed(inputs, timeout: float = 30.0) -> dict:
+def embed(inputs, timeout: float = 60.0) -> dict:
     """Vectorisation permanente via la GTX 1660S (Ollama :11436, nomic-embed-text résident).
 
     inputs : str ou list[str]. Retourne {"embeddings": [...], "model", "source", "success"}.

@@ -65,71 +65,20 @@ WEB_DIR = os.path.join(RACINE, "web")
 
 
 def run_inference_engine(prompt, sys_prompt="Tu es l'assistant IA JARVIS.", max_tokens=1000):
-    """Inférence avec cascade M6 GPU prioritaire (si modèle chargé) et repli transparent M4 Ollama."""
-    # 1. Vérification état réel M6
-    m6_dispo = False
-    m6_model = "qwen2.5-coder-14b-instruct"
-    try:
-        req_m = urllib.request.Request(f"{M6_URL}/api/v0/models")
-        with urllib.request.urlopen(req_m, timeout=1.5) as resp:
-            data = json.loads(resp.read().decode())
-            loaded = [m["id"] for m in data.get("data", []) if m.get("state") == "loaded"]
-            if loaded:
-                m6_dispo = True
-                m6_model = loaded[0]
-    except Exception:
-        m6_dispo = False
+    """Inférence cockpit — délègue à la cascade 3-GPU locale (rig 'mining').
 
-    # Tentative d'inférence M6 si prêt
-    if m6_dispo:
-        try:
-            tokens_to_request = max(max_tokens, 512)
-            payload = json.dumps({
-                "model": m6_model,
-                "messages": [
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.3,
-                "max_tokens": tokens_to_request
-            }).encode("utf-8")
-            req = urllib.request.Request(f"{M6_URL}/v1/chat/completions", data=payload, headers={"Content-Type": "application/json"})
-            t0 = time.time()
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode())
-                choice = data["choices"][0]["message"]
-                content = choice.get("content", "").strip()
-                if not content and "reasoning_content" in choice:
-                    content = choice["reasoning_content"].strip()
-                if content:
-                    return {
-                        "content": content,
-                        "source": f"M6 GPU ({m6_model})",
-                        "latency": round(time.time() - t0, 2),
-                        "success": True
-                    }
-        except Exception:
-            pass
-
-    # 2. Repli Ollama Local M4
-    try:
-        ol_payload = json.dumps({
-            "model": "gemma3:4b",
-            "prompt": f"{sys_prompt}\n\n{prompt}",
-            "stream": False
-        }).encode("utf-8")
-        req_ol = urllib.request.Request(f"{OL_URL}/api/generate", data=ol_payload, headers={"Content-Type": "application/json"})
-        t0 = time.time()
-        with urllib.request.urlopen(req_ol, timeout=40) as resp_ol:
-            data_ol = json.loads(resp_ol.read().decode())
-            return {
-                "content": data_ol.get("response", "").strip(),
-                "source": "M4 Ollama Local (gemma3:4b)",
-                "latency": round(time.time() - t0, 2),
-                "success": True
-            }
-    except Exception as e:
-        return {"content": f"Erreur d'inférence : {e}", "source": "NONE", "latency": 0.0, "success": False}
+    Câblée sur core.inference.generate_completion :
+      RTX 3080 (:11434, qwen3:8b) → délestage RTX 2060 (:11435, qwen2.5:7b) → Chat Proxy.
+    (L'ancien tier LM Studio M6 est obsolète : M6 injoignable.)
+    """
+    from core.inference import generate_completion
+    r = generate_completion(prompt, sys_prompt=sys_prompt, max_tokens=max_tokens)
+    return {
+        "content": r.get("content", ""),
+        "source": r.get("source", "NONE"),
+        "latency": r.get("latency", 0.0),
+        "success": r.get("success", False),
+    }
 
 
 def get_cluster_telemetry():
