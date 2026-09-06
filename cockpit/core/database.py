@@ -123,8 +123,14 @@ def get_master_tasks(limit: int = 100) -> list[dict]:
         con = sqlite3.connect(f"file:{MASTER_DB}?mode=ro", uri=True, timeout=3.0)
         con.row_factory = sqlite3.Row
         c = con.cursor()
+        # Schéma réel de jarvis_master.db : (id, title, description, category,
+        # status, priority, assigned_expert, consensus_summary, created_at, updated_at).
+        # Les colonnes agent/progress n'existent pas → on lit les vraies colonnes,
+        # avec repli assigned_expert puis 'GÉNÉRAL' pour la catégorie affichée.
         c.execute("""
-            SELECT id, title, status, COALESCE(agent, 'GÉNÉRAL') AS category, progress, created_at
+            SELECT id, title, status,
+                   COALESCE(NULLIF(TRIM(category), ''), assigned_expert, 'GÉNÉRAL') AS category,
+                   created_at
             FROM tasks
             ORDER BY id DESC
             LIMIT ?

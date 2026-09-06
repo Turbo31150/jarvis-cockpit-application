@@ -44,7 +44,7 @@ from core.database import search_board_fts
 from core.inference import generate_completion
 
 # Endpoints réseau du Conseil ------------------------------------------------
-REMI_IP = os.environ.get("JARVIS_M1_HOST", "100.112.114.32")  # Nœud M1 (LM Studio)
+REMI_IP = os.environ.get("JARVIS_M1_HOST", "127.0.0.1")  # LM Studio local (0 token) ; nœud M1 distant via JARVIS_M1_HOST
 M1_URL = f"http://{REMI_IP}:1234"
 OL_URL = OLLAMA_URL                                            # M4 Ollama local
 OPENCLAW_URL = os.environ.get("JARVIS_OPENCLAW_URL", "http://127.0.0.1:18789")

@@ -85,6 +85,34 @@
     ::-webkit-scrollbar-track { background: #040711; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; border: 1px solid rgba(0, 240, 255, 0.1); }
     ::-webkit-scrollbar-thumb:hover { background: #00f0ff; box-shadow: 0 0 10px #00f0ff; }
+
+    /* ===================================================================== */
+    /* ADAPTATION MOBILE (≤767px) — pour l'app JARVIS Cockpit OS sur téléphone */
+    /* N'affecte QUE les petits écrans ; le desktop (≥768px) reste identique.  */
+    /* ===================================================================== */
+    @media (max-width: 767px) {
+      /* Layout global : colonne (barre onglets en haut, contenu dessous) */
+      body.h-screen.flex { flex-direction: column !important; height: 100vh; height: 100dvh; overflow: hidden; }
+      /* Sidebar → barre supérieure COMPACTE à hauteur auto (ne prend PAS tout l'écran) */
+      aside.w-64 { width: 100% !important; height: auto !important; flex: 0 0 auto !important; border-right: 0 !important; border-bottom: 1px solid rgba(30,41,59,.85); }
+      aside.w-64 > .flex-1 { min-height: 0 !important; flex: 0 0 auto !important; }
+      /* Header logo compact */
+      aside.w-64 .p-4 { padding: .45rem .7rem !important; }
+      aside.w-64 .p-4 .w-10 { width: 2rem !important; height: 2rem !important; font-size: 1rem !important; }
+      /* LE FIX : menu vertical -> strip HORIZONTAL scrollable (display:flex explicite) */
+      aside.w-64 nav { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; overflow-y: hidden !important; gap: .4rem; padding: .5rem .7rem !important; -webkit-overflow-scrolling: touch; }
+      aside.w-64 nav > button { width: auto !important; flex: 0 0 auto !important; white-space: nowrap !important; margin: 0 !important; padding: .5rem .85rem !important; }
+      /* Footer de sidebar masqué */
+      aside.w-64 > *:not(.flex-1) { display: none !important; }
+      /* CONTENU = tout le reste, scrollable (c'est ce qui manquait pour voir les onglets) */
+      body.h-screen.flex > *:not(aside) { flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; }
+      /* Colonnes/panneaux fixes -> pleine largeur */
+      .w-72 { width: 100% !important; }
+      .shrink-0 { flex-shrink: 1 !important; }
+      #term-scene { min-height: 50vh; }
+      /* Grilles denses -> 2 colonnes max */
+      .grid-cols-3, .grid-cols-4, .grid-cols-6, .grid-cols-7 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    }
   </style>
 </head>
 <body class="h-screen flex overflow-hidden select-none">
@@ -1017,6 +1045,25 @@
         </div>
       </section>
 
+      <!-- ===================== RÉGLAGES / PARAMÈTRES ===================== -->
+      <section id="tab-settings" class="hidden space-y-6">
+        <div class="glass-card p-4 rounded-xl border-l-4 border-cyan-500 flex justify-between items-center flex-wrap gap-3">
+          <div>
+            <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+              <i class="fa-solid fa-sliders text-cyan-400"></i> Réglages du Cockpit
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">
+              Source : <code>cockpit_settings.json</code> via <code>/api/settings</code>.
+              Dernier enregistrement : <span id="settings-saved" class="mono text-cyan-300">…</span>
+            </p>
+          </div>
+          <button onclick="loadSettings()" class="px-3 py-2 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/40 font-semibold rounded-lg text-xs flex items-center gap-2 transition">
+            <i class="fa-solid fa-rotate"></i> Recharger
+          </button>
+        </div>
+        <div id="settings-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+      </section>
+
     </div>
   </main>
 
@@ -1064,7 +1111,7 @@
     updateClock();
 
     function showTab(tabId) {
-      const tabs = ['dashboard', 'avancements', 'plan', 'claude', 'terminal', 'apps', 'tableronde', 'studio', 'mcps', 'sql', 'swarm', 'moisson', 'swan', 'iaweb', 'bureau'];
+      const tabs = ['dashboard', 'avancements', 'plan', 'claude', 'terminal', 'apps', 'tableronde', 'studio', 'mcps', 'sql', 'swarm', 'moisson', 'swan', 'iaweb', 'bureau', 'settings'];
       tabs.forEach(t => {
         const el = document.getElementById('tab-' + t);
         const nav = document.getElementById('nav-' + t);
@@ -1095,7 +1142,8 @@
         'moisson': 'Corpus Vivant & FTS5 (528k Chunks)',
         'swan': 'Flux SWAN & Ingestion 768D',
         'iaweb': 'Hub IA Web & Automatisation CDP',
-        'bureau': 'Bureau GNOME — Barre, Icônes, Verrous, Écrans (tracé ÉTOILE)'
+        'bureau': 'Bureau GNOME — Barre, Icônes, Verrous, Écrans (tracé ÉTOILE)',
+        'settings': 'Réglages & Paramètres du Cockpit'
       };
       document.getElementById('section-title').textContent = titles[tabId] || 'JARVIS Cockpit';
 
@@ -1112,6 +1160,7 @@
         loadNotionStats();
       }
       if (tabId === 'bureau') loadBureau();
+      if (tabId === 'settings') loadSettings();
       if (tabId === 'terminal') {
         chargerApps();
         const s = TERM.sessions.get(TERM.actif);
@@ -1461,6 +1510,53 @@
         renderMcps(ALL_MCPS);
       } catch (e) {
         console.error("Erreur mcps:", e);
+      }
+    }
+
+    // ── RÉGLAGES / PARAMÈTRES ──
+    async function loadSettings() {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        const s = data.settings || {};
+        document.getElementById('settings-saved').textContent = s.last_saved || '—';
+
+        const groupes = {
+          'Interface': ['language', 'theme', 'ui_scale', 'grid_overlay', 'glass_blur', 'auto_refresh'],
+          'Télémétrie': ['telemetry_interval', 'cpu_temp_alert', 'ai_engine'],
+          'Voix & Son': ['sound_enabled', 'voice_rate', 'voice_pitch'],
+          'Whisper (STT)': ['whisper_model', 'whisper_device', 'whisper_language', 'whisper_port', 'whisper_auto_inject'],
+          'Flo': ['flo_mode', 'flo_trigger_key', 'flo_guardian_autostart', 'flo_active_workflow'],
+          'Lumen': ['lumen_mode', 'lumen_profile', 'lumen_stt_engine', 'lumen_auto_detect_app'],
+        };
+        const connues = new Set(Object.values(groupes).flat().concat(['last_saved']));
+        const autres = Object.keys(s).filter(k => !connues.has(k));
+        if (autres.length) groupes['Autres'] = autres;
+
+        const fmt = (v) => {
+          if (typeof v === 'boolean') return v
+            ? '<span class="text-emerald-400">● activé</span>'
+            : '<span class="text-slate-500">○ désactivé</span>';
+          return `<span class="text-cyan-300">${v}</span>`;
+        };
+
+        const grid = document.getElementById('settings-grid');
+        grid.innerHTML = '';
+        for (const [titre, cles] of Object.entries(groupes)) {
+          const lignes = cles.filter(k => k in s).map(k => `
+            <div class="flex justify-between items-center gap-3 py-1 border-b border-slate-800/60 last:border-0">
+              <span class="text-[11px] text-slate-400 mono">${k}</span>
+              <span class="text-[11px] mono text-right">${fmt(s[k])}</span>
+            </div>`).join('');
+          if (!lignes) continue;
+          grid.innerHTML += `
+            <div class="glass-card p-4 rounded-xl border border-slate-800">
+              <h3 class="text-sm font-bold text-slate-100 mb-2">${titre}</h3>
+              ${lignes}
+            </div>`;
+        }
+      } catch (e) {
+        console.error("Erreur settings:", e);
       }
     }
 

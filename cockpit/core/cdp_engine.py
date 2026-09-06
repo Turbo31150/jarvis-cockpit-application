@@ -17,7 +17,25 @@ import urllib.request
 import subprocess
 
 PORT = 9222
-BIN = "/opt/browseros/opt/browseros/browseros"
+
+
+def _premier_binaire(candidats):
+    """Retourne le premier binaire existant/exécutable parmi les candidats."""
+    for c in candidats:
+        c = os.path.expanduser(c)
+        if os.path.exists(c) and os.access(c, os.X_OK):
+            return c
+    return None
+
+
+# Chemins réels de la machine (rig « mining ») : le binaire browseros vit sous
+# ~/.local/bin, pas /opt. On retombe sur google-chrome si browseros est absent.
+BIN = _premier_binaire([
+    "~/.local/bin/browseros",
+    "/opt/browseros/opt/browseros/browseros",
+    "/usr/bin/google-chrome",
+    "/opt/google/chrome/chrome",
+]) or "/usr/bin/google-chrome"
 PROFIL_SRC = os.path.expanduser("~/chrome-m1")
 PROFIL_CDP = os.path.expanduser("~/chrome-m1-cdp")
 LOG_FILE = os.path.expanduser("~/jarvis/logs/browseros-cdp.log")
@@ -87,7 +105,40 @@ def start_cdp() -> dict:
             "output": r.stdout or r.stderr,
             "alive": is_cdp_alive()
         }
-    return {"success": False, "error": "Script browseros-cdp-authentifie introuvable"}
+
+    # ── Repli : lancement direct du navigateur avec débogage distant sur 9222 ──
+    # Le script authentifié est absent : on démarre le binaire détecté (browseros
+    # ou google-chrome) en headless=new avec un profil CDP dédié. headless évite
+    # tout dialogue GUI bloquant et ne dépend pas d'un affichage.
+    if not BIN or not os.path.exists(BIN):
+        return {"success": False, "error": "Aucun navigateur (browseros/chrome) trouvé"}
+    os.makedirs(PROFIL_CDP, exist_ok=True)
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+    cmd = [
+        BIN,
+        f"--remote-debugging-port={PORT}",
+        "--remote-debugging-address=127.0.0.1",
+        f"--user-data-dir={PROFIL_CDP}",
+        "--headless=new",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-background-networking",
+        "about:blank",
+    ]
+    try:
+        with open(LOG_FILE, "a") as log:
+            subprocess.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
+    except Exception as e:
+        return {"success": False, "error": f"Lancement échoué : {e}"}
+    for _ in range(20):
+        if is_cdp_alive():
+            break
+        time.sleep(0.5)
+    return {
+        "success": is_cdp_alive(),
+        "output": f"Lancé : {BIN} (headless, profil {PROFIL_CDP})",
+        "alive": is_cdp_alive(),
+    }
 
 
 def stop_cdp() -> dict:

@@ -30,6 +30,42 @@ def _port_open(url: str, timeout: float = 0.5) -> bool:
 # Rig "mining" : qwen3:8b (RTX 3080) prioritaire, puis repli local.
 _OLLAMA_PREFERRED = ["qwen3:8b", "qwen2.5:7b", "gemma3:4b", "qwen2.5:1.5b"]
 
+# LM Studio LOCAL (0 token, illimité) — API OpenAI-compatible sur cette machine.
+# Prioritaire sur le nœud M6 distant, souvent injoignable depuis le rig "mining".
+# LM Studio écoute sur 0.0.0.0:1234 → joignable en loopback ET via l'IP tether USB
+# du rig (192.168.42.241, interface enx*). On essaie plusieurs hôtes, 1er ouvert gagne.
+_LMSTUDIO_CANDIDATES = [
+    os.environ.get("JARVIS_LMSTUDIO_URL", ""),
+    "http://127.0.0.1:1234",
+    "http://192.168.42.241:1234",
+]
+_LMSTUDIO_PREFERRED = ["qwen3-8b", "qwen2.5-7b", "mistral-7b-instruct", "gemma3-4b", "qwen3-1.7b"]
+
+
+def _lmstudio_base(timeout: float = 0.5):
+    """Retourne la 1ʳᵉ base LM Studio dont le port TCP répond (ou None)."""
+    for base in _LMSTUDIO_CANDIDATES:
+        if base and _port_open(base, timeout=timeout):
+            return base
+    return None
+
+
+def _lmstudio_local_model(base_url: str, timeout: float = 2.0):
+    """Choisit un modèle de chat disponible dans le LM Studio (hors embeddings)."""
+    try:
+        req = urllib.request.Request(f"{base_url}/v1/models")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            ids = [m.get("id") for m in json.loads(resp.read().decode()).get("data", [])]
+        ids = [i for i in ids if i and "embed" not in i.lower()]
+        if not ids:
+            return None
+        for pref in _LMSTUDIO_PREFERRED:
+            if pref in ids:
+                return pref
+        return ids[0]
+    except Exception:
+        return None
+
 
 def list_ollama_models(timeout: float = 1.5) -> list:
     """Retourne les modèles Ollama réellement installés (vide si service absent)."""
@@ -55,7 +91,42 @@ def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant 
     """Cascade d'inférence robuste : M6 GPU direct -> M4 Ollama -> Chat Proxy."""
     # Règle M4/M6 : max_tokens >= 512 pour éviter les sorties vides sur modèles à raisonnement
     effective_max_tokens = max(max_tokens, 512)
-    
+
+    # 0. Tier 0 : LM Studio LOCAL (loopback ou tether) — 0 token, illimité, prioritaire.
+    try:
+        base = _lmstudio_base()
+        if base:
+            modele = _lmstudio_local_model(base)
+            if modele:
+                payload = json.dumps({
+                    "model": modele,
+                    "messages": [
+                        {"role": "system", "content": sys_prompt},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": temperature,
+                    "max_tokens": effective_max_tokens
+                }).encode("utf-8")
+                req = urllib.request.Request(f"{base}/v1/chat/completions",
+                                             data=payload, headers={"Content-Type": "application/json"})
+                t0 = time.time()
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    data = json.loads(resp.read().decode())
+                    choice = data["choices"][0]["message"]
+                    content = (choice.get("content") or "").strip()
+                    if not content and "reasoning_content" in choice:
+                        content = choice["reasoning_content"].strip()
+                    if content:
+                        return {
+                            "content": content,
+                            "source": f"LM Studio LOCAL ({modele}, 0 token)",
+                            "latency": round(time.time() - t0, 2),
+                            "success": True,
+                            "model": modele
+                        }
+    except Exception:
+        pass
+
     # 1. Tier 1 : Nœud M6 GPU (Lien direct 10.42.0.230) — sondé avant appel
     try:
         if not _port_open(M6_URL):

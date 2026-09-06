@@ -184,11 +184,25 @@ class CockpitHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def local_seulement(self):
-        """Un terminal interactif ne s'ouvre qu'à la machine elle-même."""
-        pair = self.client_address[0]
-        if pair in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+        """Terminal/PTY accessible depuis la machine + réseaux de confiance.
+
+        Étendu pour l'app mobile JARVIS Cockpit OS : autorise le loopback,
+        le tether USB du téléphone (192.168.42.0/24) et Tailscale (100.64.0.0/10).
+        ⚠️ Expose l'accès shell à ces réseaux privés (téléphone direct + tailnet chiffré).
+        """
+        pair = (self.client_address[0] or "").replace("::ffff:", "")
+        def _tailscale(ip):
+            try:
+                a, b = ip.split(".")[:2]
+                return a == "100" and 64 <= int(b) <= 127   # CGNAT 100.64.0.0/10
+            except Exception:
+                return False
+        if (pair in ("127.0.0.1", "::1")
+                or pair.startswith("127.")
+                or pair.startswith("192.168.42.")   # tether USB téléphone
+                or _tailscale(pair)):                # Tailscale
             return True
-        self.respond_json({"success": False, "error": "Terminal accessible en loopback uniquement"}, 403)
+        self.respond_json({"success": False, "error": "Accès restreint : loopback, tether (192.168.42.x) ou Tailscale (100.64/10) uniquement"}, 403)
         return False
 
     def respond_json(self, data, status=200):

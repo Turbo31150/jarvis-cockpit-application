@@ -196,8 +196,15 @@ def get_avancements_data() -> dict:
         try:
             con_m = sqlite3.connect(f"file:{MASTER_DB}?mode=ro", uri=True, timeout=2.0)
             c_m = con_m.cursor()
-            master_tasks_pending = c_m.execute("SELECT COUNT(*) FROM tasks WHERE status = 'pending'").fetchone()[0]
-            master_tasks_done = c_m.execute("SELECT COUNT(*) FROM tasks WHERE status = 'done'").fetchone()[0]
+            # Le vocabulaire de statut de jarvis_master.db est en MAJUSCULES et varié
+            # (COMPLETED, VALIDATED_BY_BOARD, IN_PROGRESS, PENDING…). On regroupe de
+            # façon insensible à la casse pour ne plus renvoyer 0/0 à tort.
+            _rows = c_m.execute(
+                "SELECT UPPER(COALESCE(status,'')) AS s, COUNT(*) FROM tasks GROUP BY s"
+            ).fetchall()
+            _DONE = {"DONE", "COMPLETED", "VALIDATED_BY_BOARD", "LIVRE", "TERMINE", "TERMINÉ"}
+            master_tasks_done = sum(n for s, n in _rows if s in _DONE)
+            master_tasks_pending = sum(n for s, n in _rows if s not in _DONE)
             con_m.close()
         except Exception:
             pass
