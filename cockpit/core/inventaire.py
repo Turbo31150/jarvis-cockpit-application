@@ -113,7 +113,11 @@ def get_tailscale() -> dict:
     if not shutil.which("tailscale"):
         return {"disponible": False, "raison": "tailscale absent", "pairs": []}
 
-    ok, out = _run(["tailscale", "status", "--json"], timeout=8)
+    # Évite le timeout de 5s si le démon tailscaled n'a pas ouvert son socket Unix
+    if not os.path.exists("/var/run/tailscale/tailscaled.sock") and not os.path.exists("/run/tailscale/tailscaled.sock"):
+        return {"disponible": False, "raison": "démon tailscaled inactif (socket absent)", "pairs": []}
+
+    ok, out = _run(["tailscale", "status", "--json"], timeout=2)
     if not ok:
         return {"disponible": False, "raison": out[:200], "pairs": []}
     try:

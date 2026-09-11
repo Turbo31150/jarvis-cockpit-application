@@ -42,7 +42,7 @@ from core.database import (
 from core.mcp_registry import get_all_mcp_servers
 from core.swarm_manager import get_swarm_services_status
 from core.apps_registry import scan_all_applications
-from core.telemetry import get_vram_info
+from core.telemetry import get_vram_info, get_m6_status
 from core.claude_engine import (
     get_claude_info, run_claude_prompt, launch_claude_interactive, CLAUDE_PRESETS
 )
@@ -109,30 +109,23 @@ def get_cluster_telemetry():
     except Exception:
         pass
 
-    # 2. Nœud M6 GPU
-    m6_online = False
-    m6_latency = 0.0
-    m6_models = []
-    try:
-        t0 = time.time()
-        req = urllib.request.Request(f"{M6_URL}/api/v0/models")
-        with urllib.request.urlopen(req, timeout=1.5) as resp:
-            m6_latency = round((time.time() - t0) * 1000, 1)
-            data = json.loads(resp.read().decode())
-            m6_models = [m["id"] for m in data.get("data", []) if m.get("state") == "loaded"]
-            m6_online = True
-    except Exception:
-        pass
+    # 2. Nœud LM Studio / M6 GPU
+    m6_info = get_m6_status()
+    m6_online = m6_info.get("online", False)
+    m6_latency = m6_info.get("latency_ms", 0.0)
+    m6_models = m6_info.get("loaded_models", [])
+    m6_ip = m6_info.get("host", M6_HOST)
 
-    # 3. Matrice des 12 services
+    # 3. Matrice des services
     ports_map = [
         ("Cockpit Web", "127.0.0.1", 8600),
-        ("Planning Widget", "127.0.0.1", 8899),
-        ("Board Serveur", "127.0.0.1", 8795),
-        ("S8 Voice", "127.0.0.1", 8799),
-        ("Chat Proxy LLM", "127.0.0.1", 18800),
-        ("Whisper Bridge", "127.0.0.1", 9742),
+        ("LM Studio GPU", m6_ip, 1234),
         ("Ollama M4", "127.0.0.1", 11434),
+        ("Chat Proxy LLM", "127.0.0.1", 18800),
+        ("Board Serveur", "127.0.0.1", 8795),
+        ("Planning Widget", "127.0.0.1", 8899),
+        ("S8 Voice", "127.0.0.1", 8799),
+        ("Whisper Bridge", "127.0.0.1", 9742),
         ("Monitor Cluster", "127.0.0.1", 8420),
         ("Espace Prof", "127.0.0.1", 7777),
         ("PostgreSQL", "127.0.0.1", 5432),
@@ -166,7 +159,7 @@ def get_cluster_telemetry():
             "online": m6_online,
             "latency_ms": m6_latency,
             "models": m6_models,
-            "ip": M6_HOST
+            "ip": m6_ip
         },
         "services": services_status,
         "timestamp": datetime.now().isoformat()
@@ -263,6 +256,31 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json(get_cluster_telemetry())
             return
 
+        # ── S9 STANDALONE BRIDGE & BACKUPS ──
+        elif path == "/api/s9/status":
+            self.respond_json({
+                "success": True,
+                "bridge": "online",
+                "device_target": "S9/S8",
+                "backup_dir": "/home/turbo/Bureau/SAUVEGARDE_S9",
+                "timestamp": datetime.now().isoformat()
+            })
+            return
+        elif path == "/api/s9/backups":
+            bdir = "/home/turbo/Bureau/SAUVEGARDE_S9"
+            backups = []
+            if os.path.exists(bdir):
+                for f in sorted(os.listdir(bdir), reverse=True):
+                    if f.endswith(".json"):
+                        fpath = os.path.join(bdir, f)
+                        backups.append({
+                            "filename": f,
+                            "size": os.path.getsize(fpath),
+                            "modified": datetime.fromtimestamp(os.path.getmtime(fpath)).isoformat()
+                        })
+            self.respond_json({"success": True, "backups": backups, "count": len(backups)})
+            return
+
         # ── AVANCEMENTS & SYNCHRONISATION ──
         elif path == "/api/avancements":
             self.respond_json(get_avancements_data())
@@ -325,6 +343,16 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json({"success": True, "inventaire": get_inventaire_complet()})
             return
 
+        # ── ACTION MEMORY STATS ──
+        elif path == "/api/memory/stats":
+            try:
+                from core.action_memory import ActionMemoryEngine
+                engine = ActionMemoryEngine()
+                self.respond_json({"success": True, "stats": engine._stats})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
         # ── PARAMÈTRES & CONFIGURATION ──
         elif path == "/api/settings":
             self.respond_json(get_cockpit_settings())
@@ -339,8 +367,136 @@ class CockpitHandler(BaseHTTPRequestHandler):
             })
             return
 
+        # ── OMEGA COGNITIVE OS (REGISTRE, BOARD-B, AUDIT) ──
+        elif path == "/api/omega/status":
+            try:
+                reg_p = os.path.join(JARVIS_DIR, "omega", "registry", "omega_registry.db")
+                aud_p = os.path.join(JARVIS_DIR, "omega", "audit", "omega_audit.db")
+                bb_p = os.path.join(JARVIS_DIR, "omega", "board", "omega_board.db")
+                
+                n_art, n_fam, n_agt, n_skl = 0, 0, 0, 0
+                if os.path.exists(reg_p):
+                    conn = sqlite3.connect(f"file:{reg_p}?mode=ro", uri=True)
+                    n_art = conn.execute("SELECT count(*) FROM artifacts").fetchone()[0]
+                    n_fam = conn.execute("SELECT count(*) FROM families").fetchone()[0]
+                    n_agt = conn.execute("SELECT count(*) FROM agents").fetchone()[0]
+                    n_skl = conn.execute("SELECT count(*) FROM skills").fetchone()[0]
+                    conn.close()
+
+                n_aud = 0
+                if os.path.exists(aud_p):
+                    conn = sqlite3.connect(f"file:{aud_p}?mode=ro", uri=True)
+                    n_aud = conn.execute("SELECT count(*) FROM events").fetchone()[0]
+                    conn.close()
+
+                n_obj, n_dom = 0, 0
+                if os.path.exists(bb_p):
+                    conn = sqlite3.connect(f"file:{bb_p}?mode=ro", uri=True)
+                    n_obj = conn.execute("SELECT count(*) FROM board_items").fetchone()[0]
+                    n_dom = conn.execute("SELECT count(*) FROM dominos").fetchone()[0]
+                    conn.close()
+
+                self.respond_json({
+                    "success": True,
+                    "version": "OMEGA-1.1.0",
+                    "artifacts": n_art,
+                    "families": n_fam,
+                    "agents": n_agt,
+                    "skills": n_skl,
+                    "audits": n_aud,
+                    "board_items": n_obj,
+                    "dominos": n_dom
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        elif path == "/api/omega/board":
+            try:
+                bb_p = os.path.join(JARVIS_DIR, "omega", "board", "omega_board.db")
+                items, dominos = [], []
+                if os.path.exists(bb_p):
+                    conn = sqlite3.connect(f"file:{bb_p}?mode=ro", uri=True)
+                    conn.row_factory = sqlite3.Row
+                    items = [dict(r) for r in conn.execute("SELECT id, title, state, family, created_at FROM board_items ORDER BY created_at DESC LIMIT 20").fetchall()]
+                    dominos = [dict(r) for r in conn.execute("SELECT id, item_id, seq, name, state, action_class FROM dominos ORDER BY item_id, seq ASC").fetchall()]
+                    conn.close()
+                self.respond_json({"success": True, "items": items, "dominos": dominos})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        elif path == "/api/omega/audit":
+            try:
+                aud_p = os.path.join(JARVIS_DIR, "omega", "audit", "omega_audit.db")
+                rows = []
+                if os.path.exists(aud_p):
+                    conn = sqlite3.connect(f"file:{aud_p}?mode=ro", uri=True)
+                    conn.row_factory = sqlite3.Row
+                    limit = int(params.get("limit", [30])[0])
+                    rows = [dict(r) for r in conn.execute("SELECT event_id, event_uid, quand, quoi, quel_agent, verif_statut, quelle_decision FROM events ORDER BY event_id DESC LIMIT ?", (limit,)).fetchall()]
+                    conn.close()
+                self.respond_json({"success": True, "events": rows})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        elif path == "/api/omega/improve/history":
+            try:
+                reg_p = os.path.join(JARVIS_DIR, "omega", "registry", "omega_registry.db")
+                conn = sqlite3.connect(f"file:{reg_p}?mode=ro&immutable=1", uri=True)
+                conn.row_factory = sqlite3.Row
+                c = conn.cursor()
+                rows = c.execute(
+                    "SELECT id, origin, objective, outputs_json, created_at FROM artifacts WHERE id LIKE 'omega.improvement.cycle.%' ORDER BY created_at DESC LIMIT 10"
+                ).fetchall()
+                res = []
+                for r in rows:
+                    out = {}
+                    try:
+                        out = json.loads(r["outputs_json"]) if r["outputs_json"] else {}
+                    except Exception:
+                        pass
+                    res.append({
+                        "id": r["id"],
+                        "origin": r["origin"],
+                        "objective": r["objective"],
+                        "created_at": r["created_at"],
+                        "details": out
+                    })
+                conn.close()
+                self.respond_json({"success": True, "history": res})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e), "history": []})
+            return
+
+        elif path == "/api/omega/prompts":
+            try:
+                q = params.get("q", [""])[0].strip()
+                limit = int(params.get("limit", [20])[0])
+                db_p = os.path.join(JARVIS_DIR, "jarvis_master.db")
+                conn = sqlite3.connect(f"file:{db_p}?mode=ro&immutable=1", uri=True)
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                if q:
+                    rows = cur.execute(
+                        "SELECT filename, category, substr(content, 1, 300) as snippet FROM system_prompts_fts WHERE system_prompts_fts MATCH ? LIMIT ?",
+                        (q, limit)
+                    ).fetchall()
+                else:
+                    rows = cur.execute(
+                        "SELECT filename, category, substr(content, 1, 300) as snippet FROM system_prompts_library ORDER BY id DESC LIMIT ?",
+                        (limit,)
+                    ).fetchall()
+                total = cur.execute("SELECT count(*) FROM system_prompts_library").fetchone()[0]
+                conn.close()
+                self.respond_json({"success": True, "total": total, "prompts": [dict(r) for r in rows]})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e), "prompts": []})
+            return
+
         # ── SERVEURS MCP ──
-        elif path == "/api/mcps":
+        elif path in ("/api/mcps", "/api/mcp"):
             mcps = get_all_mcp_servers()
             self.respond_json({"success": True, "mcps": mcps, "count": len(mcps)})
             return
@@ -352,7 +508,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
             return
 
         # ── APPLICATIONS BUREAU ──
-        elif path == "/api/apps/all":
+        elif path in ("/api/apps/all", "/api/apps"):
             apps = scan_all_applications()
             self.respond_json({"success": True, "apps": apps, "count": len(apps)})
             return
@@ -431,6 +587,68 @@ class CockpitHandler(BaseHTTPRequestHandler):
             msg_commit = req_data.get("commit_message", "")
             res = trigger_synchronisation(auto_git_commit=auto_git, message_commit=msg_commit)
             self.respond_json(res)
+            return
+
+        # ── S9 BACKUP RECEPTION (CÂBLAGE / SYNC) ──
+        elif path == "/api/s9/backup":
+            try:
+                bdir = "/home/turbo/Bureau/SAUVEGARDE_S9"
+                os.makedirs(bdir, exist_ok=True)
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                fname = f"backup_s9_{ts}.json"
+                target_path = os.path.join(bdir, fname)
+                with open(target_path, "w", encoding="utf-8") as f:
+                    json.dump(req_data, f, ensure_ascii=False, indent=2)
+                self.respond_json({
+                    "success": True,
+                    "filename": fname,
+                    "path": target_path,
+                    "sessions_saved": len(req_data.get("sessions", [])) if isinstance(req_data, dict) else 0,
+                    "size_bytes": os.path.getsize(target_path),
+                    "message": "Sauvegarde S9 reçue et sécurisée sur le PC bureau."
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── ROUTEUR COGNITIF OMEGA ──
+        elif path == "/api/omega/route":
+            try:
+                prompt = req_data.get("prompt", "")
+                rdir = os.path.join(JARVIS_DIR, "omega", "engine")
+                if rdir not in sys.path:
+                    sys.path.insert(0, rdir)
+                from router import OmegaCognitiveRouter
+                router = OmegaCognitiveRouter()
+                res = router.route_intent(prompt)
+                chunks = router.search_memory(prompt, limit=2)
+                skills = router.discover_skills(prompt, limit=3)
+                self.respond_json({
+                    "success": True,
+                    "routing": res,
+                    "memory_chunks": chunks,
+                    "skills": skills
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── CYCLE D'AMÉLIORATION CONTINUE OMEGA ──
+        elif path == "/api/omega/improve":
+            try:
+                dry_run = bool(req_data.get("dry_run", False))
+                edir = os.path.join(JARVIS_DIR, "omega", "engine")
+                if edir not in sys.path:
+                    sys.path.insert(0, edir)
+                from improve_cycle import OmegaImprovementCycle
+                engine = OmegaImprovementCycle(dry_run=dry_run)
+                report = engine.run()
+                self.respond_json({
+                    "success": True,
+                    "report": report
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
             return
 
         # ── CRÉATION CHANTIER PRODUCTION ──
@@ -608,6 +826,20 @@ class CockpitHandler(BaseHTTPRequestHandler):
         elif path == "/api/settings":
             res = save_cockpit_settings(req_data)
             self.respond_json(res)
+            return
+
+        # ── ACTION MEMORY HYBRID RECALL ──
+        elif path == "/api/memory/recall":
+            try:
+                from core.action_memory import ActionMemoryEngine
+                query = req_data.get("query", "")
+                limit = int(req_data.get("limit", 8))
+                min_score = float(req_data.get("min_score", 0.20))
+                engine = ActionMemoryEngine()
+                results = engine.recall(query, limit=limit, min_score=min_score)
+                self.respond_json({"success": True, "results": results, "count": len(results)})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e), "results": []}, 500)
             return
 
         # ── TABLE RONDE SOUVERAINE & BROWSER OS ──
