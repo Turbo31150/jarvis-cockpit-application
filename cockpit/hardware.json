@@ -1,0 +1,54 @@
+{
+  "hostname": "mining",
+  "gpu": [
+    {
+      "index": 0,
+      "name": "NVIDIA GeForce RTX 2060",
+      "vram_total_mb": 12288,
+      "vram_used_mb": 11161,
+      "util_pct": 93,
+      "temp_c": 69
+    },
+    {
+      "index": 1,
+      "name": "NVIDIA GeForce RTX 3080",
+      "vram_total_mb": 10240,
+      "vram_used_mb": 9847,
+      "util_pct": 57,
+      "temp_c": 75
+    }
+  ],
+  "cpu": {
+    "model": "Intel(R) Core(TM) i5-3470 CPU @ 3.20GHz",
+    "cores": 4,
+    "avx2": false
+  },
+  "ram": {
+    "total_mb": 32051,
+    "used_mb": 21346,
+    "free_mb": 10705
+  },
+  "services_jarvis": [
+    "jarvis-canvas.service",
+    "jarvis-chrome-cdp.service",
+    "jarvis-cockpit.service",
+    "jarvis-dashboard-web.service",
+    "jarvis-moisson-daemon.service",
+    "jarvis-unified-launcher.service",
+    "omega-cockpit-web.service",
+    "omega-domino-lms.service"
+  ],
+  "runtimes": {
+    "lmstudio_1234": true,
+    "ollama_11434": true,
+    "ollama_11435": false
+  },
+  "ecarts_cockpit": [
+    "GPU : réel=2 (NVIDIA GeForce RTX 2060, NVIDIA GeForce RTX 3080) vs cockpit suppose 4 (RTX 2060, 3x GTX 1660S, RTX 3080)",
+    "1660S ABSENTE du rig : retirer la garde thermique/mapping 1660S du cockpit",
+    "Cascade Ollama :11435 INEXISTANTE : le 2060 n'a pas d'Ollama dédié (Ollama unique :11434 en dual-GPU)",
+    "CPU sans AVX2 : `lms` CLI inutilisable (SIGILL) — runtime = AppImage LM Studio + Ollama, jamais `lms server`",
+    "Nœuds « M4/M6 » périmés : la machine locale est le rig 'mining' (hostname), M6/M4 éteints",
+    "VRAM : réelle=22 Go (2060 12 + 3080 10) vs cockpit/CLAUDE.md 78 Go"
+  ]
+}

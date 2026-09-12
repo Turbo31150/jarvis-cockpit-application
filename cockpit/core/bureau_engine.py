@@ -43,6 +43,21 @@ import subprocess
 
 from .config import LOGS_DB, ETOILE_DB
 
+
+def _assurer_gi_dist_packages():
+    """Rend `gi` (python3-gi, apt) importable depuis le venv du cockpit.
+
+    Le service tourne via ~/jarvis/.venv (include-system-site-packages = false),
+    or python3-gi vit dans /usr/lib/python3/dist-packages et n'est PAS installable
+    par pip. Sans ce pont, la bascule d'écran (Mutter/Gio) tombe en mode dégradé
+    « No module named 'gi' ». Idempotent et non destructif : on ajoute le chemin
+    système en fin de sys.path (priorité au venv) uniquement s'il manque.
+    """
+    import sys
+    _dp = "/usr/lib/python3/dist-packages"
+    if _dp not in sys.path:
+        sys.path.append(_dp)
+
 MACHINE = os.environ.get("JARVIS_MACHINE", "M4")
 
 # ── Schémas et identifiants d'extension (à ne pas confondre) ──
@@ -438,6 +453,7 @@ def _mutter_lire() -> dict:
     """GetCurrentState via gi/Gio, repli gdbus. Ne lève jamais."""
     # Voie A — gi.repository.Gio : dépaquetage propre, pas de parsing de GVariant.
     try:
+        _assurer_gi_dist_packages()
         import gi
         gi.require_version("Gio", "2.0")
         from gi.repository import Gio, GLib  # noqa: F401
@@ -663,6 +679,7 @@ def _action_ecrans(params: dict) -> dict:
                 "error": "un seul écran connecté : rien à basculer"}
 
     try:
+        _assurer_gi_dist_packages()
         import gi
         gi.require_version("Gio", "2.0")
         from gi.repository import Gio, GLib

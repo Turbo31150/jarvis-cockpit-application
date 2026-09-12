@@ -18,21 +18,26 @@ if [ "${tot:-0}" -gt 0 ]; then
   printf "   ["; for i in $(seq 1 50); do [ $((i*2)) -le $pct ] && printf "█" || printf "·"; done; printf "]\n"
 fi
 echo
-echo "── moteurs d'embeddings ──"
-# Débit RÉEL, relu du journal — jamais un chiffre de bench de labo.
-DEB=$(grep -oP '\d+\.\d+(?= emb/s)' "$LOG" 2>/dev/null | tail -1)
-if curl -s -m 3 http://10.42.0.230:1234/api/v0/models >/dev/null 2>&1; then
-  echo "   M6 LM Studio :1234 ✅ nomic-v1.5 768 dims${DEB:+ · débit réel ${DEB} emb/s}"
-  GU=$(timeout 10 ssh -o BatchMode=yes -o ConnectTimeout=4 m6 \
-      'nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits' 2>/dev/null | paste -sd'/')
-  [ -n "$GU" ] && echo "      GPU M6 : ${GU} %  $([ "${GU%%/*}" -lt 10 ] 2>/dev/null && echo '⚠ calcul sur CPU, pas sur GPU')"
+echo "── Moteurs d'embeddings GPU locaux ──"
+if curl -s -m 1 http://127.0.0.1:11436/api/tags | grep -q "nomic-embed-text"; then
+  echo "   GTX 1660S (:11436) ✅ nomic-embed-text 768 dims (GPU 0 permanent, résident)"
 else
-  echo "   M6 LM Studio :1234 ✖"
+  echo "   GTX 1660S (:11436) ✖ hors-ligne"
 fi
-curl -s -m 3 http://10.42.0.230:11434/api/tags >/dev/null 2>&1 \
-  && echo "   M6 Ollama :11434  ✅" || echo "   M6 Ollama :11434  ✖"
-curl -s -m 3 http://127.0.0.1:11434/api/tags >/dev/null 2>&1 \
-  && echo "   M4 Ollama :11434  ✅ (réservé — M4 en tension mémoire)" || echo "   M4 Ollama :11434  ✖"
+ACT_DB="$HOME/jarvis/data/jarvis_action_memory.db"
+if [ -f "$ACT_DB" ]; then
+  N_ACT=$(sqlite3 "$ACT_DB" "SELECT COUNT(*) FROM action_memory;" 2>/dev/null || echo "0")
+  N_VEC=$(sqlite3 "$ACT_DB" "SELECT COUNT(*) FROM action_memory WHERE vectorized=1;" 2>/dev/null || echo "0")
+  echo "   Mémoire Action GPU : $N_VEC / $N_ACT actions vectorisées (768D instantané)"
+fi
+
+echo
+echo "── Moteurs distants / cluster ──"
+if curl -s -m 0.5 http://10.42.0.230:1234/api/v0/models >/dev/null 2>&1; then
+  echo "   M6 LM Studio :1234 ✅ nomic-v1.5 768 dims"
+else
+  echo "   M6 LM Studio :1234 ✖ (hors-ligne / cluster local prioritaire)"
+fi
 echo
 VERROU="$HOME/jarvis/logs/.moisson-vecto.lock"
 if [ -f "$VERROU" ] && kill -0 "$(cat "$VERROU" 2>/dev/null)" 2>/dev/null; then

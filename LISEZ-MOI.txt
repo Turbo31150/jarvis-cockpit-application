@@ -1,0 +1,16 @@
+JARVIS COCKPIT OS — Paquet applicatif portable
+================================================
+Contenu :
+  cockpit/    Application native PyQt6 (15 modules) + serveur + core
+  bin/        Lanceurs : jarvis-cockpit-app, -exporter, -vhdx, ttx
+  icons/      Icônes de l'application
+  portable/   Lanceur relocalisable : ./portable/JARVIS-COCKPIT.sh
+  *.desktop   Raccourci bureau
+
+Lancer (machine avec PyQt6) :
+  ./portable/JARVIS-COCKPIT.sh
+  ou :  python3 cockpit/gui_app.py   (QT_QPA_PLATFORM=xcb en session X11)
+
+Images fournies sur le Bureau :
+  JARVIS-COCKPIT-OS.iso    montable / gravable (ISO9660+Joliet+RockRidge)
+  JARVIS-COCKPIT-OS.vhdx   disque virtuel dynamique (ext4) — monter via qemu-nbd

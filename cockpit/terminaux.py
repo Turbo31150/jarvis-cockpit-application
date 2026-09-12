@@ -238,16 +238,16 @@ CATALOGUE = [
         "desc": "Inférence interactive Qwen sur le cluster local.",
     },
     {
-        "id": "jarvis", "nom": "CLI JARVIS", "groupe": "Système", "icone": "fa-wand-magic-sparkles",
-        "couleur": "#f472b6", "sonde": f"{HOME}/.local/bin/jarvis",
-        "cmd": [f"{HOME}/.local/bin/jarvis"],
-        "desc": "Méta-lanceur des briques souveraines JARVIS.",
+        "id": "jarvis", "nom": "CLI JARVIS OS", "groupe": "Système", "icone": "fa-wand-magic-sparkles",
+        "couleur": "#f472b6", "sonde": f"{HOME}/.local/bin/jos",
+        "cmd": [f"{HOME}/.local/bin/jos"],
+        "desc": "Méta-lanceur des briques souveraines JARVIS OS (jos).",
     },
     {
-        "id": "ollama", "nom": "Ollama · gemma3:4b", "groupe": "Modèles", "icone": "fa-brain",
-        "couleur": "#34d399", "sonde": "/usr/local/bin/ollama",
-        "cmd": ["/usr/local/bin/ollama", "run", "gemma3:4b"],
-        "desc": "Modèle local M4, dialogue direct — 0 token.",
+        "id": "ollama", "nom": "Ollama · Gemma 3 (4B)", "groupe": "Modèles", "icone": "fa-brain",
+        "couleur": "#34d399", "sonde": f"{HOME}/.local/bin/ollama",
+        "cmd": [f"{HOME}/.local/bin/ollama", "run", "gemma3:4b"],
+        "desc": "Modèle local Gemma 3 (4B) via Ollama, dialogue direct — 0 token.",
     },
     {
         "id": "lms", "nom": "LM Studio CLI", "groupe": "Modèles", "icone": "fa-server",
@@ -268,9 +268,9 @@ CATALOGUE = [
         "desc": "REPL Python interactif.",
     },
     {
-        "id": "htop", "nom": "htop", "groupe": "Système", "icone": "fa-gauge-high",
-        "couleur": "#94a3b8", "sonde": "htop",
-        "cmd": ["htop"],
+        "id": "htop", "nom": "Moniteur Système (top)", "groupe": "Système", "icone": "fa-gauge-high",
+        "couleur": "#94a3b8", "sonde": "/usr/bin/top",
+        "cmd": ["/usr/bin/top"],
         "desc": "Moniteur système temps réel.",
     },
 ]
@@ -318,14 +318,12 @@ class Session:
         self.fin_a = None
         self.code_sortie = None
         self._verrou = threading.Lock()
+        self._cond = threading.Condition(self._verrou)
         # `base` = nombre d'octets déjà rognés du début du tampon. Le client
         # raisonne en offset absolu depuis le début de la session ; sans ce
         # décalage, un rognage ferait silencieusement rejouer du vieux texte.
         self._base = 0
         self._tampon = bytearray()
-        # Réveille les lecteurs en attente longue : sans lui, le client devrait
-        # sonder en boucle serrée pour rester réactif.
-        self._reveil = threading.Event()
 
         env = os.environ.copy()
         env.update({
@@ -371,38 +369,48 @@ class Session:
                 bloc = b""
             if not bloc:
                 break
-            with self._verrou:
+            with self._cond:
                 self._tampon.extend(bloc)
                 surplus = len(self._tampon) - TAILLE_TAMPON
                 if surplus > 0:
                     del self._tampon[:surplus]
                     self._base += surplus
-            self._reveil.set()
-        self.code_sortie = self.proc.wait()
-        self.fin_a = time.time()
-        self._reveil.set()
+                self._cond.notify_all()
+        code = self.proc.wait()
+        with self._cond:
+            self.code_sortie = code
+            self.fin_a = time.time()
+            self._cond.notify_all()
+        try:
+            from core.action_memory import ACTION_MEMORY
+            with self._verrou:
+                sortie = bytes(self._tampon[-2048:]).decode("utf-8", errors="ignore")
+            ACTION_MEMORY.record_action(
+                command=" ".join(self.cmd) if self.cmd else self.nom,
+                output=sortie,
+                source=f"term:{self.app_id}",
+                session_id=self.id,
+                exit_code=self.code_sortie or 0
+            )
+        except Exception:
+            pass
 
     # -- lecture / écriture ------------------------------------------------
     def lire_attendre(self, offset, delai=20.0):
-        """Lecture bloquante : rend la main dès qu'il y a des octets.
-
-        Le sondage serré (60 ms) marchait mais tournait à vide en permanence :
-        la barre de statut tmux se redessine chaque seconde, donc le client
-        n'aurait JAMAIS considéré la session calme. L'attente longue supprime
-        le problème à la racine — une requête dort jusqu'à ce qu'il se passe
-        quelque chose, au lieu de demander seize fois par seconde s'il se passe
-        quelque chose.
-        """
+        """Lecture bloquante instantanée : rend la main sans délai dès qu'il y a des octets."""
         fin_attente = time.time() + delai
-        while True:
-            data, fin = self.lire(offset)
-            if data or not self.vivante():
-                return data, fin
-            reste = fin_attente - time.time()
-            if reste <= 0:
-                return b"", fin
-            self._reveil.clear()
-            self._reveil.wait(min(reste, 1.0))
+        with self._cond:
+            while True:
+                fin = self._base + len(self._tampon)
+                depart = max(offset, self._base)
+                if depart < fin:
+                    return bytes(self._tampon[depart - self._base:]), fin
+                if not self.vivante():
+                    return b"", fin
+                reste = fin_attente - time.time()
+                if reste <= 0:
+                    return b"", fin
+                self._cond.wait(timeout=min(reste, 5.0))
 
     def lire(self, offset):
         """Octets produits depuis `offset` (offset absolu de session)."""

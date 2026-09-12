@@ -110,14 +110,22 @@ def get_postgres() -> dict:
 
 def get_tailscale() -> dict:
     """Pairs du tailnet, avec en ligne de mire l'accessibilite de M6."""
-    if not shutil.which("tailscale"):
+    ts_bin = shutil.which("tailscale") or os.path.expanduser("~/.local/bin/tailscale")
+    if not (ts_bin and os.path.exists(ts_bin)):
         return {"disponible": False, "raison": "tailscale absent", "pairs": []}
 
-    # Évite le timeout de 5s si le démon tailscaled n'a pas ouvert son socket Unix
-    if not os.path.exists("/var/run/tailscale/tailscaled.sock") and not os.path.exists("/run/tailscale/tailscaled.sock"):
+    # Socket : système OU userspace custom (rig 'mining' : tailscaled --tun=userspace-networking,
+    # socket ~/.config/tailscale-state/tailscaled.sock). L'ancien test ne voyait que le socket
+    # système → renvoyait toujours "démon inactif" alors que le tailnet marche via SOCKS5 :1055.
+    sock = next((s for s in (
+        "/var/run/tailscale/tailscaled.sock",
+        "/run/tailscale/tailscaled.sock",
+        os.path.expanduser("~/.config/tailscale-state/tailscaled.sock"),
+    ) if os.path.exists(s)), None)
+    if not sock:
         return {"disponible": False, "raison": "démon tailscaled inactif (socket absent)", "pairs": []}
 
-    ok, out = _run(["tailscale", "status", "--json"], timeout=2)
+    ok, out = _run([ts_bin, "--socket", sock, "status", "--json"], timeout=3)
     if not ok:
         return {"disponible": False, "raison": out[:200], "pairs": []}
     try:

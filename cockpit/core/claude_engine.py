@@ -52,60 +52,26 @@ CLAUDE_PRESETS = [
 
 
 def fallback_local_llm(prompt: str, reason: str = "Claude API 529 Overloaded") -> dict:
-    """Exécute l'inférence via Ollama M4 local ou M6 en cas de panne Claude."""
-    t0 = time.time()
-    sys_prompt = "Tu es l'assistant IA JARVIS-OMEGA en mode souverain autonome (repli local). Réponds de manière précise, concise et structurée."
-    
-    # 1. Tentative M4 Ollama
+    """Exécute l'inférence via le moteur souverain local (LM Studio Tier 0 / Ollama) en cas de panne Claude."""
     try:
-        payload = json.dumps({
-            "model": "gemma3:4b",
-            "prompt": f"{sys_prompt}\n\n{prompt}",
-            "stream": False
-        }).encode("utf-8")
-        req = urllib.request.Request(f"{OLLAMA_URL}/api/generate", data=payload, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode())
-            content = data.get("response", "").strip()
-            if content:
-                elapsed = round(time.time() - t0, 2)
-                return {
-                    "success": True,
-                    "output": f"⚡ [REPLI SOUVERAIN ACTIF · {reason}]\n(Modèle: Ollama gemma3:4b · Latence: {elapsed}s)\n\n{content}",
-                    "returncode": 0,
-                    "fallback_used": True,
-                    "model": "gemma3:4b",
-                    "reason": reason
-                }
-    except Exception:
-        pass
-
-    # 2. Tentative M6 LMStudio si disponible
-    try:
-        payload_m6 = json.dumps({
-            "model": "qwen2.5-coder-14b-instruct",
-            "messages": [
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": 1000,
-            "temperature": 0.3
-        }).encode("utf-8")
-        req_m6 = urllib.request.Request(f"{M6_URL}/v1/chat/completions", data=payload_m6, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req_m6, timeout=15) as resp_m6:
-            data_m6 = json.loads(resp_m6.read().decode())
-            content = data_m6["choices"][0]["message"]["content"].strip()
-            if content:
-                elapsed = round(time.time() - t0, 2)
-                return {
-                    "success": True,
-                    "output": f"⚡ [REPLI SOUVERAIN ACTIF · {reason}]\n(Modèle: M6 GPU Qwen2.5-Coder · Latence: {elapsed}s)\n\n{content}",
-                    "returncode": 0,
-                    "fallback_used": True,
-                    "model": "qwen2.5-coder-14b-instruct",
-                    "reason": reason
-                }
-    except Exception:
+        try:
+            from .inference import generate_completion
+        except ImportError:
+            from cockpit.core.inference import generate_completion
+        sys_prompt = "Tu es l'assistant IA JARVIS-OMEGA en mode souverain autonome (repli local). Réponds de manière précise, concise et structurée."
+        r = generate_completion(prompt, sys_prompt=sys_prompt, max_tokens=1000)
+        if r.get("success") and r.get("content"):
+            source = r.get("source", "Local GPU")
+            lat = r.get("latency", 0.0)
+            return {
+                "success": True,
+                "output": f"⚡ [REPLI SOUVERAIN ACTIF · {reason}]\n(Moteur: {source} · Latence: {lat}s)\n\n{r['content']}",
+                "returncode": 0,
+                "fallback_used": True,
+                "model": r.get("model", "qwen3-8b"),
+                "reason": reason
+            }
+    except Exception as e:
         pass
 
     return {
@@ -149,9 +115,9 @@ def get_claude_info() -> dict:
 
 
 def run_claude_prompt(prompt: str, cwd: str = None, timeout: int = 12, force_local: bool = False) -> dict:
-    """Exécute un prompt avec détection 529 rapide et bascule automatique."""
-    if force_local:
-        return fallback_local_llm(prompt, reason="Mode Souverain Local Forcé")
+    """Exécute un prompt avec priorité absolue LM Studio Dual-GPU souverain."""
+    if force_local or os.environ.get("JARVIS_FORCE_LOCAL_LLM", "1") == "1":
+        return fallback_local_llm(prompt, reason="Mode Souverain LM Studio Dual-GPU (0-token)")
 
     work_dir = cwd or JARVIS_DIR
     try:

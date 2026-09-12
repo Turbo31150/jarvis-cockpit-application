@@ -22,35 +22,23 @@
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background-color: #040711;
-      background-image:
-        radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.12) 0%, transparent 60%),
-        radial-gradient(circle at 100% 100%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
-        linear-gradient(rgba(0, 240, 255, 0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0, 240, 255, 0.015) 1px, transparent 1px);
-      background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
       color: #e2e8f0;
       letter-spacing: -0.01em;
     }
     .hud-title { font-family: 'Orbitron', 'Inter', sans-serif; letter-spacing: 0.08em; }
     .mono { font-family: 'JetBrains Mono', monospace; }
     .glass {
-      background: rgba(8, 14, 27, 0.85);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(0, 240, 255, 0.12);
+      background: rgba(8, 14, 27, 0.95);
+      border: 1px solid rgba(0, 240, 255, 0.15);
     }
     .glass-card {
-      background: linear-gradient(145deg, rgba(15, 23, 42, 0.75) 0%, rgba(7, 12, 24, 0.85) 100%);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      background: rgba(13, 20, 36, 0.95);
       border: 1px solid rgba(0, 240, 255, 0.12);
-      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
-      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+      transition: border-color 0.18s ease;
     }
     .glass-card:hover {
-      border-color: rgba(0, 240, 255, 0.38);
-      box-shadow: 0 0 20px rgba(0, 240, 255, 0.14), 0 8px 30px rgba(0, 0, 0, 0.55);
-      transform: translateY(-2px);
+      border-color: rgba(0, 240, 255, 0.45);
     }
     .glow-cyan { box-shadow: 0 0 20px rgba(0, 240, 255, 0.45); }
     .glow-emerald { box-shadow: 0 0 20px rgba(16, 185, 129, 0.45); }
@@ -86,32 +74,132 @@
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; border: 1px solid rgba(0, 240, 255, 0.1); }
     ::-webkit-scrollbar-thumb:hover { background: #00f0ff; box-shadow: 0 0 10px #00f0ff; }
 
+    .term-acc-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.1rem;
+      height: 2rem;
+      padding: 0 0.5rem;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(51, 65, 85, 0.8);
+      border-radius: 0.375rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      white-space: nowrap;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      transition: background 0.1s, border-color 0.1s, transform 0.08s;
+    }
+    .term-acc-btn:active {
+      background: rgba(6, 182, 212, 0.3);
+      border-color: #06b6d4;
+      color: #22d3ee;
+      transform: scale(0.95);
+    }
+    #term-acc-bar::-webkit-scrollbar { height: 3px; }
+    #term-acc-bar::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.6); border-radius: 2px; }
+
     /* ===================================================================== */
     /* ADAPTATION MOBILE (≤767px) — pour l'app JARVIS Cockpit OS sur téléphone */
     /* N'affecte QUE les petits écrans ; le desktop (≥768px) reste identique.  */
     /* ===================================================================== */
-    @media (max-width: 767px) {
+    /* ===================================================================== */
+    /* ADAPTATION MOBILE (PORTRAIT & PAYSAGE) — pour smartphone Samsung S9   */
+    /* N'affecte QUE les petits écrans ; le desktop (≥768px) reste identique. */
+    /* ===================================================================== */
+    @media (max-width: 768px), (max-height: 550px) and (max-width: 1024px) {
       /* Layout global : colonne (barre onglets en haut, contenu dessous) */
       body.h-screen.flex { flex-direction: column !important; height: 100vh; height: 100dvh; overflow: hidden; }
-      /* Sidebar → barre supérieure COMPACTE à hauteur auto (ne prend PAS tout l'écran) */
+      /* Sidebar → barre supérieure COMPACTE à hauteur auto */
       aside.w-64 { width: 100% !important; height: auto !important; flex: 0 0 auto !important; border-right: 0 !important; border-bottom: 1px solid rgba(30,41,59,.85); }
       aside.w-64 > .flex-1 { min-height: 0 !important; flex: 0 0 auto !important; }
       /* Header logo compact */
-      aside.w-64 .p-4 { padding: .45rem .7rem !important; }
-      aside.w-64 .p-4 .w-10 { width: 2rem !important; height: 2rem !important; font-size: 1rem !important; }
-      /* LE FIX : menu vertical -> strip HORIZONTAL scrollable (display:flex explicite) */
-      aside.w-64 nav { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; overflow-y: hidden !important; gap: .4rem; padding: .5rem .7rem !important; -webkit-overflow-scrolling: touch; }
-      aside.w-64 nav > button { width: auto !important; flex: 0 0 auto !important; white-space: nowrap !important; margin: 0 !important; padding: .5rem .85rem !important; }
+      aside.w-64 .p-4 { padding: .3rem .5rem !important; }
+      aside.w-64 .p-4 .w-10 { width: 1.75rem !important; height: 1.75rem !important; font-size: 0.85rem !important; border-radius: 0.5rem !important; }
+      /* Menu horizontal scrollable */
+      aside.w-64 nav { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; overflow-y: hidden !important; gap: .3rem; padding: .35rem .5rem !important; -webkit-overflow-scrolling: touch; }
+      aside.w-64 nav > button { width: auto !important; flex: 0 0 auto !important; white-space: nowrap !important; margin: 0 !important; padding: .35rem .65rem !important; font-size: 11px !important; }
       /* Footer de sidebar masqué */
       aside.w-64 > *:not(.flex-1) { display: none !important; }
-      /* CONTENU = tout le reste, scrollable (c'est ce qui manquait pour voir les onglets) */
-      body.h-screen.flex > *:not(aside) { flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; }
+
+      /* Top Bar Telemetry HUD COMPACT sur mobile */
+      header.h-16 { height: 2.2rem !important; min-height: 2.2rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+      header.h-16 #m6-badge,
+      header.h-16 #btn-pwa-install,
+      header.h-16 #clock,
+      header.h-16 .h-5.w-px { display: none !important; }
+      header.h-16 #section-title { font-size: 0.75rem !important; letter-spacing: 0.02em !important; }
+      header.h-16 .text-xs.mono.shrink-0 { gap: 0.2rem !important; font-size: 0.62rem !important; }
+      header.h-16 .text-slate-300.bg-slate-900\/60 { padding: 0.1rem 0.3rem !important; }
+
+      /* Zone de travail mobile */
+      body.h-screen.flex > *:not(aside) { flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important; overflow: hidden !important; display: flex !important; flex-direction: column !important; }
+      main > div.flex-1.overflow-y-auto.p-6 { padding: 0.35rem !important; flex: 1 1 auto !important; min-height: 0 !important; display: flex !important; flex-direction: column !important; }
+
+      /* Quand l'onglet Terminal est actif : zéro padding pour maximiser la hauteur d'affichage */
+      body.tab-terminal-active main > div.flex-1.overflow-y-auto.p-6 { padding: 0 !important; overflow: hidden !important; }
+
+      /* TAB 4 : TERMINAL & TMUX PLEIN ÉCRAN MOBILE FIX */
+      #tab-terminal {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        min-height: 0 !important;
+        flex: 1 1 auto !important;
+        margin: 0 !important;
+        padding: 0.2rem !important;
+        user-select: text !important;
+        -webkit-user-select: text !important;
+      }
+      #tab-terminal.hidden { display: none !important; }
+      #term-container {
+        flex-direction: column !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        flex: 1 1 auto !important;
+        gap: 0.35rem !important;
+      }
+      /* Bascule Lanceur vs Terminal sur Mobile */
+      .term-mobile-mode-lanceur #term-lanceur-col { display: flex !important; width: 100% !important; flex: 1 1 auto !important; min-height: 0 !important; }
+      .term-mobile-mode-lanceur #term-scene-col { display: none !important; }
+      .term-mobile-mode-scene #term-lanceur-col { display: none !important; }
+      .term-mobile-mode-scene #term-scene-col { display: flex !important; width: 100% !important; flex: 1 1 auto !important; min-height: 0 !important; }
+
+      #term-scene { min-height: 90px !important; flex: 1 1 auto !important; }
+      #term-scene .xterm { padding: 4px 6px !important; }
+      .xterm-helper-textarea {
+        left: 0 !important;
+        top: 0 !important;
+        width: 1px !important;
+        height: 1px !important;
+        opacity: 0.01 !important;
+        z-index: 1 !important;
+        user-select: text !important;
+        -webkit-user-select: text !important;
+      }
+
       /* Colonnes/panneaux fixes -> pleine largeur */
       .w-72 { width: 100% !important; }
-      .shrink-0 { flex-shrink: 1 !important; }
-      #term-scene { min-height: 50vh; }
       /* Grilles denses -> 2 colonnes max */
       .grid-cols-3, .grid-cols-4, .grid-cols-6, .grid-cols-7 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    }
+
+    /* MODE PAYSAGE SPÉCIFIQUE (Hauteur ≤ 480px) : Immersion Terminal Plein Écran */
+    @media (max-height: 480px) and (max-width: 1024px) {
+      body.tab-terminal-active.term-mode-scene aside.w-64 { display: none !important; }
+      body.tab-terminal-active.term-mode-scene header.h-16 { display: none !important; }
+      #tab-terminal { padding: 0 !important; }
+      #term-mobile-view-switcher { display: none !important; }
+      #term-scene { min-height: 70px !important; }
+      #term-acc-bar { padding: 2px 4px !important; gap: 2px !important; }
+      .term-acc-btn { height: 1.55rem !important; font-size: 0.7rem !important; min-width: 1.75rem !important; padding: 0 0.3rem !important; }
+      #term-cmd-form { padding: 3px 6px !important; }
+      #term-mobile-input { padding-top: 0.2rem !important; padding-bottom: 0.2rem !important; font-size: 11px !important; }
     }
   </style>
 </head>
@@ -130,7 +218,7 @@
         <div class="min-w-0">
           <h1 class="font-black text-sm tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-200 to-indigo-300 uppercase truncate hud-title">JARVIS COCKPIT</h1>
           <span class="text-[11px] text-cyan-400 mono flex items-center gap-1.5 font-medium">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> M4 MASTER OS v6
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span> COCKPIT OS (MINING)
           </span>
         </div>
       </div>
@@ -141,10 +229,16 @@
           <i class="fa-solid fa-gauge-high w-4 text-cyan-400"></i> Dashboard Cluster
         </button>
         <button onclick="showTab('avancements')" id="nav-avancements" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
-          <i class="fa-solid fa-arrows-rotate w-4 text-emerald-400"></i> Avancements & Sync
+          <i class="fa-solid fa-diagram-project w-4 text-emerald-400"></i> 🏗️ Chantiers & Production
         </button>
         <button onclick="showTab('plan')" id="nav-plan" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
           <i class="fa-solid fa-clipboard-list w-4 text-emerald-400"></i> Board Plan & To-Do
+        </button>
+        <button onclick="showTab('omega')" id="nav-omega" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-brain w-4 text-purple-400"></i> 🧬 OMEGA Cognitive OS
+        </button>
+        <button onclick="showTab('legion')" id="nav-legion" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-shield-halved w-4 text-emerald-400"></i> ⚔️ Légion OMEGA
         </button>
         <button onclick="showTab('claude')" id="nav-claude" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
           <i class="fa-solid fa-crown w-4 text-amber-400"></i> Claude Code Suite
@@ -185,6 +279,9 @@
         <button onclick="showTab('settings')" id="nav-settings" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
           <i class="fa-solid fa-sliders w-4 text-cyan-400"></i> <span data-i18n="nav_settings">Paramètres & Affichage</span>
         </button>
+        <button onclick="showTab('audit')" id="nav-audit" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-amber-400/90 hover:bg-amber-500/20 hover:text-amber-300 border border-amber-500/30 transition">
+          <i class="fa-solid fa-shield-halved w-4 text-amber-400"></i> 🛰️ Audit & Moat JARVIS
+        </button>
       </nav>
     </div>
 
@@ -197,7 +294,7 @@
         <i class="fa-solid fa-mobile-screen-button text-cyan-400"></i> Installer sur Téléphone
       </button>
       <div class="text-[10px] text-slate-500 text-center mono truncate">
-        Cluster M4 (78°C) · M6 RJ45 (10.42.0.230)
+        Rig 4 GPU (mining) · Intel Pentium · 4 Go RAM
       </div>
     </div>
   </aside>
@@ -211,16 +308,19 @@
     <header class="h-16 glass border-b border-cyan-500/20 px-6 flex items-center justify-between z-10 shrink-0 shadow-lg">
       <div class="flex items-center gap-4 min-w-0">
         <span id="section-title" class="font-black text-base tracking-wide text-slate-100 truncate hud-title">Dashboard Cluster</span>
-        <div id="m6-badge" class="px-2.5 py-1 rounded-full bg-rose-950/60 border border-rose-700/80 text-rose-300 text-xs mono flex items-center gap-1.5 shrink-0 glow-rose">
-          <span class="w-2 h-2 rounded-full bg-rose-400"></span> M6 GPU : HORS LIGNE
+        <div id="m6-badge" class="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-slate-400 text-xs mono flex items-center gap-1.5 shrink-0">
+          <span class="w-2 h-2 rounded-full bg-slate-500"></span> LM Studio GPU : HORS LIGNE
         </div>
         <div class="px-2.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-700/80 text-cyan-300 text-xs mono flex items-center gap-1.5 shrink-0">
-          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span> OLLAMA QWEN2.5 : ACTIF
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span> RIG 4 GPU : ACTIF
+        </div>
+        <div id="gpu-action-mem-badge" class="px-2.5 py-1 rounded-full bg-purple-950/60 border border-purple-700/80 text-purple-300 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:border-purple-400 transition" title="Mémoire Action permanente vectorisée sur GPU 0 (GTX 1660S 768D) — Cliquez pour chercher" onclick="ouvrirModalMemoireAction()">
+          <span class="w-2 h-2 rounded-full bg-purple-400"></span> Vecto GPU : Actif
         </div>
       </div>
       <div class="flex items-center gap-4 text-xs mono shrink-0">
         <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
-          <i class="fa-solid fa-microchip text-sky-400 mr-1"></i> GPU: <span id="m4-vram" class="text-cyan-300 font-bold">5 GPU OK</span>
+          <i class="fa-solid fa-microchip text-sky-400 mr-1"></i> GPU: <span id="m4-vram" class="text-cyan-300 font-bold">4 GPU OK</span>
         </div>
         <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
           <i class="fa-solid fa-temperature-half text-amber-400 mr-1"></i> T° CPU: <span id="m4-temp" class="text-amber-300 font-bold">--°C</span>
@@ -245,19 +345,19 @@
       <section id="tab-dashboard" class="space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div class="glass-card p-4 rounded-xl border-l-4 border-cyan-500">
-            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Principal (M4)</div>
-            <div class="text-xl font-black text-white mt-1 truncate">pamerys-m4</div>
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Principal (Mining)</div>
+            <div class="text-xl font-black text-white mt-1 truncate" id="dash-node-name">mining</div>
             <div class="text-xs text-cyan-400 mt-2 flex items-center justify-between">
-              <span>Gouverneur Performance</span>
-              <span class="text-emerald-400">Sécurisé 93°C</span>
+              <span>Pentium 987 · 2 cœurs</span>
+              <span class="text-emerald-400">Mode Éco CPU</span>
             </div>
           </div>
           <div class="glass-card p-4 rounded-xl border-l-4 border-emerald-500">
-            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Inférence (M6 GPU)</div>
-            <div class="text-xl font-black text-white mt-1">10.42.0.230</div>
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Inférence (LM Studio GPU)</div>
+            <div class="text-xl font-black text-white mt-1" id="dash-m6-ip">192.168.42.241:1234</div>
             <div class="text-xs text-emerald-400 mt-2 flex items-center justify-between">
-              <span>Lien direct RJ45</span>
-              <span>1.4 ms</span>
+              <span id="dash-m6-status">LM Studio Dual GPU</span>
+              <span id="dash-m6-latency">-- ms</span>
             </div>
           </div>
           <div class="glass-card p-4 rounded-xl border-l-4 border-indigo-500">
@@ -448,6 +548,221 @@
       </section>
 
       <!-- ================================================================= -->
+      <!-- TAB OMEGA : ARCHITECTURE COGNITIVE OMBRE × LUMIÈRE -->
+      <!-- ================================================================= -->
+      <section id="tab-omega" class="hidden space-y-6">
+        <!-- Bannière OMEGA -->
+        <div class="glass-card p-6 rounded-xl border border-purple-500/30 bg-gradient-to-r from-purple-950/40 via-slate-900/60 to-indigo-950/40 relative overflow-hidden">
+          <div class="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+            <i class="fa-solid fa-brain text-[180px] text-purple-400"></i>
+          </div>
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+            <div>
+              <div class="flex items-center gap-3">
+                <span class="px-2.5 py-1 rounded bg-purple-500/20 text-purple-300 text-xs font-mono font-semibold border border-purple-500/40">OMEGA CORE v2.6</span>
+                <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 text-xs font-mono font-semibold border border-emerald-500/40"><i class="fa-solid fa-check-circle"></i> SOUVERAIN 100%</span>
+                <span class="px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 text-xs font-mono font-semibold border border-cyan-500/40">TRANSMISSIBILITÉ 100%</span>
+              </div>
+              <h2 class="text-2xl font-bold text-white mt-2">Architecture Cognitive JARVIS — Ombre × Lumière</h2>
+              <p class="text-xs text-slate-400 mt-1 max-w-3xl">
+                Système vivant autonome et unifié : 3 disques SSD moissonnés, 527 artefacts indexés, 9 objectifs BOARD-B, 135 tâches maîtresses et synchronisation temps réel PC ↔ Mobile S9.
+              </p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <button onclick="refreshOmegaMetrics()" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-lg transition">
+                <i class="fa-solid fa-rotate"></i> Actualiser OMEGA
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4 Piliers OMEGA Métriques -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="glass-card p-4 rounded-xl border-l-4 border-purple-500">
+            <div class="text-[11px] font-mono text-purple-400 uppercase tracking-wider">Artefacts Vivants</div>
+            <div class="text-2xl font-bold text-white mt-1" id="omega-artefacts-count">527</div>
+            <div class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              <i class="fa-solid fa-cube text-purple-400"></i> Indexés & transmissibles
+            </div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border-l-4 border-cyan-500">
+            <div class="text-[11px] font-mono text-cyan-400 uppercase tracking-wider">Objectifs BOARD-B</div>
+            <div class="text-2xl font-bold text-white mt-1" id="omega-board-count">9</div>
+            <div class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              <i class="fa-solid fa-bullseye text-cyan-400"></i> CDC T001–T098 Actifs
+            </div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border-l-4 border-emerald-500">
+            <div class="text-[11px] font-mono text-emerald-400 uppercase tracking-wider">Jalons & Audits</div>
+            <div class="text-2xl font-bold text-white mt-1" id="omega-audits-count">159</div>
+            <div class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              <i class="fa-solid fa-shield-halved text-emerald-400"></i> 100% Intégrité validée
+            </div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border-l-4 border-amber-500">
+            <div class="text-[11px] font-mono text-amber-400 uppercase tracking-wider">Stockage 3 SSDs</div>
+            <div class="text-2xl font-bold text-white mt-1" id="omega-ssd-count">3 Disques</div>
+            <div class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+              <i class="fa-solid fa-hard-drive text-amber-400"></i> SSD1 + SSD2 (M1) + SSD3
+            </div>
+          </div>
+        </div>
+
+        <!-- Deux Colonnes : Ombre vs Lumière -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Carte L'Ombre -->
+          <div class="glass-card p-5 rounded-xl border border-purple-500/20 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-purple-900/30 text-purple-400 flex items-center justify-center font-bold text-lg">
+                  <i class="fa-solid fa-moon"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-white text-sm">L'Ombre (Noyau Cognitif & Fondations)</h3>
+                  <p class="text-[11px] text-slate-400">Ce qui travaille en arrière-plan et opère le système</p>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-mono">ACTIF</span>
+            </div>
+
+            <div class="space-y-3 text-xs">
+              <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
+                <i class="fa-solid fa-database text-teal-400 mt-0.5"></i>
+                <div>
+                  <div class="font-semibold text-white">53 Bases SQL & FTS5 (528k Chunks)</div>
+                  <div class="text-slate-400 text-[11px]">Bases vivantes unifiées, mémoires vectorielles 768D (Swan), historique M1 complet.</div>
+                </div>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
+                <i class="fa-solid fa-microchip text-indigo-400 mt-0.5"></i>
+                <div>
+                  <div class="font-semibold text-white">Cluster Multi-Machines & Multi-Modèles</div>
+                  <div class="text-slate-400 text-[11px]">Nœuds M1, M2, M3 orchestrés sans dépendance externe, LLM locaux LM Studio + Ollama.</div>
+                </div>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
+                <i class="fa-solid fa-network-wired text-cyan-400 mt-0.5"></i>
+                <div>
+                  <div class="font-semibold text-white">48 Serveurs MCP & Bus d'Automatisation</div>
+                  <div class="text-slate-400 text-[11px]">Routage d'outils, agents autonomes, exécution sécurisée, introspection continue.</div>
+                </div>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
+                <i class="fa-solid fa-hard-drive text-amber-400 mt-0.5"></i>
+                <div>
+                  <div class="font-semibold text-white">Moisson Tri-Disques SSD</div>
+                  <div class="text-slate-400 text-[11px]">SSD 1 (Root NVMe 1 To) · SSD 2 (/mnt/jarvis-m1 1 To) · SSD 3 (Staging / Backup).</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Carte La Lumière -->
+          <div class="glass-card p-5 rounded-xl border border-cyan-500/20 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-cyan-900/30 text-cyan-400 flex items-center justify-center font-bold text-lg">
+                  <i class="fa-solid fa-sun"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-white text-sm">La Lumière (Surface & Interface Cockpit)</h3>
+                  <p class="text-[11px] text-slate-400">Ce que l'humain voit, pilote et commande</p>
+                </div>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-mono">UNIFIÉ</span>
+            </div>
+
+            <div class="space-y-3 text-xs">
+              <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
+                <i class="fa-solid fa-mobile-screen-button text-cyan-400 mt-0.5"></i>
+                <div>
+                  <div class="font-semibold text-white">Cockpit Universel PC & Mobile S9 Identique</div>
+                  <div class="text-slate-400 text-[11px]">Même Cyber-Deck autonome en standalone app sur PC (Port 8600) et sur smartphone Samsung Galaxy S9.</div>
+                </div>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
+                <i class="fa-solid fa-diagram-project text-emerald-400 mt-0.5"></i>
+                <div>
+                  <div class="font-semibold text-white">🏗️ Chantiers & Production (production.db)</div>
+                  <div class="text-slate-400 text-[11px]">Suivi en direct des 6 chantiers prioritaires, synchronisation en continu sans perte de contexte.</div>
+                </div>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
+                <i class="fa-solid fa-list-check text-purple-400 mt-0.5"></i>
+                <div>
+                  <div class="font-semibold text-white">Board Plan & To-Do List Maître (135 Tâches)</div>
+                  <div class="text-slate-400 text-[11px]">Historique complet M1 restauré : CDC T001–T098, Deep Audit, RGPD, actions immédiates.</div>
+                </div>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
+                <i class="fa-solid fa-shield-halved text-emerald-400 mt-0.5"></i>
+                <div>
+                  <div class="font-semibold text-white">Contrôle Souverain & Rejouabilité Totale</div>
+                  <div class="text-slate-400 text-[11px]">Boutons 1-clic : Rejouer & Réparer, Table Ronde IA, Multiplexeur TMUX, Diagnostics en direct.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grille des 3 SSDs Moissonnés -->
+        <div class="glass-card p-5 rounded-xl border border-slate-800 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-white text-sm flex items-center gap-2">
+              <i class="fa-solid fa-hard-drive text-amber-400"></i> État de la Moisson Tri-Disques SSD
+            </h3>
+            <span class="text-xs font-mono text-slate-400">Capacité totale : 3.0 To</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+            <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-white font-bold">SSD 1 (Système OS)</span>
+                <span class="text-emerald-400 text-[11px]">ACTIF (/)</span>
+              </div>
+              <div class="text-slate-400 text-[11px]">WD Blue SA510 (24375P800971)</div>
+              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div class="bg-cyan-500 h-2" style="width: 18%"></div>
+              </div>
+              <div class="flex justify-between text-[10px] text-slate-500">
+                <span>157 Go Utilisés</span>
+                <span>712 Go Libres</span>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-white font-bold">SSD 2 (Archive M1)</span>
+                <span class="text-indigo-400 text-[11px]">MOISSONNÉ</span>
+              </div>
+              <div class="text-slate-400 text-[11px]">WD Blue SA510 (24375P800775)</div>
+              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div class="bg-indigo-500 h-2" style="width: 82%"></div>
+              </div>
+              <div class="flex justify-between text-[10px] text-slate-500">
+                <span>764 Go Moissonnés</span>
+                <span>Monté /mnt/jarvis-m1</span>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-white font-bold">SSD 3 (Staging & Backup)</span>
+                <span class="text-purple-400 text-[11px]">RÉFÉRENCE</span>
+              </div>
+              <div class="text-slate-400 text-[11px]">WD Blue SA510 (24375P800766)</div>
+              <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div class="bg-purple-500 h-2" style="width: 100%"></div>
+              </div>
+              <div class="flex justify-between text-[10px] text-slate-500">
+                <span>Clones & ISOs</span>
+                <span>Lien MOISSON/staging-ssd3</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================= -->
       <!-- TAB 3 : CLAUDE CODE SUITE -->
       <!-- ================================================================= -->
       <section id="tab-claude" class="hidden space-y-6">
@@ -468,7 +783,7 @@
               <div>Serveurs MCP : <span id="claude-mcp-count" class="text-white font-bold">48 connectés</span></div>
               <div class="p-2 rounded bg-amber-950/40 border border-amber-800/60 text-[11px] text-amber-300 flex items-center gap-2">
                 <i class="fa-solid fa-shield-halved text-emerald-400"></i>
-                <span>Anti-529 Actif : repli transparent M4 Ollama / M6 si Cloud en panne</span>
+                <span>Anti-529 Actif : repli transparent Ollama local (RTX 3080/2060) si Cloud en panne</span>
               </div>
             </div>
             <div class="space-y-2 pt-1">
@@ -510,11 +825,21 @@
       <!-- ================================================================= -->
       <!-- TAB 4 : TERMINAL & TMUX -->
       <!-- ================================================================= -->
-      <section id="tab-terminal" class="hidden">
-        <div class="flex gap-4 h-[calc(100vh-9.5rem)]">
+      <section id="tab-terminal" class="hidden term-mobile-mode-lanceur flex flex-col h-[calc(100vh-9.5rem)]">
+        <!-- SELECTEUR DE VUE MOBILE (Applications vs Terminal) -->
+        <div id="term-mobile-view-switcher" class="flex md:hidden items-center gap-2 mb-2 p-1 bg-slate-900/90 rounded-lg border border-slate-800 shrink-0">
+          <button type="button" id="term-btn-view-lanceur" onclick="termSetMobileView('lanceur')" class="flex-1 py-1.5 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+            <i class="fa-solid fa-shapes"></i> Applications &amp; Hubs
+          </button>
+          <button type="button" id="term-btn-view-scene" onclick="termSetMobileView('scene')" class="flex-1 py-1.5 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-400 hover:text-white">
+            <i class="fa-solid fa-terminal"></i> Terminal <span id="term-mobile-badge" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-400">0</span>
+          </button>
+        </div>
+
+        <div id="term-container" class="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
           <!-- LANCEUR -->
-          <div class="w-72 shrink-0 glass-card rounded-xl flex flex-col overflow-hidden">
-            <div class="px-4 py-3 border-b border-slate-800/80 flex items-center justify-between">
+          <div id="term-lanceur-col" class="w-full md:w-72 md:shrink-0 glass-card rounded-xl flex flex-col overflow-hidden min-h-0">
+            <div class="px-4 py-3 border-b border-slate-800/80 flex items-center justify-between shrink-0">
               <span class="text-xs font-bold uppercase tracking-wider text-slate-300">
                 <i class="fa-solid fa-plug text-purple-400 mr-1.5"></i>Dialoguer avec
               </span>
@@ -522,10 +847,10 @@
                 <i class="fa-solid fa-rotate"></i>
               </button>
             </div>
-            <div id="term-lanceur" class="flex-1 overflow-y-auto p-3 space-y-4">
+            <div id="term-lanceur" class="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
               <div class="text-xs text-slate-500 mono">Mesure des applications…</div>
             </div>
-            <div class="px-3 py-3 border-t border-slate-800/80 space-y-2">
+            <div class="px-3 py-3 border-t border-slate-800/80 space-y-2 shrink-0">
               <button onclick="tmuxToutOuvrir()" id="btn-tmux-tout" class="w-full bg-gradient-to-r from-purple-600 to-fuchsia-500 hover:from-purple-500 text-white py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2">
                 <i class="fa-solid fa-layer-group"></i> Ouvrir tous les hubs tmux
               </button>
@@ -533,10 +858,13 @@
           </div>
 
           <!-- SCÈNE TERMINAL -->
-          <div class="flex-1 min-w-0 glass-card rounded-xl flex flex-col overflow-hidden">
-            <div class="px-3 py-2 border-b border-slate-800/80 flex items-center gap-2">
-              <div id="term-onglets" class="flex-1 flex items-center gap-1.5 overflow-x-auto">
-                <span class="text-xs text-slate-500 mono px-2">Aucune session — choisis une application à gauche.</span>
+          <div id="term-scene-col" class="flex-1 min-w-0 glass-card rounded-xl flex flex-col overflow-hidden min-h-0">
+            <div class="px-3 py-2 border-b border-slate-800/80 flex items-center gap-2 shrink-0">
+              <button type="button" onclick="termSetMobileView('lanceur')" title="Retourner aux applications" class="md:hidden px-2.5 py-1.5 rounded-md bg-slate-800/90 hover:bg-slate-700 text-cyan-400 text-xs font-semibold shrink-0 flex items-center gap-1.5 border border-cyan-500/30">
+                <i class="fa-solid fa-arrow-left"></i><span>Apps</span>
+              </button>
+              <div id="term-onglets" class="flex-1 flex items-center gap-1.5 overflow-x-auto min-w-0">
+                <span class="text-xs text-slate-500 mono px-2">Aucune session — choisis une application.</span>
               </div>
               <div class="flex items-center gap-1.5 shrink-0 border-l border-slate-800 pl-2">
                 <button onclick="termSignal('INT')" title="Interrompre (Ctrl-C)" class="px-2.5 py-1.5 rounded-md bg-slate-800/70 hover:bg-amber-600/30 text-amber-400 text-xs"><i class="fa-solid fa-hand"></i></button>
@@ -544,14 +872,55 @@
                 <button onclick="termFermer()" title="Fermer la session" class="px-2.5 py-1.5 rounded-md bg-slate-800/70 hover:bg-rose-600/30 text-rose-400 text-xs"><i class="fa-solid fa-xmark"></i></button>
               </div>
             </div>
+
             <div id="term-scene" class="flex-1 bg-[#05070c] relative min-h-0">
-              <div id="term-vide" class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-3">
-                <i class="fa-solid fa-terminal text-5xl opacity-30"></i>
-                <p class="text-sm">Le terminal dialogue avec les applications de l'écosystème.</p>
-                <p class="text-xs mono opacity-60">Claude Code · Antigravity · Gemini · Board · JMO · Bash · SSH M6</p>
+              <div id="term-vide" class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-3 p-4 text-center">
+                <i class="fa-solid fa-terminal text-4xl md:text-5xl opacity-30"></i>
+                <p class="text-xs md:text-sm">Le terminal dialogue avec les applications de l'écosystème.</p>
+                <p class="text-[11px] mono opacity-60">Claude Code · Antigravity · Gemini · Board · JMO · Bash · SSH M6</p>
+                <button type="button" onclick="termSetMobileView('lanceur')" class="md:hidden mt-2 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-2">
+                  <i class="fa-solid fa-shapes"></i> Choisir une application à lancer
+                </button>
               </div>
             </div>
-            <div id="term-etat" class="px-3 py-1.5 border-t border-slate-800/80 text-[11px] mono text-slate-500 flex items-center gap-3">
+
+            <!-- TOUCHES D'APPOINT VIRTUELLES (TOUCH KEYPAD ACCESSOIRE) -->
+            <div id="term-acc-bar" class="px-2 py-1.5 bg-slate-950/95 border-t border-slate-800/80 flex items-center gap-1 overflow-x-auto select-none shrink-0">
+              <button type="button" onclick="termSendKey('\t')" class="term-acc-btn" title="Tabulation (auto-complétion)">Tab</button>
+              <button type="button" onclick="termSendKey('\x03')" class="term-acc-btn text-amber-400 border-amber-500/40" title="Interrompre (Ctrl-C)">^C</button>
+              <button type="button" onclick="termSendKey('\x1b')" class="term-acc-btn" title="Échap (Escape)">Esc</button>
+              <button type="button" onclick="termSendKey('\x1b[A')" class="term-acc-btn text-cyan-300" title="Historique précédent (Flèche Haut)">↑</button>
+              <button type="button" onclick="termSendKey('\x1b[B')" class="term-acc-btn text-cyan-300" title="Historique suivant (Flèche Bas)">↓</button>
+              <button type="button" onclick="termSendKey('\x1b[D')" class="term-acc-btn">←</button>
+              <button type="button" onclick="termSendKey('\x1b[C')" class="term-acc-btn">→</button>
+              <button type="button" onclick="termSendKey('\r')" class="term-acc-btn text-emerald-400 font-bold border-emerald-500/40" title="Entrée">⏎</button>
+              <button type="button" onclick="termSendKey('\x04')" class="term-acc-btn text-slate-400" title="Fin de fichier / Déconnexion (Ctrl-D)">^D</button>
+              <button type="button" onclick="termSendKey('/')" class="term-acc-btn font-mono">/</button>
+              <button type="button" onclick="termSendKey('-')" class="term-acc-btn font-mono">-</button>
+              <button type="button" onclick="termSendKey('|')" class="term-acc-btn font-mono">|</button>
+              <button type="button" onclick="termSendKey('y\r')" class="term-acc-btn text-emerald-300 font-semibold" title="Répondre 'y' (Yes)">y</button>
+              <button type="button" onclick="termSendKey('n\r')" class="term-acc-btn text-rose-300 font-semibold" title="Répondre 'n' (No)">n</button>
+            </div>
+
+            <!-- BARRE DE SAISIE DE COMMANDE DÉDIÉE (MOBILE & INTERACTIVE) -->
+            <form id="term-cmd-form" onsubmit="event.preventDefault(); termSubmitCmd();" class="p-2 bg-slate-900/95 border-t border-slate-800 flex items-center gap-2 shrink-0">
+              <div class="relative flex-1">
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-cyan-400 font-mono text-xs font-bold pointer-events-none">&gt;_</span>
+                <input type="text" id="term-mobile-input"
+                       placeholder="Saisir une commande (ex: bash, ls, claude, y)..."
+                       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                       class="w-full bg-slate-950 border border-slate-700/80 focus:border-cyan-400 rounded-lg pl-8 pr-8 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-400 transition" />
+                <button type="button" id="term-mobile-clear-btn" onclick="document.getElementById('term-mobile-input').value=''; this.classList.add('hidden'); document.getElementById('term-mobile-input').focus();" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs hidden">
+                  <i class="fa-solid fa-circle-xmark"></i>
+                </button>
+              </div>
+              <button type="submit" id="term-mobile-send-btn" class="px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow transition shrink-0">
+                <span>Envoyer</span>
+                <i class="fa-solid fa-paper-plane text-[10px]"></i>
+              </button>
+            </form>
+
+            <div id="term-etat" class="px-3 py-1.5 border-t border-slate-800/80 text-[11px] mono text-slate-500 flex items-center justify-between shrink-0">
               <span>prêt</span>
             </div>
           </div>
@@ -672,7 +1041,7 @@
             </div>
             <div class="md:col-span-2">
               <label class="text-xs text-slate-400 font-semibold mb-1 block">Sujet ou Thème</label>
-              <input type="text" id="studio-sujet" placeholder="Ex: Symbiose M4+M6 RJ45 et architecture modulaire" 
+              <input type="text" id="studio-sujet" placeholder="Ex: Architecture modulaire multi-GPU et orchestration autonome" 
                      class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
             </div>
           </div>
@@ -698,7 +1067,7 @@
         <div class="glass-card p-4 rounded-xl flex justify-between items-center">
           <div>
             <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
-              <i class="fa-solid fa-boxes-stacked text-orange-400"></i> Matrice des 48 Serveurs MCP
+              <i class="fa-solid fa-boxes-stacked text-orange-400"></i> <span id="mcps-titre">Matrice des Serveurs MCP</span>
             </h2>
             <p class="text-xs text-slate-400 mt-1">Outils et connecteurs Model Context Protocol déclarés dans <code>~/.claude.json</code>.</p>
           </div>
@@ -757,6 +1126,18 @@
       <!-- ================================================================= -->
       <!-- TAB 11 : MOISSON & CORPUS VIVANT -->
       <!-- ================================================================= -->
+      <section id="tab-legion" class="hidden space-y-6">
+        <div class="glass-card p-5 rounded-xl space-y-3">
+          <h2 class="text-sm font-bold text-slate-100 flex items-center gap-2 uppercase tracking-wider">
+            <i class="fa-solid fa-shield-halved text-emerald-400"></i> Légion OMEGA — agents en tâche de fond
+          </h2>
+          <div id="legion-content" class="text-xs text-slate-300 space-y-2">Chargement…</div>
+        </div>
+        <div class="glass-card p-5 rounded-xl">
+          <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">Hardware réel du rig (agent remodelage)</h3>
+          <div id="legion-hardware" class="text-xs text-slate-400 space-y-1">Chargement…</div>
+        </div>
+      </section>
       <section id="tab-moisson" class="hidden space-y-6">
         <!-- Recherche FTS5 Board -->
         <div class="glass-card p-5 rounded-xl space-y-3">
@@ -1064,6 +1445,174 @@
         <div id="settings-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
       </section>
 
+      <!-- ===================== AUDIT & MOAT STRATÉGIQUE ===================== -->
+      <section id="tab-audit" class="hidden space-y-6">
+        <!-- Bannière En-tête -->
+        <div class="glass-card p-5 rounded-xl border-l-4 border-amber-500 flex justify-between items-center flex-wrap gap-4 bg-gradient-to-r from-slate-900/90 via-amber-950/20 to-slate-900/90">
+          <div>
+            <div class="flex items-center gap-3">
+              <span class="px-2.5 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold rounded uppercase tracking-wider">Master Document</span>
+              <span class="text-xs text-slate-400">12 Septembre 2026 • Station Souveraine Bi-GPU</span>
+            </div>
+            <h2 class="text-lg font-bold text-slate-100 mt-2 flex items-center gap-2">
+              <i class="fa-solid fa-shield-halved text-amber-400"></i> Audit Stratégique & Technique Complet : JARVIS OS vs Concurrence
+            </h2>
+            <p class="text-xs text-slate-300 mt-1 max-w-3xl">
+              Analyse comparative face à <strong>OpenClaw</strong>, <strong>Open WebUI</strong>, <strong>LangGraph/CrewAI</strong> et <strong>Claude Code</strong>. Évaluation du Moat souverain (board.db 7,5 Go, 1,07M chunks, production continue dual-GPU 14k+ tâches).
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="chargerAuditComplet('complet')" class="px-3 py-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-file-lines"></i> Lire Audit Complet
+            </button>
+            <button onclick="chargerAuditComplet('commercialisation')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-briefcase"></i> Audit Commercial
+            </button>
+          </div>
+        </div>
+
+        <!-- Cartes Télémétriques & Métriques Réelles -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+          <div class="glass-card p-3 rounded-lg border border-amber-500/30 bg-slate-900/60">
+            <div class="text-slate-400 font-medium">Coût Récurrent</div>
+            <div class="text-lg font-black text-emerald-400 mt-1">0 € / Token</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">100% Inférence locale</div>
+          </div>
+          <div class="glass-card p-3 rounded-lg border border-cyan-500/30 bg-slate-900/60">
+            <div class="text-slate-400 font-medium">Bibliothèque Vivante</div>
+            <div class="text-lg font-black text-cyan-400 mt-1">7,5 Go / 1,07M</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">Chunks FTS5 curés</div>
+          </div>
+          <div class="glass-card p-3 rounded-lg border border-purple-500/30 bg-slate-900/60">
+            <div class="text-slate-400 font-medium">Usine Bi-GPU</div>
+            <div class="text-lg font-black text-purple-400 mt-1">22 Go VRAM</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">RTX 2060 + 3080</div>
+          </div>
+          <div class="glass-card p-3 rounded-lg border border-emerald-500/30 bg-slate-900/60">
+            <div class="text-slate-400 font-medium">Domino Continu</div>
+            <div class="text-lg font-black text-emerald-400 mt-1">14 000+ OK</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">1 tâche / 2-3s non-stop</div>
+          </div>
+          <div class="glass-card p-3 rounded-lg border border-rose-500/30 bg-slate-900/60">
+            <div class="text-slate-400 font-medium">Conseil Délibératif</div>
+            <div class="text-lg font-black text-rose-400 mt-1">48 Experts</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">14 Domaines sans biais</div>
+          </div>
+          <div class="glass-card p-3 rounded-lg border border-sky-500/30 bg-slate-900/60">
+            <div class="text-slate-400 font-medium">Outils MCP OS</div>
+            <div class="text-lg font-black text-sky-400 mt-1">204 Handlers</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">X11, DPMS, Audio, CDP</div>
+          </div>
+        </div>
+
+        <!-- Matrice Comparative Rapide -->
+        <div class="glass-card p-4 rounded-xl border border-slate-800">
+          <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2 mb-3">
+            <i class="fa-solid fa-table-list text-amber-400"></i> Matrice Comparative : JARVIS OS vs Solutions du Marché
+          </h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 bg-slate-900/80">
+                  <th class="py-2.5 px-3">Critère Clé</th>
+                  <th class="py-2.5 px-3 text-amber-400 font-bold bg-amber-950/20">JARVIS OS (Notre Système)</th>
+                  <th class="py-2.5 px-3">OpenClaw</th>
+                  <th class="py-2.5 px-3">Open WebUI</th>
+                  <th class="py-2.5 px-3">CrewAI / LangGraph</th>
+                  <th class="py-2.5 px-3">Claude Code</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                <tr>
+                  <td class="py-2 px-3 font-semibold text-slate-200">Nature & Architecture</td>
+                  <td class="py-2 px-3 bg-amber-950/10 font-bold text-amber-300">OS Cognitif & Appliance Autonome</td>
+                  <td class="py-2 px-3">Agent CLI / Desktop personnel</td>
+                  <td class="py-2 px-3">Interface Web de Chat</td>
+                  <td class="py-2 px-3">Framework de dev (code brut)</td>
+                  <td class="py-2 px-3">Assistant de code cloud</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-semibold text-slate-200">Facturation & Coût</td>
+                  <td class="py-2 px-3 bg-amber-950/10 font-bold text-emerald-400">0 € (100% Inférence Locale)</td>
+                  <td class="py-2 px-3">Consomme des APIs cloud</td>
+                  <td class="py-2 px-3">Dépend du backend cloud</td>
+                  <td class="py-2 px-3 text-rose-400">Très lourd (60-150€/1k runs)</td>
+                  <td class="py-2 px-3">Abonnement + tokens</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-semibold text-slate-200">Orchestration Multi-Agents</td>
+                  <td class="py-2 px-3 bg-amber-950/10 font-bold text-amber-300">Board 48 experts & Arbitrage</td>
+                  <td class="py-2 px-3 text-rose-400">Refusée par doctrine (VISION.md)</td>
+                  <td class="py-2 px-3">Inexistante (Chat 1-to-1)</td>
+                  <td class="py-2 px-3">Complexe (à développer)</td>
+                  <td class="py-2 px-3">Mono-agent séquentiel</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-semibold text-slate-200">Souveraineté & RGPD</td>
+                  <td class="py-2 px-3 bg-amber-950/10 font-bold text-emerald-400">Absolue (0 fuite réseau)</td>
+                  <td class="py-2 px-3">Partielle</td>
+                  <td class="py-2 px-3">Variable</td>
+                  <td class="py-2 px-3 text-rose-400">Faible (APIs externes)</td>
+                  <td class="py-2 px-3 text-rose-400">Nulle (cloud tiers)</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-semibold text-slate-200">Sensibilité aux Quotas 429</td>
+                  <td class="py-2 px-3 bg-amber-950/10 font-bold text-emerald-400">Insensible (Relais local immédiat)</td>
+                  <td class="py-2 px-3">Bloqué si API saturée</td>
+                  <td class="py-2 px-3">Bloqué</td>
+                  <td class="py-2 px-3">Bloqué</td>
+                  <td class="py-2 px-3 text-rose-400">Bloqué (Weekly limit vécue)</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-semibold text-slate-200">Moat de Données Pré-intégré</td>
+                  <td class="py-2 px-3 bg-amber-950/10 font-bold text-amber-300">1,07 M chunks / 311k sources</td>
+                  <td class="py-2 px-3">Aucun</td>
+                  <td class="py-2 px-3">Aucun</td>
+                  <td class="py-2 px-3">Aucun</td>
+                  <td class="py-2 px-3">Aucun</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-semibold text-slate-200">Anti-Hallucination Formelle</td>
+                  <td class="py-2 px-3 bg-amber-950/10 font-bold text-emerald-400">Audit SQL strict (citation req.)</td>
+                  <td class="py-2 px-3">Probabiliste</td>
+                  <td class="py-2 px-3">Probabiliste</td>
+                  <td class="py-2 px-3">Code manuel</td>
+                  <td class="py-2 px-3">Probabiliste</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-semibold text-slate-200">Application & Cockpit</td>
+                  <td class="py-2 px-3 bg-amber-950/10 font-bold text-cyan-300">PyQt6 Native AAA + Mobile PWA</td>
+                  <td class="py-2 px-3">Electron légère / CLI</td>
+                  <td class="py-2 px-3">Interface Web</td>
+                  <td class="py-2 px-3">Aucune UI native</td>
+                  <td class="py-2 px-3">CLI / Extension IDE</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Visionneuse de Document Intégrée -->
+        <div class="glass-card p-4 rounded-xl border border-slate-800 space-y-3">
+          <div class="flex justify-between items-center flex-wrap gap-2 border-b border-slate-800 pb-3">
+            <h3 id="audit-doc-title" class="text-sm font-bold text-slate-100 flex items-center gap-2">
+              <i class="fa-solid fa-file-lines text-amber-400"></i> Document : AUDIT_COMPLET_JARVIS_OS_COCKPIT.md
+            </h3>
+            <div class="flex items-center gap-2">
+              <a href="/audit-complet.md" target="_blank" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs transition flex items-center gap-1.5">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Ouvrir Raw
+              </a>
+              <button onclick="copierCheminBureau()" class="px-2.5 py-1 bg-cyan-900/30 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-700/40 rounded text-xs transition flex items-center gap-1.5">
+                <i class="fa-solid fa-copy"></i> Copier chemin Bureau
+              </button>
+            </div>
+          </div>
+          <div id="audit-doc-content" class="bg-slate-950/80 p-5 rounded-lg border border-slate-900 text-xs font-mono text-slate-300 leading-relaxed max-h-[650px] overflow-y-auto whitespace-pre-wrap select-text">
+            Chargement de l'audit en cours...
+          </div>
+        </div>
+      </section>
+
     </div>
   </main>
 
@@ -1111,7 +1660,8 @@
     updateClock();
 
     function showTab(tabId) {
-      const tabs = ['dashboard', 'avancements', 'plan', 'claude', 'terminal', 'apps', 'tableronde', 'studio', 'mcps', 'sql', 'swarm', 'moisson', 'swan', 'iaweb', 'bureau', 'settings'];
+      document.body.classList.toggle('tab-terminal-active', tabId === 'terminal');
+      const tabs = ['dashboard', 'avancements', 'plan', 'omega', 'legion', 'claude', 'terminal', 'apps', 'tableronde', 'studio', 'mcps', 'sql', 'swarm', 'moisson', 'swan', 'iaweb', 'bureau', 'settings', 'audit'];
       tabs.forEach(t => {
         const el = document.getElementById('tab-' + t);
         const nav = document.getElementById('nav-' + t);
@@ -1131,6 +1681,8 @@
         'dashboard': 'Dashboard Cluster',
         'avancements': 'Synchronisation & Avancements des Chantiers (production.db)',
         'plan': 'Board Plan & To-Do List Maître',
+        'omega': '🧬 OMEGA Cognitive OS — Architecture Ombre × Lumière',
+        'legion': '⚔️ Légion OMEGA — Domino continu, vectorisation & hardware réel',
         'claude': 'Claude Code Suite & CLI',
         'terminal': 'Terminal & TMUX Multiplexeur',
         'apps': 'Applications Bureau & Lanceurs',
@@ -1143,12 +1695,16 @@
         'swan': 'Flux SWAN & Ingestion 768D',
         'iaweb': 'Hub IA Web & Automatisation CDP',
         'bureau': 'Bureau GNOME — Barre, Icônes, Verrous, Écrans (tracé ÉTOILE)',
-        'settings': 'Réglages & Paramètres du Cockpit'
+        'settings': 'Réglages & Paramètres du Cockpit',
+        'audit': '🛰️ Audit Stratégique & Technique Complet : JARVIS OS vs Concurrence'
       };
       document.getElementById('section-title').textContent = titles[tabId] || 'JARVIS Cockpit';
+      try { if (location.hash.slice(1) !== tabId) history.replaceState(null, '', '#' + tabId); } catch (e) {}
 
+      if (tabId === 'audit') chargerAuditComplet('complet');
       if (tabId === 'avancements') loadAvancements();
       if (tabId === 'plan') loadTasks();
+      if (tabId === 'omega') refreshOmegaMetrics();
       if (tabId === 'claude') loadClaudeInfo();
       if (tabId === 'apps') loadApps();
       if (tabId === 'mcps') loadMcps();
@@ -1161,62 +1717,188 @@
       }
       if (tabId === 'bureau') loadBureau();
       if (tabId === 'settings') loadSettings();
+      if (tabId === 'legion') loadLegion();
       if (tabId === 'terminal') {
         chargerApps();
+        if (estMobile()) {
+          if (!TERM.actif || !TERM.sessions.size) {
+            termSetMobileView('lanceur');
+          } else {
+            termSetMobileView('scene');
+          }
+        }
         const s = TERM.sessions.get(TERM.actif);
         if (s) setTimeout(() => { try { s.fit.fit(); s.term.focus(); ajusterTaille(TERM.actif); } catch (e) {} }, 60);
       }
     }
 
-    // ── TÉLÉMÉTRIE LIVE ──
+    function chargerAuditComplet(type) {
+      const el = document.getElementById('audit-doc-content');
+      const title = document.getElementById('audit-doc-title');
+      if (!el) return;
+      const file = type === 'commercialisation' ? '/audit-commercialisation.md' : '/audit-complet.md';
+      if (title) {
+        title.innerHTML = '<i class="fa-solid fa-file-lines text-amber-400"></i> Document : ' + (type === 'commercialisation' ? 'AUDIT_COMMERCIALISATION_JARVIS_OS.md' : 'AUDIT_COMPLET_JARVIS_OS_COCKPIT.md');
+      }
+      el.textContent = "Chargement en cours...";
+      fetch(file)
+        .then(r => {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.text();
+        })
+        .then(txt => {
+          el.textContent = txt;
+        })
+        .catch(err => {
+          el.textContent = "Erreur de chargement (" + err.message + "). Vous pouvez ouvrir directement le fichier sur le Bureau : /home/turbo/Bureau/AUDIT_COMPLET_JARVIS_OS_COCKPIT.md";
+        });
+    }
+
+    function copierCheminBureau() {
+      navigator.clipboard.writeText('/home/turbo/Bureau/AUDIT_COMPLET_JARVIS_OS_COCKPIT.md').then(() => {
+        alert("✅ Chemin copié dans le presse-papier :\n/home/turbo/Bureau/AUDIT_COMPLET_JARVIS_OS_COCKPIT.md");
+      }).catch(() => {
+        prompt("Chemin du document :", "/home/turbo/Bureau/AUDIT_COMPLET_JARVIS_OS_COCKPIT.md");
+      });
+    }
+
+    // ── LÉGION OMEGA (domino + vectorisation + hardware remodelage) ──
+    async function loadLegion() {
+      try {
+        const r = await fetch('/api/legion'); const d = (await r.json()).legion || {};
+        const dom = d.domino || {}; const vec = d.vectorisation || {};
+        const domHtml = Object.keys(dom).length
+          ? Object.entries(dom).map(([k, v]) => `<span class="inline-block mr-3">${k}: <b class="text-white">${v}</b></span>`).join('')
+          : '<span class="text-slate-500">file vide</span>';
+        document.getElementById('legion-content').innerHTML =
+          `<div>Domino continu : ${domHtml}</div>` +
+          `<div>Vectorisation board : <b class="text-emerald-400">${(vec.ok || 0).toLocaleString()}</b> OK · ${(vec.a_faire || 0).toLocaleString()} à faire</div>` +
+          `<div>Agents tmux actifs : <b class="text-white">${d.fenetres_tmux || 0}</b> (session OMEGA-LEGION)</div>`;
+      } catch (e) { document.getElementById('legion-content').textContent = 'indisponible: ' + e; }
+      try {
+        const r = await fetch('/api/remodelage'); const h = (await r.json()).hardware || {};
+        const gpus = (h.gpu || []).map(g => `<div>GPU${g.index} : ${g.name} · ${g.vram_total_mb} Mo · ${g.util_pct}% · ${g.temp_c}°C</div>`).join('');
+        const ec = (h.ecarts_cockpit || []).map(x => `<li>${x}</li>`).join('');
+        document.getElementById('legion-hardware').innerHTML =
+          `<div>Hôte : <b class="text-white">${h.hostname || '?'}</b> · CPU : ${(h.cpu || {}).model || '?'} (AVX2=${(h.cpu || {}).avx2})</div>` +
+          gpus +
+          (ec ? `<div class="mt-2 text-amber-400 font-bold">Écarts cockpit↔réel :</div><ul class="list-disc pl-5">${ec}</ul>` : '');
+      } catch (e) { document.getElementById('legion-hardware').textContent = 'indisponible: ' + e; }
+    }
+
+    // ── TÉLÉMÉTRIE LIVE (OPTIMISÉE BASSE CONSOMMATION CPU) ──
+    let _lastServicesJson = "";
     async function fetchStatus() {
+      // Pause le polling quand la fenêtre/l'onglet est masqué ou minimisé (économie CPU 2 cœurs)
+      if (document.hidden) return;
+
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
         
-        document.getElementById('m4-temp').textContent = data.m4.temp_c + '°C';
-        document.getElementById('m4-ram').textContent = (data.m4.mem_free_mb / 1024).toFixed(1) + ' GB Libres';
-        if (data.m4.vram_used_mb !== undefined) {
-          document.getElementById('m4-vram').textContent = `${data.m4.vram_used_mb} / ${data.m4.vram_total_mb} MB (${data.m4.vram_temp_c}°C)`;
+        const tempEl = document.getElementById('m4-temp');
+        if (tempEl && data.m4) tempEl.textContent = data.m4.temp_c + '°C';
+
+        const ramEl = document.getElementById('m4-ram');
+        if (ramEl && data.m4) {
+          ramEl.textContent = (data.m4.mem_free_mb / 1024).toFixed(1) + ' GB Libres';
+        }
+
+        const vramEl = document.getElementById('m4-vram');
+        if (vramEl && data.m4 && data.m4.vram_used_mb !== undefined) {
+          vramEl.textContent = `${data.m4.vram_used_mb} / ${data.m4.vram_total_mb} MB (${data.m4.vram_temp_c}°C)`;
+        }
+
+        const memVectoEl = document.getElementById('gpu-action-mem-badge');
+        if (memVectoEl && data.action_memory) {
+          const acts = data.action_memory.vectorized_actions || 0;
+          const tok = data.action_memory.tokens_freed || 0;
+          memVectoEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-purple-400"></span> Vecto GPU : ${acts} actions (${tok} tok libérés)`;
         }
         
         const m6Badge = document.getElementById('m6-badge');
-        if (data.m6.online) {
-          m6Badge.className = "px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-xs mono flex items-center gap-1.5 shrink-0";
-          m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> M6 GPU : EN LIGNE (${data.m6.latency_ms}ms)`;
-        } else {
-          m6Badge.className = "px-2.5 py-1 rounded-full bg-rose-950/60 border border-rose-800/80 text-rose-400 text-xs mono flex items-center gap-1.5 shrink-0";
-          m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400"></span> M6 GPU : HORS LIGNE`;
+        if (m6Badge && data.m6) {
+          const modText = (data.m6.models && data.m6.models.length > 0) ? ` · ${data.m6.models.join(', ')}` : '';
+          if (data.m6.online) {
+            m6Badge.className = "px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-xs mono flex items-center gap-1.5 shrink-0";
+            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> LM Studio GPU : EN LIGNE (${data.m6.latency_ms}ms)`;
+            m6Badge.title = `LM Studio @ ${data.m6.ip}:1234${modText}`;
+          } else {
+            m6Badge.className = "px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-slate-400 text-xs mono flex items-center gap-1.5 shrink-0";
+            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span> LM Studio : HORS LIGNE`;
+          }
+        }
+
+        const dashM6Ip = document.getElementById('dash-m6-ip');
+        if (dashM6Ip && data.m6) {
+          dashM6Ip.textContent = `${data.m6.ip || '192.168.42.241'}:1234`;
+          const dashM6Status = document.getElementById('dash-m6-status');
+          const dashM6Latency = document.getElementById('dash-m6-latency');
+          if (dashM6Status) {
+            dashM6Status.textContent = data.m6.online ? (data.m6.models && data.m6.models.length ? data.m6.models[0] : 'LM Studio EN LIGNE') : 'LM Studio HORS LIGNE';
+          }
+          if (dashM6Latency) {
+            dashM6Latency.textContent = data.m6.online ? `${data.m6.latency_ms} ms` : 'Inactif';
+          }
+        }
+
+        const nodeLabel = document.getElementById('dash-node-name');
+        if (nodeLabel && data.node) {
+          nodeLabel.textContent = data.node.toLowerCase();
         }
 
         const grid = document.getElementById('services-grid');
-        if (grid) {
-          grid.innerHTML = '';
-          let upCount = 0;
-          data.services.forEach(s => {
-            if (s.up) upCount++;
-            const col = s.up ? 'border-emerald-500/40 text-emerald-400 bg-emerald-950/20' : 'border-rose-500/40 text-rose-400 bg-rose-950/20';
-            const dot = s.up ? 'bg-emerald-400' : 'bg-rose-400';
-            grid.innerHTML += `
-              <div class="p-3 rounded-lg border ${col} flex items-center justify-between text-xs">
-                <span class="font-semibold truncate">${s.name}</span>
-                <span class="w-2 h-2 rounded-full ${dot} shrink-0"></span>
-              </div>
-            `;
-          });
-          document.getElementById('services-up-count').textContent = upCount;
+        if (grid && data.services) {
+          const sJson = JSON.stringify(data.services);
+          if (sJson !== _lastServicesJson) {
+            _lastServicesJson = sJson;
+            grid.innerHTML = '';
+            let upCount = 0;
+            data.services.forEach(s => {
+              if (s.up) upCount++;
+              const col = s.up ? 'border-emerald-500/40 text-emerald-400 bg-emerald-950/20' : 'border-rose-500/40 text-rose-400 bg-rose-950/20';
+              const dot = s.up ? 'bg-emerald-400' : 'bg-rose-400';
+              grid.innerHTML += `
+                <div class="p-3 rounded-lg border ${col} flex items-center justify-between text-xs">
+                  <span class="font-semibold truncate">${s.name}</span>
+                  <span class="w-2 h-2 rounded-full ${dot} shrink-0"></span>
+                </div>
+              `;
+            });
+            const countEl = document.getElementById('services-up-count');
+            if (countEl) countEl.textContent = upCount;
+          }
         }
       } catch (e) {
         console.error("Erreur polling status:", e);
       }
     }
-    setInterval(fetchStatus, 3000);
+
+    // Intervalle détendu à 6 secondes + réveil direct quand l'onglet redevient actif
+    setInterval(fetchStatus, 6000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) fetchStatus();
+    });
     fetchStatus();
+
+    // ── OMEGA COGNITIVE OS ──
+    async function refreshOmegaMetrics() {
+      try {
+        const res = await fetch('/api/tasks?limit=250');
+        const data = await res.json();
+        if (data && data.tasks) {
+          const el = document.getElementById('omega-board-count');
+          if (el) el.textContent = data.tasks.length;
+        }
+      } catch (e) {
+        console.error("Erreur omega metrics:", e);
+      }
+    }
 
     // ── TÂCHES & PLANNING ──
     async function loadTasks() {
       try {
-        const res = await fetch('/api/tasks?limit=50');
+        const res = await fetch('/api/tasks?limit=250');
         const data = await res.json();
         const tbody = document.getElementById('tasks-table');
         tbody.innerHTML = '';
@@ -1312,7 +1994,7 @@
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Exécution...';
       btn.disabled = true;
       out.classList.remove('hidden');
-      out.textContent = forceLocal ? '⚡ Inférence Souveraine Locale (M4/M6) en cours...' : '👑 Inférence Claude Code (avec protection anti-529)...';
+      out.textContent = forceLocal ? '⚡ Inférence Souveraine Locale (Ollama 3080/2060) en cours...' : '👑 Inférence Claude Code (avec protection anti-529)...';
 
       try {
         const res = await fetch('/api/claude/run', {
@@ -1507,6 +2189,12 @@
         const res = await fetch('/api/mcps');
         const data = await res.json();
         ALL_MCPS = data.mcps || [];
+        // Titre honnête : compte réel connectés / total (fini le « 48 » figé).
+        const nOn = ALL_MCPS.filter(m => m.online === true).length;
+        const st = document.getElementById('section-title');
+        if (st) st.textContent = `${ALL_MCPS.length} Serveurs MCP · ${nOn} connectés`;
+        const mt = document.getElementById('mcps-titre');
+        if (mt) mt.textContent = `Matrice des ${ALL_MCPS.length} Serveurs MCP · ${nOn} connectés / ${ALL_MCPS.length - nOn} à authentifier`;
         renderMcps(ALL_MCPS);
       } catch (e) {
         console.error("Erreur mcps:", e);
@@ -1564,8 +2252,13 @@
       const grid = document.getElementById('mcps-grid');
       grid.innerHTML = '';
       mcps.forEach(m => {
-        const isHttp = m.transport.includes('HTTP');
+        const isHttp = (m.transport || '').includes('HTTP');
         const badgeColor = isHttp ? 'bg-purple-950 text-purple-400 border-purple-800' : 'bg-orange-950 text-orange-400 border-orange-800';
+        // Statut RÉEL (Lumière) : le backend fournit online/status — ne plus mentir « ACTIF ».
+        const online = m.online === true;
+        const statut = m.status || (online ? 'CONNECTÉ' : 'INCONNU');
+        const stCss = online ? 'text-emerald-400' : 'text-amber-400';
+        const stDot = online ? 'bg-emerald-400' : 'bg-amber-400';
         grid.innerHTML += `
           <div class="glass-card p-4 rounded-xl border border-slate-800 hover:border-orange-500/50 transition flex flex-col justify-between">
             <div>
@@ -1576,8 +2269,8 @@
               <p class="text-[11px] mono text-slate-400 break-all">${m.endpoint}</p>
             </div>
             <div class="mt-3 pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 mono flex justify-between items-center">
-              <span>ENV: ${m.env.length} var(s)</span>
-              <span class="text-emerald-400">● ACTIF</span>
+              <span>ENV: ${(m.env || []).length} var(s)</span>
+              <span class="${stCss} flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full ${stDot}"></span>${statut}</span>
             </div>
           </div>
         `;
@@ -1828,13 +2521,17 @@
     }
 
     // ===================================================================
-    // TERMINAL & TMUX PTY ENGINE
+    // TERMINAL & TMUX PTY ENGINE (AVEC SUPPORT MOBILE TOUCH & CLAVIER VIRT.)
     // ===================================================================
     const TERM = {
       sessions: new Map(),
       actif: null,
       apps: [],
     };
+
+    let TERM_MOBILE_VIEW = 'lanceur'; // 'lanceur' ou 'scene'
+    let TERM_CMD_HISTORY = [];
+    let TERM_CMD_HIST_IDX = -1;
 
     const b64versOctets = (b64) => {
       const bin = atob(b64);
@@ -1851,7 +2548,118 @@
 
     function termEtat(txt, couleur) {
       const el = document.getElementById('term-etat');
-      if (el) el.innerHTML = `<span style="color:${couleur || '#64748b'}">${txt}</span>`;
+      if (el) {
+        const nom = (TERM.actif && TERM.sessions.get(TERM.actif)) ? TERM.sessions.get(TERM.actif).nom : '';
+        const badgeNom = nom ? `<span class="px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/40 text-cyan-300 text-[10px] mono mr-2">${nom}</span>` : '';
+        el.innerHTML = `<div>${badgeNom}<span style="color:${couleur || '#64748b'}">${txt}</span></div><div class="hidden sm:block opacity-60">S9 Mobile Ready</div>`;
+      }
+    }
+
+    function estMobile() {
+      return window.innerWidth <= 768 || (window.innerHeight <= 550 && window.innerWidth <= 1024);
+    }
+
+    function termSetMobileView(vue) {
+      TERM_MOBILE_VIEW = vue;
+      const wrap = document.getElementById('tab-terminal');
+      const btnLan = document.getElementById('term-btn-view-lanceur');
+      const btnScn = document.getElementById('term-btn-view-scene');
+      if (!wrap) return;
+
+      document.body.classList.toggle('term-mode-scene', vue === 'scene');
+      document.body.classList.toggle('term-mode-lanceur', vue === 'lanceur');
+
+      if (vue === 'scene') {
+        wrap.classList.remove('term-mobile-mode-lanceur');
+        wrap.classList.add('term-mobile-mode-scene');
+        if (btnScn && btnLan) {
+          btnScn.className = "flex-1 py-1.5 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-cyan-500/20 text-cyan-300 border border-cyan-500/30";
+          btnLan.className = "flex-1 py-1.5 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-400 hover:text-white";
+        }
+        const s = TERM.sessions.get(TERM.actif);
+        if (s) {
+          setTimeout(() => { try { s.fit.fit(); ajusterTaille(TERM.actif); } catch (e) {} }, 40);
+        }
+      } else {
+        wrap.classList.remove('term-mobile-mode-scene');
+        wrap.classList.add('term-mobile-mode-lanceur');
+        if (btnScn && btnLan) {
+          btnLan.className = "flex-1 py-1.5 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-cyan-500/20 text-cyan-300 border border-cyan-500/30";
+          btnScn.className = "flex-1 py-1.5 px-2 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition text-slate-400 hover:text-white";
+        }
+      }
+    }
+
+    function envoyerAuTerm(id, txt) {
+      const s = TERM.sessions.get(id);
+      if (!s || s.mort) return;
+      s.aEnvoyer += txt;
+      if (s.envoiEnCours) return;
+
+      const expedier = async () => {
+        if (!s.aEnvoyer) {
+          s.envoiEnCours = false;
+          return;
+        }
+        s.envoiEnCours = true;
+        const charge = s.aEnvoyer;
+        s.aEnvoyer = '';
+        try {
+          await fetch('/api/term/input', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, data: texteVersB64(charge), b64: true })
+          });
+        } catch (e) {}
+        if (s.aEnvoyer) {
+          setTimeout(expedier, 6);
+        } else {
+          s.envoiEnCours = false;
+        }
+      };
+
+      if (!s.envoiPlanifie) {
+        s.envoiPlanifie = true;
+        setTimeout(() => {
+          s.envoiPlanifie = false;
+          expedier();
+        }, 6);
+      }
+    }
+
+    function termSendKey(key) {
+      if (!TERM.actif) {
+        termEtat('Aucune session active — choisis une application dans Apps', '#fbbf24');
+        if (estMobile()) termSetMobileView('lanceur');
+        return;
+      }
+      envoyerAuTerm(TERM.actif, key);
+      const s = TERM.sessions.get(TERM.actif);
+      if (s) {
+        try { s.term.scrollToBottom(); } catch (e) {}
+      }
+    }
+
+    function termSubmitCmd() {
+      if (!TERM.actif) {
+        termEtat('Aucune session active — choisis une application dans Apps', '#fbbf24');
+        if (estMobile()) termSetMobileView('lanceur');
+        return;
+      }
+      const inp = document.getElementById('term-mobile-input');
+      if (!inp) return;
+      const cmd = inp.value;
+      envoyerAuTerm(TERM.actif, cmd + '\r');
+      if (cmd.trim()) {
+        TERM_CMD_HISTORY.push(cmd);
+        TERM_CMD_HIST_IDX = TERM_CMD_HISTORY.length;
+      }
+      inp.value = '';
+      const clearBtn = document.getElementById('term-mobile-clear-btn');
+      if (clearBtn) clearBtn.classList.add('hidden');
+      const s = TERM.sessions.get(TERM.actif);
+      if (s) {
+        try { s.term.scrollToBottom(); } catch (e) {}
+      }
     }
 
     async function chargerApps() {
@@ -1870,11 +2678,11 @@
           html += `<div><div class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1.5 px-1">${groupe}</div><div class="grid grid-cols-2 gap-1.5">`;
           apps.forEach(a => {
             const titre = a.dispo ? `${a.desc}\n${a.cmd}` : `${a.nom} n'est pas installé sur cette machine`;
-            html += `<button class="app-tuile flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-600"
+            html += `<button class="app-tuile flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-slate-600 active:scale-95"
                        ${a.dispo ? '' : 'disabled'} title="${titre.replace(/"/g, '&quot;')}"
                        onclick="ouvrirApp('${a.id}')">
                        <i class="fa-solid ${a.icone}" style="color:${a.couleur}"></i>
-                       <span class="text-[10px] text-slate-300 leading-tight text-center">${a.nom}</span>
+                       <span class="text-[10px] text-slate-300 leading-tight text-center font-medium">${a.nom}</span>
                      </button>`;
           });
           html += `</div></div>`;
@@ -1890,7 +2698,7 @@
           d.tmux.forEach(t => {
             const pastille = t.attachee ? '#34d399' : '#64748b';
             html += `<button onclick="ouvrirVue('${t.nom}')"
-                       class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-slate-900/60 border border-slate-800 hover:border-cyan-700 text-left"
+                       class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-slate-900/60 border border-slate-800 hover:border-cyan-700 active:border-cyan-500 text-left"
                        title="${t.detail.join('\n').replace(/"/g, '&quot;')}">
                        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${pastille}"></span>
                        <span class="text-[11px] mono text-slate-300 truncate flex-1">${t.nom}</span>
@@ -1907,12 +2715,19 @@
 
     function dessinerOnglets() {
       const barre = document.getElementById('term-onglets');
+      const badge = document.getElementById('term-mobile-badge');
+      if (badge) badge.textContent = TERM.sessions.size;
+
       if (!TERM.sessions.size) {
-        barre.innerHTML = `<span class="text-xs text-slate-500 mono px-2">Aucune session — choisis une application à gauche.</span>`;
-        document.getElementById('term-vide').style.display = 'flex';
+        barre.innerHTML = `<span class="text-xs text-slate-500 mono px-2">Aucune session — choisis une application.</span>`;
+        const v = document.getElementById('term-vide');
+        if (v) v.style.display = 'flex';
+        if (estMobile()) termSetMobileView('lanceur');
         return;
       }
-      document.getElementById('term-vide').style.display = 'none';
+      const v = document.getElementById('term-vide');
+      if (v) v.style.display = 'none';
+
       let html = '';
       TERM.sessions.forEach((s, id) => {
         const actif = id === TERM.actif ? 'actif' : 'text-slate-400 border-slate-800';
@@ -1932,6 +2747,9 @@
       });
       const s = TERM.sessions.get(id);
       if (s) {
+        if (estMobile()) {
+          termSetMobileView('scene');
+        }
         setTimeout(() => { try { s.fit.fit(); s.term.focus(); ajusterTaille(id); } catch (e) {} }, 30);
         termEtat(`${s.nom} — session ${id}${s.tmux ? ' · tmux ' + s.tmux : ''}`, '#22d3ee');
       }
@@ -1940,15 +2758,26 @@
 
     async function ouvrirApp(appId) {
       showTab('terminal');
+      if (estMobile()) termSetMobileView('scene');
       await ouvrirSession({ app: appId });
     }
-    async function ouvrirVue(nom)   { await ouvrirSession({ tmux: nom }); }
+    async function ouvrirVue(nom) {
+      showTab('terminal');
+      if (estMobile()) termSetMobileView('scene');
+      await ouvrirSession({ tmux: nom });
+    }
 
     async function ouvrirSession(cible) {
       termEtat('ouverture…', '#fbbf24');
+      if (estMobile()) termSetMobileView('scene');
+
       const scene = document.getElementById('term-scene');
-      const cols = Math.max(40, Math.floor((scene.clientWidth - 26) / 8.5));
-      const rows = Math.max(10, Math.floor((scene.clientHeight - 20) / 17));
+      const isMobile = estMobile();
+      const charW = isMobile ? 6.8 : 8.5;
+      const charH = isMobile ? 14 : 17;
+      const cols = Math.max(40, Math.floor(((scene.clientWidth || 360) - 16) / charW));
+      const rows = Math.max(10, Math.floor(((scene.clientHeight || 300) - 16) / charH));
+
       try {
         const r = await fetch('/api/term/open', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1961,9 +2790,13 @@
         conteneur.style.cssText = 'position:absolute;inset:0;';
         scene.appendChild(conteneur);
 
+        const fontSize = isMobile ? 11 : 13;
         const term = new Terminal({
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 13, cursorBlink: true,
-          scrollback: 8000, allowProposedApi: true,
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: fontSize,
+          cursorBlink: true,
+          scrollback: 8000,
+          allowProposedApi: true,
           theme: { background: '#05070c', foreground: '#cbd5e1', cursor: '#22d3ee', selectionBackground: 'rgba(6,182,212,.28)' }
         });
         const fit = new FitAddon.FitAddon();
@@ -1976,21 +2809,7 @@
                     aEnvoyer: '', envoiPlanifie: false, chaine: Promise.resolve() };
         TERM.sessions.set(d.id, s);
 
-        term.onData(txt => {
-          s.aEnvoyer += txt;
-          if (s.envoiPlanifie) return;
-          s.envoiPlanifie = true;
-          setTimeout(() => {
-            s.envoiPlanifie = false;
-            const charge = s.aEnvoyer;
-            if (!charge) return;
-            s.aEnvoyer = '';
-            s.chaine = s.chaine.then(() => fetch('/api/term/input', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: d.id, data: texteVersB64(charge), b64: true })
-            })).catch(() => {});
-          }, 0);
-        });
+        term.onData(txt => envoyerAuTerm(d.id, txt));
 
         boucleLecture(d.id);
         activerSession(d.id);
@@ -2019,7 +2838,8 @@
             return;
           }
           s.echecs = 0;
-          s.timer = setTimeout(tick, 0);
+          const delaiProchain = (TERM.actif === id) ? 0 : 70;
+          s.timer = setTimeout(tick, delaiProchain);
         } catch (e) {
           s.echecs = (s.echecs || 0) + 1;
           if (s.echecs > 12) { s.mort = true; dessinerOnglets(); return; }
@@ -2069,7 +2889,13 @@
       TERM.sessions.delete(id);
       TERM.actif = null;
       const reste = TERM.sessions.keys().next();
-      if (!reste.done) activerSession(reste.value); else { dessinerOnglets(); termEtat('prêt'); }
+      if (!reste.done) {
+        activerSession(reste.value);
+      } else {
+        dessinerOnglets();
+        termEtat('prêt');
+        if (estMobile()) termSetMobileView('lanceur');
+      }
       chargerApps();
     }
 
@@ -2088,6 +2914,64 @@
         b.innerHTML = memo; b.disabled = false; chargerApps();
       }
     }
+
+    // Initialisation des événements interactifs Mobile pour le terminal
+    (function initMobileTerminalListeners() {
+      const mobileInput = document.getElementById('term-mobile-input');
+      const clearBtn = document.getElementById('term-mobile-clear-btn');
+      if (mobileInput) {
+        mobileInput.addEventListener('input', () => {
+          if (clearBtn) {
+            if (mobileInput.value) clearBtn.classList.remove('hidden');
+            else clearBtn.classList.add('hidden');
+          }
+        });
+        mobileInput.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (TERM_CMD_HISTORY.length && TERM_CMD_HIST_IDX > 0) {
+              TERM_CMD_HIST_IDX--;
+              mobileInput.value = TERM_CMD_HISTORY[TERM_CMD_HIST_IDX];
+              if (clearBtn) clearBtn.classList.remove('hidden');
+            }
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (TERM_CMD_HIST_IDX < TERM_CMD_HISTORY.length - 1) {
+              TERM_CMD_HIST_IDX++;
+              mobileInput.value = TERM_CMD_HISTORY[TERM_CMD_HIST_IDX];
+              if (clearBtn) clearBtn.classList.remove('hidden');
+            } else {
+              TERM_CMD_HIST_IDX = TERM_CMD_HISTORY.length;
+              mobileInput.value = '';
+              if (clearBtn) clearBtn.classList.add('hidden');
+            }
+          }
+        });
+      }
+
+      // Clic sur la scène terminal : sur mobile, focalise la barre de saisie pour déclencher le clavier
+      const termScene = document.getElementById('term-scene');
+      if (termScene) {
+        termScene.addEventListener('click', (e) => {
+          if (estMobile() && TERM.actif) {
+            const inp = document.getElementById('term-mobile-input');
+            if (inp && document.activeElement !== inp) {
+              inp.focus();
+            }
+          }
+        });
+      }
+
+      // Redimensionnement automatique lors de l'apparition/disparition du clavier Android
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+          const s = TERM.sessions.get(TERM.actif);
+          if (s) {
+            try { s.fit.fit(); ajusterTaille(TERM.actif); } catch (e) {}
+          }
+        });
+      }
+    })();
 
     // ── AVANCEMENTS & SYNCHRONISATION ──
     let avancementsInterval = null;
@@ -2282,11 +3166,13 @@
     }
 
     function ouvrirModalChantier() {
-      document.getElementById('modal-chantier').classList.remove('hidden');
+      const m = document.getElementById('modal-chantier');
+      if (m) m.style.display = 'flex';
     }
 
     function fermerModalChantier() {
-      document.getElementById('modal-chantier').classList.add('hidden');
+      const m = document.getElementById('modal-chantier');
+      if (m) m.style.display = 'none';
     }
 
     async function soumettreNouveauChantier() {
@@ -2499,10 +3385,96 @@
       const s = TERM.sessions.get(TERM.actif);
       if (s) { try { s.fit.fit(); ajusterTaille(TERM.actif); } catch (e) {} }
     });
+
+    // ── DEEP-LINK PAR HASH ── honorer /#rubrique au chargement et sur navigation
+    // (transmissibilité : chaque rubrique devient adressable ; permet aussi la capture ciblée)
+    (function initFromHash() {
+      const valides = ['dashboard','avancements','plan','omega','claude','terminal','apps','tableronde','studio','mcps','sql','swarm','moisson','swan','iaweb','bureau','settings'];
+      const h = (location.hash || '').slice(1);
+      if (valides.includes(h)) showTab(h);
+    })();
+    window.addEventListener('hashchange', () => {
+      const h = (location.hash || '').slice(1);
+      if (h) showTab(h);
+    });
+    // ── MÉMOIRE ACTION GPU & RAPPEL SÉMANTIQUE ──
+    function ouvrirModalMemoireAction() {
+      const m = document.getElementById('modal-action-mem');
+      if (m) {
+        m.style.display = 'flex';
+        setTimeout(() => document.getElementById('action-search-input')?.focus(), 50);
+      }
+    }
+    function fermerModalMemoireAction() {
+      const m = document.getElementById('modal-action-mem');
+      if (m) m.style.display = 'none';
+    }
+    async function rechercherActionMemoire() {
+      const inp = document.getElementById('action-search-input');
+      const box = document.getElementById('action-mem-results');
+      if (!inp || !box) return;
+      const q = inp.value.trim();
+      if (!q) return;
+      box.innerHTML = '<div class="text-xs text-purple-400 mono text-center py-4"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Calcul du vecteur 768D sur GTX 1660S (:11436)...</div>';
+      try {
+        const r = await fetch('/api/memory/recall', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, limit: 8, min_score: 0.20 })
+        });
+        const d = await r.json();
+        if (!d.success || !d.results || !d.results.length) {
+          box.innerHTML = '<div class="text-xs text-slate-500 text-center py-4">Aucune action correspondante trouvée.</div>';
+          return;
+        }
+        let html = '';
+        d.results.forEach(a => {
+          const sc = Math.round((a.score || 0) * 100);
+          html += `
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800 hover:border-purple-600/50 transition text-xs space-y-1">
+              <div class="flex justify-between items-center text-[10px] text-slate-400">
+                <span class="mono text-cyan-400 font-bold">${a.source || 'action'} #${a.id}</span>
+                <span class="px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-mono">Score: ${sc}%</span>
+              </div>
+              <div class="font-mono text-white text-xs font-semibold truncate">${a.command}</div>
+              <div class="text-slate-400 text-[11px] line-clamp-2">${a.summary}</div>
+              <div class="text-[10px] text-slate-500 mono flex justify-between pt-1 border-t border-slate-900">
+                <span>Code: ${a.exit_code}</span>
+                <span>${(a.timestamp || '').replace('T', ' ').split('.')[0]}</span>
+              </div>
+            </div>
+          `;
+        });
+        box.innerHTML = html;
+      } catch (e) {
+        box.innerHTML = `<div class="text-xs text-rose-400 mono text-center py-4">Erreur: ${e.message}</div>`;
+      }
+    }
   </script>
 
+  <!-- Modal Mémoire Action GPU -->
+  <div id="modal-action-mem" style="display:none;" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="glass-card bg-slate-900 border border-purple-500/40 p-6 rounded-2xl max-w-2xl w-full space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+          <i class="fa-solid fa-bolt text-purple-400"></i> Mémoire Action Souveraine GPU (GTX 1660S · 768D)
+        </h3>
+        <button onclick="fermerModalMemoireAction()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="flex gap-2">
+        <input type="text" id="action-search-input" placeholder="Recherche sémantique GPU dans les actions, commandes et sorties..." class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-purple-500 focus:outline-none" onkeydown="if(event.key==='Enter') rechercherActionMemoire()">
+        <button onclick="rechercherActionMemoire()" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+          <i class="fa-solid fa-magnifying-glass"></i> Rappeler
+        </button>
+      </div>
+      <div id="action-mem-results" class="space-y-2 max-h-96 overflow-y-auto pr-1">
+        <div class="text-xs text-slate-500 text-center py-6">Tapez un mot-clé ou une intention pour interroger la mémoire vectorielle des actions.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Nouveau Chantier -->
-  <div id="modal-chantier" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div id="modal-chantier" style="display:none;" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 items-center justify-center p-4">
     <div class="glass-card bg-slate-900 border border-slate-700 p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl">
       <div class="flex justify-between items-center">
         <h3 class="font-bold text-base text-white flex items-center gap-2">
@@ -2528,7 +3500,7 @@
         <div>
           <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Domaine</label>
           <select id="modal-chantier-domaine" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none">
-            <option value="M4_LOCAL">M4 LOCAL</option>
+            <option value="RIG_LOCAL">RIG LOCAL (mining)</option>
             <option value="CLUSTER_M6">CLUSTER M6</option>
             <option value="DOCKER_SWARM">DOCKER SWARM</option>
             <option value="WEB_SAAS">WEB & SAAS</option>

@@ -40,7 +40,7 @@ class TabAvancements(QWidget):
 
         # ── TOP BAR HEADER ──
         top_h = QHBoxLayout()
-        self.lbl_title = QLabel("🚀 AVANCEMENTS DE PRODUCTION & SYNCHRONISATION (production.db)")
+        self.lbl_title = QLabel("🏗️ CHANTIERS DE PRODUCTION & SYNCHRONISATION (production.db)")
         self.lbl_title.setFont(QFont("Ubuntu", 13, QFont.Weight.Bold))
         self.lbl_title.setStyleSheet("color: #10b981;")
         top_h.addWidget(self.lbl_title)

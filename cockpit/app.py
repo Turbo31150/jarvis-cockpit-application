@@ -182,7 +182,7 @@ class JarvisCockpit(App):
                     
                     with Vertical(classes="hud-box"):
                         yield Label("⚡ TOPOLOGIE & INFRASTRUCTURE", classes="hud-title")
-                        yield Static("• M4 Local     : i5-11400H • RTX 3050 Laptop • 16 Go RAM\n• M1 SSD (1 To): /media/pamerys/JARVIS-M1 (USB 0 ms)\n• M6 GPU Multi : 10.42.0.230:1234 (RJ45 Direct 1.4 ms)\n• Docker Swarm : PostgreSQL, Redis, n8n, Portainer, Registry\n• MCP Total    : 91 Serveurs Actifs & Synchronisés")
+                        yield Static("• Machine   : mining • i5-3450 4c • 31 Go RAM\n• GPU 0     : RTX 2060 12Go → LM Studio 127.0.0.1:1234 (qwen3-8b)\n• GPU 1     : RTX 3080 10Go → Ollama 127.0.0.1:11434 (qwen2.5:7b)\n• SSD       : / (systeme) • /mnt/jarvis-m1 • /mnt/jarvis-m6\n• Moteurs   : DOMINO dual-moteur (board boost)\n• Docker    : 29.1.3 (runtime nvidia)")
                         yield Button("🔄 Scanner & Régénérer To-Do List M4", id="btn-plan-regen", classes="action-btn")
                         yield Button("🌾 Lancer Moisson Claude Code", id="btn-moisson-run", classes="action-btn")
 
@@ -249,12 +249,12 @@ class JarvisCockpit(App):
         rd_up = is_port_open("127.0.0.1", 6379)
         n8n_up = is_port_open("127.0.0.1", 5678)
         port_up = is_port_open("127.0.0.1", 9000)
-        m6_up = is_port_open("10.42.0.230", 1234) or is_port_open("10.42.0.230", 22)
+        lms_up = is_port_open("192.168.42.241", 1234) or is_port_open("127.0.0.1", 1234)
         ol1_up = is_port_open("127.0.0.1", 11434)
 
         telem = (
             f"⚡ GPU RTX 3050 : {v_used} MB / {v_tot} MB ({temp}°C) | "
-            f"M6 RJ45 : {'UP (1.4ms)' if m6_up else 'DOWN'} | "
+            f"LM Studio : {'UP (Dual GPU)' if lms_up else 'DOWN'} | "
             f"SSD M1 USB : {'MOUNTED' if os.path.exists('/media/pamerys/JARVIS-M1') else 'NON'}\n"
             f"🐳 Swarm : Postgres={'UP' if pg_up else 'DOWN'} | Redis={'UP' if rd_up else 'DOWN'} | "
             f"n8n={'UP' if n8n_up else 'DOWN'} | Portainer={'UP' if port_up else 'DOWN'}"
@@ -274,7 +274,7 @@ class JarvisCockpit(App):
             t_swarm.add_row("Portainer CE", "127.0.0.1:9000", "Console d'administration Swarm", "🟢 UP" if port_up else "🔴 DOWN")
             t_swarm.add_row("Docker Registry", "127.0.0.1:5000", "Registre d'images local", "🟢 UP" if is_port_open("127.0.0.1", 5000) else "🔴 DOWN")
             t_swarm.add_row("Ollama Local (OL1)", "127.0.0.1:11434", "Inférence locale gemma3/llama3", "🟢 UP" if ol1_up else "🔴 DOWN")
-            t_swarm.add_row("M6 Inférence (RJ45)", "10.42.0.230:1234", "LM Studio Qwen 3.5 9B/27B", "🟢 UP" if m6_up else "🔴 DOWN")
+            t_swarm.add_row("LM Studio GPU", "127.0.0.1:1234", "Dual GPU (RTX 2060+3080)", "🟢 UP" if lms_up else "🔴 DOWN")
         except Exception:
             pass
 
@@ -285,10 +285,10 @@ class JarvisCockpit(App):
         elif bid == "btn-claude":
             subprocess.Popen(["gnome-terminal", "--", "bash", "-ic", "claude"])
         elif bid == "btn-turbo":
-            subprocess.Popen(["gnome-terminal", "--", "/home/pamerys/jarvis/scripts/start-turbo-m1.sh"])
+            subprocess.Popen(["gnome-terminal", "--", "/home/turbo/jarvis/scripts/start-turbo-m1.sh"])
         elif bid == "btn-plan-regen":
             def run_plan():
-                subprocess.run(["python3", "/home/pamerys/jarvis/scripts/planning_mega_m4.py"])
+                subprocess.run(["python3", "/home/turbo/jarvis/scripts/planning_mega_m4.py"])
                 self.setup_tables()
             threading.Thread(target=run_plan).start()
         elif bid == "btn-moisson-run":
@@ -300,12 +300,12 @@ class JarvisCockpit(App):
                 out.update("🏛 Débat des 7 Experts en cours...\n0 token payant • Analyse FTS5 du corpus & arbitrage...")
                 def run_board():
                     try:
-                        cmd = ["python3", "/home/pamerys/jarvis/board/dispatch_table_ronde.py", "--task", q]
+                        cmd = ["python3", "/home/turbo/jarvis/board/dispatch_table_ronde.py", "--task", q]
                         r = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
                         res = r.stdout or r.stderr or "Aucune réponse."
+                        out.update(res)
                     except Exception as e:
-                        res = f"Erreur: {e}"
-                    self.call_from_thread(out.update, res)
+                        out.update(f"Erreur d'exécution: {e}")
                 threading.Thread(target=run_board).start()
 
     def action_tab_hud(self) -> None:

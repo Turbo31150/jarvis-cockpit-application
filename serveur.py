@@ -169,39 +169,6 @@ def get_cluster_telemetry():
     }
 
 
-def get_legion_status():
-    """État live de la Légion OMEGA (domino continu + vectorisation board + tmux).
-
-    Ajout 2026-09-11 : donne au cockpit une vue de ce qui tourne réellement en
-    tâche de fond (fiches générées, embeddings, fenêtres agents). Lecture seule.
-    """
-    ddb = os.path.expanduser("~/jarvis/omega/domino-continu/domino_continu.db")
-    bdb = os.path.expanduser("~/jarvis/board/board.db")
-    out = {"domino": {}, "vectorisation": {}, "fenetres_tmux": 0}
-    try:
-        c = sqlite3.connect(f"file:{ddb}?mode=ro", uri=True)
-        for s, n in c.execute("SELECT statut, COUNT(*) FROM taches GROUP BY statut"):
-            out["domino"][s] = n
-        c.close()
-    except Exception:
-        pass
-    try:
-        c = sqlite3.connect(f"file:{bdb}?mode=ro", uri=True)
-        ok = c.execute("SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL").fetchone()[0]
-        nul = c.execute("SELECT COUNT(*) FROM chunks WHERE embedding IS NULL").fetchone()[0]
-        out["vectorisation"] = {"ok": ok, "a_faire": nul}
-        c.close()
-    except Exception:
-        pass
-    try:
-        w = subprocess.run(["tmux", "list-windows", "-t", "OMEGA-LEGION"],
-                           capture_output=True, text=True, timeout=3)
-        out["fenetres_tmux"] = len([l for l in w.stdout.splitlines() if l.strip()])
-    except Exception:
-        pass
-    return out
-
-
 class CockpitHandler(BaseHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -392,20 +359,6 @@ class CockpitHandler(BaseHTTPRequestHandler):
         # ── PARAMÈTRES & CONFIGURATION ──
         elif path == "/api/settings":
             self.respond_json(get_cockpit_settings())
-            return
-
-        # ── REMODELAGE : vrai hardware du rig (source de vérité agent remodelage) ──
-        elif path == "/api/remodelage":
-            try:
-                with open(os.path.expanduser("~/jarvis/cockpit/hardware.json"), encoding="utf-8") as f:
-                    self.respond_json({"success": True, "hardware": json.load(f)})
-            except Exception as e:
-                self.respond_json({"success": False, "error": str(e)}, 404)
-            return
-
-        # ── LÉGION OMEGA : domino continu + vectorisation + agents tmux ──
-        elif path == "/api/legion":
-            self.respond_json({"success": True, "legion": get_legion_status()})
             return
 
         # ── STATUT DES AGENTS TABLE RONDE & BROWSER OS ──
@@ -601,7 +554,6 @@ class CockpitHandler(BaseHTTPRequestHandler):
             elif file_path.endswith(".png"): ctype = "image/png"
             elif file_path.endswith(".json"): ctype = "application/json"
             elif file_path.endswith(".svg"): ctype = "image/svg+xml"
-            elif file_path.endswith(".md"): ctype = "text/markdown; charset=utf-8"
 
             with open(file_path, "rb") as f:
                 content = f.read()

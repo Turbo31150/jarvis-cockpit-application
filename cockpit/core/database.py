@@ -21,19 +21,28 @@ def _fts_query(query: str) -> str:
     mots = re.findall(r"\w{3,}", query, flags=re.UNICODE)
     return " OR ".join(f'"{m}"' for m in mots[:12])
 
+_board_stats_cache = {}
+_board_stats_ts = 0.0
+
 def get_board_stats() -> dict:
-    """Lit les métriques exactes de board.db sans jamais recourir à des valeurs figées."""
+    """Lit les métriques exactes de board.db avec cache TTL de 60s pour une réactivité instantanée."""
+    global _board_stats_cache, _board_stats_ts
+    import time
+    now = time.time()
+    if _board_stats_cache and (now - _board_stats_ts < 60.0):
+        return _board_stats_cache
+
     if not os.path.exists(BOARD_DB):
         return {"chunks": 0, "sources": 0, "domains": 0, "experts": 0, "status": "NON TROUVÉ"}
     try:
-        con = sqlite3.connect(f"file:{BOARD_DB}?mode=ro", uri=True, timeout=3.0)
+        con = sqlite3.connect(f"file:{BOARD_DB}?mode=ro&immutable=1", uri=True, timeout=2.0)
         c = con.cursor()
-        n_ch = c.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        n_ch = c.execute("SELECT MAX(rowid) FROM chunks").fetchone()[0] or 0
         n_so = c.execute("SELECT COUNT(*) FROM sources").fetchone()[0]
         n_do = c.execute("SELECT COUNT(*) FROM domains").fetchone()[0]
         n_ex = c.execute("SELECT COUNT(*) FROM experts").fetchone()[0]
         con.close()
-        return {
+        res = {
             "chunks": n_ch,
             "sources": n_so,
             "domains": n_do,
@@ -41,6 +50,9 @@ def get_board_stats() -> dict:
             "status": "OK",
             "summary": f"{n_ch:,} chunks · {n_do} domaines · {n_ex} experts".replace(",", " ")
         }
+        _board_stats_cache = res
+        _board_stats_ts = now
+        return res
     except Exception as e:
         return {"chunks": 0, "sources": 0, "domains": 0, "experts": 0, "status": f"Erreur: {e}", "summary": "Indisponible"}
 
@@ -148,7 +160,7 @@ def add_master_task(title: str, category: str = "GÉNÉRAL", priority: int = 1) 
     try:
         con = sqlite3.connect(MASTER_DB, timeout=4.0)
         c = con.cursor()
-        c.execute("INSERT INTO tasks (title, agent, status, progress) VALUES (?, ?, 'pending', 0)",
+        c.execute("INSERT INTO tasks (title, category, status, progress) VALUES (?, ?, 'pending', 0)",
                   (title, category))
         con.commit()
         con.close()

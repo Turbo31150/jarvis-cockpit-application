@@ -313,7 +313,7 @@ class TabSettings(QWidget):
 
         gl_perf.addWidget(QLabel("Modèle d'Inférence Local :"), 2, 0)
         self.combo_ai = QComboBox()
-        self.combo_ai.addItems(["qwen2.5:1.5b (Ultra Rapide)", "gemma3:4b (Polyvalent)", "mistral:7b (Expert M4)", "deepseek-r1:14b (Raisonnement)"])
+        self.combo_ai.addItems(["gemma3:4b (Polyvalent)", "gemma4 (Ultra Rapide)", "gemma3.5 (Polyvalent)", "qwen3:8b (Analyse)", "qwen2.5:7b (Inférence)", "qwen2.5:1.5b (Rapide)", "mistral:7b (Expert M4)", "deepseek-r1:14b (Raisonnement)"])
         gl_perf.addWidget(self.combo_ai, 2, 1)
 
         left_layout.addWidget(grp_perf)

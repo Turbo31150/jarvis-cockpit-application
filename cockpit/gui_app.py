@@ -45,6 +45,7 @@ from ui.tabs.tab_moisson import TabMoisson
 from ui.tabs.tab_iaweb import TabIaWeb
 from ui.tabs.tab_bureau import TabBureau
 from ui.tabs.tab_settings import TabSettings
+from ui.tabs.tab_omega import TabOmega
 
 class JarvisMasterCockpitWindow(QMainWindow):
     def __init__(self):
@@ -69,10 +70,10 @@ class JarvisMasterCockpitWindow(QMainWindow):
         self.ipc_server.newConnection.connect(self._handle_ipc_connection)
         self.ipc_server.listen(IPC_SOCKET_NAME)
 
-        # Timer de télémétrie non-bloquante (2.5 s)
+        # Timer de télémétrie non-bloquante (6.0 s pour préserver le CPU)
         self.telemetry_timer = QTimer(self)
         self.telemetry_timer.timeout.connect(self.update_telemetry)
-        self.telemetry_timer.start(2500)
+        self.telemetry_timer.start(6000)
         self.update_telemetry()
 
         # Timer d'horloge temps réel (1.0 s)
@@ -170,11 +171,11 @@ class JarvisMasterCockpitWindow(QMainWindow):
         ram_box = QVBoxLayout(card_ram)
         ram_box.setContentsMargins(2, 2, 2, 2)
         ram_box.setSpacing(2)
-        self.lbl_ram = QLabel("⚡ RAM: -- / 16 GB")
+        self.lbl_ram = QLabel("⚡ RAM: -- GB")
         self.lbl_ram.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Bold))
         self.lbl_ram.setStyleSheet("color: #c084fc;")
         self.bar_ram = QProgressBar()
-        self.bar_ram.setRange(0, 160)
+        self.bar_ram.setRange(0, 40)
         self.bar_ram.setFixedWidth(100)
         self.bar_ram.setFixedHeight(8)
         ram_box.addWidget(self.lbl_ram)
@@ -213,6 +214,33 @@ class JarvisMasterCockpitWindow(QMainWindow):
         btn_top_hud.setToolTip("Afficher le Cockpit Exécutif (Ctrl+1)")
         btn_top_hud.clicked.connect(lambda: self.tabs.setCurrentWidget(self.tab_hud))
         quick_acts.addWidget(btn_top_hud)
+
+        btn_top_omega = QPushButton("🌌 OMEGA")
+        btn_top_omega.setProperty("class", "cyan")
+        btn_top_omega.setToolTip("Afficher l'Architecture Cognitive OMEGA (Ombre × Lumière)")
+        btn_top_omega.clicked.connect(lambda: self.tabs.setCurrentWidget(self.tab_omega))
+        quick_acts.addWidget(btn_top_omega)
+
+        btn_top_chantiers = QPushButton("🏗️ Chantiers")
+        btn_top_chantiers.setStyleSheet("""
+            QPushButton {
+                background: rgba(5, 150, 105, 0.25);
+                border: 1px solid rgba(16, 185, 129, 0.5);
+                color: #10b981;
+                font-weight: bold;
+                border-radius: 7px;
+                padding: 4px 10px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background: rgba(5, 150, 105, 0.45);
+                border-color: #34d399;
+                color: #ffffff;
+            }
+        """)
+        btn_top_chantiers.setToolTip("Afficher la Gestion des Chantiers de Production & Sync (Ctrl+3)")
+        btn_top_chantiers.clicked.connect(lambda: self.tabs.setCurrentWidget(self.tab_avancements))
+        quick_acts.addWidget(btn_top_chantiers)
 
         btn_top_settings = QPushButton("⚙️ Config")
         btn_top_settings.setProperty("class", "green")
@@ -339,10 +367,12 @@ class JarvisMasterCockpitWindow(QMainWindow):
         self.tab_iaweb = TabIaWeb(self)
         self.tab_bureau = TabBureau(self)
         self.tab_settings = TabSettings(self)
+        self.tab_omega = TabOmega(self)
 
         self.tab_list = [
             (self.tab_hud, "🎛 Cockpit Exécutif"),
-            (self.tab_avancements, "🚀 Avancements & Sync"),
+            (self.tab_omega, "🌌 OMEGA Cognitive OS"),
+            (self.tab_avancements, "🏗️ Chantiers & Production"),
             (self.tab_claude, "👑 Claude Code Suite"),
             (self.tab_apps, "🚀 Applications Bureau"),
             (self.tab_term, "💻 Terminal & TMUX"),

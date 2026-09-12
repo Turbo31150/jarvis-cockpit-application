@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="16" y="16" width="480" height="480" rx="110" fill="#06b6d4" fill-opacity="0.1" stroke="#06b6d4" stroke-width="4"/>
+  
+        <!-- Direct Terminal to Rémi (100.113.121.61) -->
+        <rect x="116" y="95" width="280" height="220" rx="16" fill="#03151e" stroke="#06b6d4" stroke-width="4"/>
+        <rect x="116" y="95" width="280" height="32" rx="16" fill="#082b3a"/>
+        <circle cx="138" cy="111" r="5" fill="#ef4444"/>
+        <circle cx="154" cy="111" r="5" fill="#eab308"/>
+        <circle cx="170" cy="111" r="5" fill="#22c55e"/>
+        <text x="256" y="116" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="bold" fill="#67e8f9" text-anchor="middle">rem-linux · 100.113.121.61</text>
+        
+        <text x="140" y="165" font-family="'JetBrains Mono', monospace" font-size="20" font-weight="900" fill="#00f0ff">&gt; ssh rem</text>
+        <text x="140" y="195" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="bold" fill="#4ade80">● Tunnel WireGuard ACTIF</text>
+        <text x="140" y="220" font-family="'JetBrains Mono', monospace" font-size="12" fill="#94a3b8">Hôte: rem-linux (M1 / Rémi)</text>
+        <text x="140" y="245" font-family="'JetBrains Mono', monospace" font-size="12" fill="#94a3b8">Utilisateur: rempc / root</text>
+        <rect x="135" y="265" width="242" height="32" rx="6" fill="#05202c" stroke="#06b6d4" stroke-width="1.5"/>
+        <text x="256" y="286" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="bold" fill="#38bdf8" text-anchor="middle">⚡ SESSION DIRECTE SOUVERAINE</text>
+        
+</svg>

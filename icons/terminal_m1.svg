@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="16" y="16" width="480" height="480" rx="110" fill="#10b981" fill-opacity="0.1" stroke="#10b981" stroke-width="4"/>
+  
+        <!-- M1 Master Server Console -->
+        <rect x="116" y="95" width="280" height="220" rx="16" fill="#02170f" stroke="#10b981" stroke-width="4"/>
+        <rect x="116" y="95" width="280" height="32" rx="16" fill="#062e1e"/>
+        <circle cx="138" cy="111" r="5" fill="#ef4444"/>
+        <circle cx="154" cy="111" r="5" fill="#eab308"/>
+        <circle cx="170" cy="111" r="5" fill="#22c55e"/>
+        <text x="256" y="116" font-family="'JetBrains Mono', monospace" font-size="11" font-weight="bold" fill="#a7f3d0" text-anchor="middle">jarvis-m1 · 192.168.1.85</text>
+        
+        <text x="140" y="165" font-family="'JetBrains Mono', monospace" font-size="20" font-weight="900" fill="#10b981">&gt; ssh m1</text>
+        <text x="140" y="195" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="bold" fill="#34d399">● Nœud M1 SSD 1To Master</text>
+        <text x="140" y="220" font-family="'JetBrains Mono', monospace" font-size="12" fill="#94a3b8">Réseau: 192.168.1.85 / eth</text>
+        <text x="140" y="245" font-family="'JetBrains Mono', monospace" font-size="12" fill="#94a3b8">Bridge: m6 direct / m4 hub</text>
+        <rect x="135" y="265" width="242" height="32" rx="6" fill="#032115" stroke="#10b981" stroke-width="1.5"/>
+        <text x="256" y="286" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="bold" fill="#6ee7b7" text-anchor="middle">🖥 CONSOLE MAÎTRESSE M1</text>
+        
+</svg>

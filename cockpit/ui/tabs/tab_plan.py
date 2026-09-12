@@ -93,7 +93,7 @@ class TabPlan(QWidget):
         self.refresh_tasks()
 
     def refresh_tasks(self):
-        tasks = get_master_tasks(100)
+        tasks = get_master_tasks(250)
         self.tasks_list = tasks
         self.table.setRowCount(len(tasks))
         for row, t in enumerate(tasks):

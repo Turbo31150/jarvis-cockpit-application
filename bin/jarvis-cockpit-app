@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# JARVIS COCKPIT APP LAUNCHER — M4 DESKTOP POSTE DE COMMANDE UNIFIÉ
+# JARVIS COCKPIT APP LAUNCHER — POSTE DE COMMANDE UNIFIÉ (MINING)
 # ==============================================================================
 set -e
 
@@ -54,6 +54,6 @@ elif [ -x "$HOME/.local/bin/ttx" ]; then
     "$HOME/.local/bin/ttx" --init-only >/dev/null 2>&1 || true
 fi
 
-# 3. Lancement direct 100% Natif PyQt6 (Aucune page HTML, aucun navigateur)
-exec "$PYTHON_BIN" "$COCKPIT_DIR/gui_app.py" "$@"
+# 3. Lancement du Cockpit Unifié (Identique S9 / Standalone Web App ou PyQt6 avec --native)
+exec "$COCKPIT_DIR/launch_gui.sh" "$@"
 

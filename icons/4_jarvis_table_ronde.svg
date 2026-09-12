@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="16" y="16" width="480" height="480" rx="110" fill="#c084fc" fill-opacity="0.1" stroke="#c084fc" stroke-width="4"/>
+  
+        <!-- Grand Sovereign Council Round Table & Constellation -->
+        <circle cx="256" cy="215" r="128" fill="none" stroke="#a855f7" stroke-width="3" stroke-dasharray="8 6" opacity="0.6"/>
+        <circle cx="256" cy="215" r="110" fill="#120521" stroke="#c084fc" stroke-width="4"/>
+        
+        <!-- Table surface with mahogany/violet luster -->
+        <circle cx="256" cy="215" r="80" fill="#230a3d" stroke="#e879f9" stroke-width="3"/>
+        
+        <!-- 7 Sovereign Agent Nodes on the Perimeter -->
+        <!-- Center connecting laser beams -->
+        <g stroke="#f59e0b" stroke-width="2" opacity="0.65">
+            <line x1="256" y1="215" x2="256" y2="105"/>
+            <line x1="256" y1="215" x2="345" y2="148"/>
+            <line x1="256" y1="215" x2="362" y2="252"/>
+            <line x1="256" y1="215" x2="298" y2="320"/>
+            <line x1="256" y1="215" x2="214" y2="320"/>
+            <line x1="256" y1="215" x2="150" y2="252"/>
+            <line x1="256" y1="215" x2="167" y2="148"/>
+        </g>
+
+        <!-- 7 Agent Nodes (Distinct Expert Colors) -->
+        <circle cx="256" cy="105" r="14" fill="#34d399" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0 0 6px #34d399)"/>
+        <circle cx="345" cy="148" r="14" fill="#fbbf24" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0 0 6px #fbbf24)"/>
+        <circle cx="362" cy="252" r="14" fill="#38bdf8" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0 0 6px #38bdf8)"/>
+        <circle cx="298" cy="320" r="14" fill="#22d3ee" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0 0 6px #22d3ee)"/>
+        <circle cx="214" cy="320" r="14" fill="#c084fc" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0 0 6px #c084fc)"/>
+        <circle cx="150" cy="252" r="14" fill="#2dd4bf" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0 0 6px #2dd4bf)"/>
+        <circle cx="167" cy="148" r="14" fill="#fb923c" stroke="#ffffff" stroke-width="2.5" filter="drop-shadow(0 0 6px #fb923c)"/>
+
+        <!-- Central Supreme Arbitrator Dais & Scales / Crown -->
+        <circle cx="256" cy="215" r="36" fill="#3b0764" stroke="#fbbf24" stroke-width="4" filter="drop-shadow(0 0 10px #fbbf24)"/>
+        <text x="256" y="226" font-size="34" text-anchor="middle">🏛️</text>
+        
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="16" y="16" width="480" height="480" rx="110" fill="#f59e0b" fill-opacity="0.1" stroke="#f59e0b" stroke-width="4"/>
+  
+        <!-- Anthropic Claude Spark / Neural Geometry -->
+        <circle cx="256" cy="215" r="125" fill="none" stroke="#d97706" stroke-width="2.5" stroke-dasharray="10 8" opacity="0.6"/>
+        <circle cx="256" cy="215" r="105" fill="#140802" stroke="#f59e0b" stroke-width="4"/>
+        
+        <!-- Radiant Star Rays -->
+        <g stroke="#f59e0b" stroke-width="12" stroke-linecap="round">
+            <line x1="256" y1="135" x2="256" y2="295"/>
+            <line x1="176" y1="215" x2="336" y2="215"/>
+            <line x1="199" y1="158" x2="313" y2="272"/>
+            <line x1="199" y1="272" x2="313" y2="158"/>
+        </g>
+        
+        <!-- Center Neural Core -->
+        <circle cx="256" cy="215" r="42" fill="#78350f" stroke="#fbbf24" stroke-width="4"/>
+        <circle cx="256" cy="215" r="22" fill="#fef3c7" filter="drop-shadow(0 0 10px #f59e0b)"/>
+        
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="16" y="16" width="480" height="480" rx="110" fill="#14b8a6" fill-opacity="0.1" stroke="#14b8a6" stroke-width="4"/>
+  
+        <!-- Quantum Web Globe & Network Sphere -->
+        <circle cx="256" cy="220" r="125" fill="#041419" stroke="#14b8a6" stroke-width="4" opacity="0.7"/>
+        
+        <!-- Latitude lines -->
+        <ellipse cx="256" cy="220" rx="125" ry="40" fill="none" stroke="#2dd4bf" stroke-width="3" stroke-dasharray="10 8" opacity="0.6"/>
+        <ellipse cx="256" cy="220" rx="125" ry="85" fill="none" stroke="#2dd4bf" stroke-width="2.5" opacity="0.5"/>
+        <line x1="131" y1="220" x2="381" y2="220" stroke="#2dd4bf" stroke-width="2" opacity="0.7"/>
+        
+        <!-- Longitude lines -->
+        <ellipse cx="256" cy="220" rx="55" ry="125" fill="none" stroke="#2dd4bf" stroke-width="3" opacity="0.6"/>
+        <line x1="256" y1="95" x2="256" y2="345" stroke="#2dd4bf" stroke-width="2" opacity="0.7"/>
+        
+        <!-- Orbital Node Ring -->
+        <ellipse cx="256" cy="220" rx="155" ry="55" fill="none" stroke="#00f0ff" stroke-width="2.5" stroke-dasharray="6 8" transform="rotate(-25 256 220)" opacity="0.85"/>
+        
+        <!-- Orbital Satellites / Nodes -->
+        <circle cx="120" cy="160" r="8" fill="#00f0ff" filter="drop-shadow(0 0 6px #00f0ff)"/>
+        <circle cx="390" cy="280" r="8" fill="#00f0ff" filter="drop-shadow(0 0 6px #00f0ff)"/>
+        <circle cx="280" cy="170" r="6" fill="#a7f3d0"/>
+        
+        <!-- Center Cyber HUD Shield -->
+        <polygon points="256,170 295,190 295,245 256,270 217,245 217,190" fill="#082329" stroke="#5eead4" stroke-width="4"/>
+        <text x="256" y="228" font-family="'JetBrains Mono', monospace" font-size="26" font-weight="900" fill="#ffffff" text-anchor="middle">WEB</text>
+        <circle cx="256" cy="250" r="4" fill="#00f0ff"/>
+        
+</svg>

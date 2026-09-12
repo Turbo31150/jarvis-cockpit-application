@@ -75,21 +75,49 @@ LOGS_DB = os.path.join(LOGS_DIR, "jarvis_logs.db")
 ETOILE_DB = os.path.join(DATA_DIR, "etoile.db")
 SQL_CACHE = os.path.join(COCKPIT_DIR, ".sql-cache.tsv")
 
-# Cluster Network Endpoints
-M6_HOST = "10.42.0.230"
-M6_PORT = 1234
-M6_URL = f"http://{M6_HOST}:{M6_PORT}"
+# Cluster Network Endpoints & LM Studio GPU (rebranché sur tether 192.168.42.241:1234 et loopback)
+LMSTUDIO_HOST = os.environ.get("JARVIS_LMSTUDIO_HOST", "192.168.42.241")
+LMSTUDIO_PORT = int(os.environ.get("JARVIS_LMSTUDIO_PORT", "1234"))
+LMSTUDIO_URL = os.environ.get("JARVIS_LMSTUDIO_URL", f"http://{LMSTUDIO_HOST}:{LMSTUDIO_PORT}")
+
+M6_HOST = os.environ.get("JARVIS_M6_HOST", LMSTUDIO_HOST)
+M6_PORT = int(os.environ.get("JARVIS_M6_PORT", str(LMSTUDIO_PORT)))
+M6_URL = os.environ.get("JARVIS_M6_URL", LMSTUDIO_URL)
 
 M4_HOST = "127.0.0.1"
-OLLAMA_PORT = 11434
-OLLAMA_URL = f"http://{M4_HOST}:{OLLAMA_PORT}"
 
-# ── Rig GPU local "mining" (MàJ 2026-09-06) ────────────────────────────────
-# 3 GPU NVIDIA épinglés à 3 instances Ollama dédiées (Vulkan off, PCI_BUS_ID,
-# persistence mode ON, swap 32 Go). Chaque instance ne voit QUE sa carte.
-OLLAMA_3080_URL  = f"http://{M4_HOST}:11434"   # RTX 3080 (idx1) → qwen3:8b     (chat principal, ~65 tok/s)
-OLLAMA_2060_URL  = f"http://{M4_HOST}:11435"   # RTX 2060 (idx0) → qwen2.5:7b   (secondaire / délestage)
-OLLAMA_EMBED_URL = f"http://{M4_HOST}:11436"   # GTX 1660S(idx2) → nomic-embed-text (vectorisation permanente, KEEP_ALIVE=-1)
+# ── Nœuds Distants Rémi via Tailscale ──
+REMI_ASUS_HOST = "100.113.121.61"
+REMI_TOUR_HOST = "100.124.69.1"
+REMI_OLLAMA_URL = f"http://{REMI_ASUS_HOST}:11434"
+
+# ── LLM local — machine "mining" (MàJ 2026-09-10 SOIR, GPU RÉPARÉ) ─────────
+# CPU = Intel Core i5-3450 (4 cœurs, SANS AVX2) — 31 Go RAM. GPU LOCAUX =
+# RTX 2060 12 Go (idx0) + RTX 3080 10 Go (idx1), pilote NVIDIA 595.84 OK.
+# → Ollama local sur :11434 tourne en 100 % GPU (CUDA, Vulkan off, num_gpu:999),
+#   1 seule instance dual-GPU (units systemd user, cf. ollama.service).
+# ⚠️ LM Studio (:1234) ne peut PAS piloter le GPU ici (AVX2 requis) → il tourne
+#   en CPU et ne sert que de REPLI. Doctrine : JAMAIS CPU, TOUJOURS GPU → la
+#   cascade tape Ollama GPU en premier (voir core/inference.py).
+#
+# DUO 2 PC (optionnel) : pose JARVIS_GPU_NODE_HOST=<ip du 2e PC "turbo2"> pour
+# ajouter ses cartes à la cascade (Ollama y écoute en OLLAMA_HOST=0.0.0.0).
+LOCAL_GPU_URL = f"http://{M4_HOST}:11434"            # Ollama local 100 % GPU (2060+3080)
+CPU_LOCAL_URL = LOCAL_GPU_URL                        # alias rétro-compat (n'est PLUS du CPU)
+GPU_NODE_HOST = os.environ.get("JARVIS_GPU_NODE_HOST", "").strip()
+
+if GPU_NODE_HOST:
+    # 2e PC branché → 2060 + 3080 exposées en réseau (ports repris du rig)
+    OLLAMA_3080_URL  = os.environ.get("JARVIS_OLLAMA_3080_URL",  f"http://{GPU_NODE_HOST}:11437")  # RTX 3080 → qwen3:8b
+    OLLAMA_2060_URL  = os.environ.get("JARVIS_OLLAMA_2060_URL",  f"http://{GPU_NODE_HOST}:11435")  # RTX 2060 → qwen2.5:7b
+    OLLAMA_EMBED_URL = os.environ.get("JARVIS_OLLAMA_EMBED_URL", f"http://{GPU_NODE_HOST}:11436")  # embeddings GPU
+    OLLAMA_URL       = OLLAMA_3080_URL                  # chat principal = RTX 3080 (distant)
+    OLLAMA_AUX_URL   = CPU_LOCAL_URL                    # léger / fallback = CPU local
+else:
+    # 2e PC absent → tout sur l'unique instance CPU locale :11434
+    OLLAMA_3080_URL = OLLAMA_2060_URL = OLLAMA_EMBED_URL = OLLAMA_URL = OLLAMA_AUX_URL = CPU_LOCAL_URL
+
+OLLAMA_PORT = 11434                                   # instance locale dual-GPU (CUDA)
 CHAT_MODEL_3080  = "qwen3:8b"
 CHAT_MODEL_2060  = "qwen2.5:7b"
 EMBED_MODEL      = "nomic-embed-text"
@@ -127,9 +155,8 @@ ORGANES = [
     ("CDP authentifié",             "127.0.0.1", 9222,  "Session navigateur réelle (LinkedIn/Upwork)"),
     ("BrowserOS serve",             "127.0.0.1", 9201,  "Service BrowserOS"),
     ("OpenClaw daemon",             "127.0.0.1", 18789, "Moteur multi-agents ACP"),
-    ("Ollama RTX 3080 (chat)",      "127.0.0.1", 11434, "qwen3:8b épinglé RTX 3080 · ~65 tok/s"),
-    ("Ollama RTX 2060 (délestage)", "127.0.0.1", 11435, "qwen2.5:7b épinglé RTX 2060"),
-    ("Ollama GTX 1660S (vecto)",    "127.0.0.1", 11436, "nomic-embed-text · vectorisation permanente"),
+    ("Ollama local (GPU 2060+3080)","127.0.0.1", 11434, "Dual-GPU CUDA 100% · qwen3:8b/qwen2.5:7b/embeddings"),
+    ("Ollama Rémi Asus (Tailscale)","100.113.121.61", 11434, "Nœud distant Rémi · GLM-5.2 / BGE-M3 / Qwen"),
     ("Board OS Serveur",            "127.0.0.1", 8795,  "Serveur de corpus FTS5 & experts"),
     ("Cockpit Web PWA",             "127.0.0.1", 8600,  "Serveur applicatif desktop & web"),
     ("PostgreSQL 15 Swarm",         "127.0.0.1", 5432,  "Base jarvis_agents relationnelle/vecto"),
@@ -138,7 +165,16 @@ ORGANES = [
     ("Portainer CE",                "127.0.0.1", 9000,  "Console administration Docker"),
     ("Whisper Voice Bridge",        "127.0.0.1", 9742,  "Interface de transcription vocale"),
     ("S8 Hardware Voice Node",      "127.0.0.1", 8799,  "Bouton matériel micro distant S8"),
+    ("LM Studio GPU",               LMSTUDIO_HOST, LMSTUDIO_PORT, "Serveur LM Studio Dual GPU · qwen3:8b / qwen2.5:7b"),
 ]
+
+# ── Nœud GPU distant (2e PC du duo) — ajouté aux sondes si JARVIS_GPU_NODE_HOST est posé ──
+if GPU_NODE_HOST:
+    ORGANES += [
+        (f"Ollama RTX 3080 @{GPU_NODE_HOST}", GPU_NODE_HOST, 11437, "qwen3:8b · RTX 3080 (10 Go) · nœud GPU distant"),
+        (f"Ollama RTX 2060 @{GPU_NODE_HOST}", GPU_NODE_HOST, 11435, "qwen2.5:7b · RTX 2060 (12 Go) · nœud GPU distant"),
+        (f"Ollama embeddings @{GPU_NODE_HOST}", GPU_NODE_HOST, 11436, "nomic-embed-text · vectorisation GPU distante"),
+    ]
 
 # Catégories d'applications pour le Hub Bureau
 APP_CATEGORIES = [

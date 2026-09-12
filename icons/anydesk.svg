@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="16" y="16" width="480" height="480" rx="110" fill="#ef4444" fill-opacity="0.1" stroke="#ef4444" stroke-width="4"/>
+  
+        <!-- AnyDesk Dual Screen / Remote Interconnect -->
+        <rect x="136" y="125" width="160" height="110" rx="10" fill="#170404" stroke="#ef4444" stroke-width="3.5"/>
+        <rect x="216" y="175" width="160" height="110" rx="10" fill="#260808" stroke="#f87171" stroke-width="3.5"/>
+        <line x1="216" y1="180" x2="296" y2="235" stroke="#ffffff" stroke-width="3"/>
+        <polygon points="256,190 270,180 265,195" fill="#ffffff"/>
+        <circle cx="216" cy="180" r="6" fill="#ef4444"/>
+        <circle cx="296" cy="235" r="6" fill="#22c55e"/>
+        <text x="296" y="220" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="900" fill="#ffffff" text-anchor="middle">REMOTE</text>
+        
+</svg>

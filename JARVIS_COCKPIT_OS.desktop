@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=JARVIS COCKPIT OS
+Comment=Application Maîtresse Native Unifiée — 15 Modules, Terminals, IA & Outils
+Exec=/home/turbo/jarvis/cockpit/launch_gui.sh
+Icon=/home/turbo/jarvis/icons/1_jarvis_cockpit_os.png
+Terminal=false
+Categories=System;Utility;
+StartupNotify=true

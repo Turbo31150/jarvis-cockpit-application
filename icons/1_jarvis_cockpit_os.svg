@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="16" y="16" width="480" height="480" rx="110" fill="#00f0ff" fill-opacity="0.1" stroke="#00f0ff" stroke-width="4"/>
+  
+        <!-- Arc Reactor / Holographic Master Core -->
+        <circle cx="256" cy="220" r="130" fill="none" stroke="#00f0ff" stroke-width="3" stroke-dasharray="8 6" opacity="0.6"/>
+        <circle cx="256" cy="220" r="115" fill="none" stroke="#38bdf8" stroke-width="4" opacity="0.8"/>
+        
+        <!-- Outer tick rings -->
+        <g stroke="#00f0ff" stroke-width="3" opacity="0.7">
+            <line x1="256" y1="80" x2="256" y2="100"/>
+            <line x1="256" y1="340" x2="256" y2="360"/>
+            <line x1="116" y1="220" x2="136" y2="220"/>
+            <line x1="376" y1="220" x2="396" y2="220"/>
+            <line x1="157" y1="121" x2="171" y2="135"/>
+            <line x1="355" y1="319" x2="341" y2="305"/>
+            <line x1="157" y1="319" x2="171" y2="305"/>
+            <line x1="355" y1="121" x2="341" y2="135"/>
+        </g>
+        
+        <!-- Segmented reactor ring -->
+        <circle cx="256" cy="220" r="85" fill="#041226" stroke="#0ea5e9" stroke-width="8" stroke-dasharray="40 10"/>
+        
+        <!-- Energy triangles / turbine blades -->
+        <polygon points="256,150 240,195 272,195" fill="#00f0ff" opacity="0.85"/>
+        <polygon points="256,290 240,245 272,245" fill="#00f0ff" opacity="0.85"/>
+        <polygon points="186,220 231,204 231,236" fill="#00f0ff" opacity="0.85"/>
+        <polygon points="326,220 281,204 281,236" fill="#00f0ff" opacity="0.85"/>
+        <polygon points="206,170 245,190 225,210" fill="#38bdf8" opacity="0.85"/>
+        <polygon points="306,270 267,250 287,230" fill="#38bdf8" opacity="0.85"/>
+        <polygon points="206,270 245,250 225,230" fill="#38bdf8" opacity="0.85"/>
+        <polygon points="306,170 267,190 287,210" fill="#38bdf8" opacity="0.85"/>
+
+        <!-- Glowing Central Core -->
+        <circle cx="256" cy="220" r="45" fill="#08203e" stroke="#00f0ff" stroke-width="4"/>
+        <circle cx="256" cy="220" r="30" fill="url(#coreGlow)" />
+        <circle cx="256" cy="220" r="14" fill="#ffffff"/>
+        
+        <defs>
+            <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="40%" stop-color="#00f0ff"/>
+                <stop offset="80%" stop-color="#0284c7"/>
+                <stop offset="100%" stop-color="#0369a1"/>
+            </radialGradient>
+        </defs>
+        
+</svg>

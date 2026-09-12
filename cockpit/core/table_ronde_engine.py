@@ -44,8 +44,8 @@ from core.database import search_board_fts
 from core.inference import generate_completion
 
 # Endpoints réseau du Conseil ------------------------------------------------
-REMI_IP = os.environ.get("JARVIS_M1_HOST", "127.0.0.1")  # LM Studio local (0 token) ; nœud M1 distant via JARVIS_M1_HOST
-M1_URL = f"http://{REMI_IP}:1234"
+REMI_IP = os.environ.get("JARVIS_M1_HOST", "192.168.42.241")  # LM Studio tether 192.168.42.241 (0 token)
+M1_URL = os.environ.get("JARVIS_LMSTUDIO_URL", f"http://{REMI_IP}:1234")
 OL_URL = OLLAMA_URL                                            # M4 Ollama local
 OPENCLAW_URL = os.environ.get("JARVIS_OPENCLAW_URL", "http://127.0.0.1:18789")
 ANTIGRAVITY_URL = os.environ.get("JARVIS_ANTIGRAVITY_URL", "http://127.0.0.1:18811")
@@ -70,9 +70,9 @@ EXPERTS = [
 #   None      -> cascade standard M6 → M4 → proxy
 SIEGES = [
     {
-        "id": "remi", "nom": "Rémi (Nœud Stratégique M1)",
+        "id": "remi", "nom": "Rémi (Nœud Stratégique LM Studio)",
         "role": "Superviseur d'infrastructure et garant de la continuité opérationnelle du cluster distribué.",
-        "avatar": "fa-server text-emerald-400", "badge": f"M1 · {REMI_IP}", "preferred": "ollama:qwen2.5:1.5b",
+        "avatar": "fa-server text-emerald-400", "badge": f"LM Studio · {REMI_IP}:1234", "preferred": "m1",
     },
     {
         "id": "claude", "nom": "Claude Code (Architecte Code & Logique)",
@@ -192,10 +192,11 @@ def check_agent_status() -> dict:
     except Exception:
         status["ollama"] = {"en_ligne": False, "detail": "Service local inactif"}
 
-    # 2. Rémi (Tailscale M1)
+    # 2. Rémi (LM Studio Dual GPU)
     try:
-        r = subprocess.run(["ping", "-c", "1", "-W", "1", REMI_IP], capture_output=True, timeout=1.2)
-        status["remi"] = {"en_ligne": (r.returncode == 0), "ip": REMI_IP, "detail": "Nœud M1 RJ45/Tailscale"}
+        from core.telemetry import is_port_open
+        lms_up = is_port_open(REMI_IP, 1234, timeout=0.15) or is_port_open("127.0.0.1", 1234, timeout=0.15)
+        status["remi"] = {"en_ligne": lms_up, "ip": REMI_IP, "detail": "LM Studio Dual GPU (:1234)" if lms_up else "LM Studio inactif"}
     except Exception:
         status["remi"] = {"en_ligne": False, "ip": REMI_IP, "detail": "Hors portée réseau"}
 
@@ -229,27 +230,35 @@ def check_agent_status() -> dict:
 
 
 # ── Inférence d'un siège (routage préféré + cascade) ────────────────────────
-def _infer_m1(prompt: str, sys_prompt: str, timeout: float = 12.0) -> dict:
-    """Tente une inférence sur le nœud M1 (LM Studio, API OpenAI-compatible)."""
+def _infer_m1(prompt: str, sys_prompt: str, timeout: float = 15.0) -> dict:
+    """Tente une inférence sur le nœud LM Studio (API OpenAI-compatible, Dual GPU)."""
     try:
+        from core.inference import _lmstudio_local_model, _lmstudio_base
+        base = _lmstudio_base() or M1_URL
+        modele = _lmstudio_local_model(base) or "qwen3-8b"
+        user_prompt = prompt
+        if any(tag in modele.lower() for tag in ("qwen3", "deepseek-r1", "-r1")):
+            user_prompt = "/nothink\n" + prompt
         payload = json.dumps({
-            "model": "local-model",
+            "model": modele,
             "messages": [
                 {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.5,
             "max_tokens": 320,
         }).encode("utf-8")
-        req = urllib.request.Request(f"{M1_URL}/v1/chat/completions", data=payload,
+        req = urllib.request.Request(f"{base}/v1/chat/completions", data=payload,
                                      headers={"Content-Type": "application/json"})
         t0 = time.time()
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode())
             msg = data["choices"][0]["message"]
             content = (msg.get("content") or msg.get("reasoning_content") or "").strip()
+            if "</think>" in content:
+                content = content.split("</think>")[-1].strip()
             if content:
-                return {"content": content, "source": f"M1 LM Studio ({REMI_IP})", "success": True,
+                return {"content": content, "source": f"LM Studio GPU ({modele})", "success": True,
                         "latency": round(time.time() - t0, 2)}
     except Exception:
         pass
@@ -431,9 +440,52 @@ def run_table_ronde_deliberation(question: str, injecter_browser: bool = True,
             sources_count = len(chunks)
             if chunks:
                 extra_context.append(
-                    "=== CONNAISSANCES BOARD OS (corpus FTS5) ===\n" +
+                    "=== CONNAISSANCES BOARD-A OS (corpus FTS5 board.db) ===\n" +
                     "\n".join([f"• [{c.get('title', 'doc')}] : {c.get('snippet', '')}" for c in chunks])
                 )
+        except Exception:
+            pass
+
+        # ── Injection BOARD-B (Objectifs & Dominos OMEGA) ──
+        try:
+            bb_path = os.path.join(JARVIS_DIR, "omega", "board", "omega_board.db")
+            if os.path.exists(bb_path):
+                bb_conn = sqlite3.connect(f"file:{bb_path}?mode=ro&immutable=1", uri=True)
+                bb_cur = bb_conn.cursor()
+                keywords = [w for w in question.replace("'", " ").split() if len(w) > 3][:3]
+                pattern = f"%{keywords[0]}%" if keywords else "%"
+                bb_items = bb_cur.execute(
+                    "SELECT id, title, state, family FROM board_items WHERE title LIKE ? OR intent LIKE ? LIMIT 2",
+                    (pattern, pattern)
+                ).fetchall()
+                if bb_items:
+                    sources_count += len(bb_items)
+                    extra_context.append(
+                        "=== ÉTAT OPÉRATOIRE BOARD-B (Objectifs OMEGA) ===\n" +
+                        "\n".join([f"• [{it[2]}] {it[1]} (Famille: {it[3]} | ID: {it[0]})" for it in bb_items])
+                    )
+                bb_conn.close()
+        except Exception:
+            pass
+
+        # ── Injection PROMPTS & DIRECTIVES EXPERTES (Dual-Disk Library) ──
+        try:
+            p_conn = sqlite3.connect(f"file:{MASTER_DB}?mode=ro&immutable=1", uri=True)
+            p_cur = p_conn.cursor()
+            clean_words = [w for w in question.replace("'", " ").replace("\"", " ").split() if len(w) > 3][:3]
+            if clean_words:
+                fts_query = " OR ".join(clean_words)
+                p_rows = p_cur.execute(
+                    "SELECT filename, category, substr(content, 1, 200) FROM system_prompts_fts WHERE system_prompts_fts MATCH ? LIMIT 2",
+                    (fts_query,)
+                ).fetchall()
+                if p_rows:
+                    sources_count += len(p_rows)
+                    extra_context.append(
+                        "=== PROMPTS & DIRECTIVES EXPERTES (Dual-Disk Library) ===\n" +
+                        "\n".join([f"• [{r[0]} | {r[1]}] : {r[2].strip().replace(chr(10), ' ')}..." for r in p_rows])
+                    )
+            p_conn.close()
         except Exception:
             pass
 

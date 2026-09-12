@@ -27,8 +27,9 @@ def _port_open(url: str, timeout: float = 0.5) -> bool:
         return False
 
 # Ordre de préférence si présents ; complété dynamiquement par /api/tags.
-# Rig "mining" : qwen3:8b (RTX 3080) prioritaire, puis repli local.
-_OLLAMA_PREFERRED = ["qwen3:8b", "qwen2.5:7b", "gemma3:4b", "qwen2.5:1.5b"]
+# Rig "mining" : gemma3:4b prioritaire en mode GPU 100% pour le Cockpit Bureau,
+# puis gemma4 et gemma3.5. Les noms sont matchés SANS tenir compte du tag (:latest).
+_OLLAMA_PREFERRED = ["gemma3:4b", "gemma3-4b", "gemma4", "gemma3.5", "qwen3:8b", "qwen2.5:7b", "qwen2.5:1.5b"]
 
 # LM Studio LOCAL (0 token, illimité) — API OpenAI-compatible sur cette machine.
 # Prioritaire sur le nœud M6 distant, souvent injoignable depuis le rig "mining".
@@ -40,11 +41,10 @@ _LMSTUDIO_CANDIDATES = [
     "http://192.168.42.241:1234",
 ]
 # Ordre de préférence LM Studio (surchargé par JARVIS_LMSTUDIO_MODELS, CSV).
-# La sélection reste RÉSIDENT-only : un nom absent/non chargé est simplement ignoré,
-# donc lister gemma3.5 (pas encore installé) est sans risque.
+# La sélection reste RÉSIDENT-only : un nom absent/non chargé est simplement ignoré.
 _LMSTUDIO_PREFERRED = [m.strip() for m in os.environ.get(
     "JARVIS_LMSTUDIO_MODELS",
-    "qwen3-8b, gemma3.5, gemma3-4b, qwen2.5-7b, mistral-7b-instruct, deepseek-r1-7b, qwen3-1.7b"
+    "gemma3:4b, gemma3-4b, gemma4, gemma3.5, qwen3-8b, qwen2.5-7b, mistral-7b-instruct, deepseek-r1-7b, qwen3-1.7b"
 ).split(",") if m.strip()]
 
 # Modèles à raisonnement : on préfixe le prompt de « /nothink » (usage documenté
@@ -111,6 +111,22 @@ def _ollama_resident_models(timeout: float = 1.5) -> list:
         return []
 
 
+def _match_installed(pref: str, installed: list):
+    """Résout un nom préféré vers le nom Ollama réellement installé, en tolérant
+    le tag. Ex. : "gemma4" → "gemma4:latest", "gemma3.5" → "gemma3.5:latest".
+    Priorité : correspondance exacte, puis "<pref>:latest", puis même base avant ':'."""
+    if pref in installed:
+        return pref
+    if f"{pref}:latest" in installed:
+        return f"{pref}:latest"
+    # Un préféré sans tag (ex. "gemma4") matche tout "gemma4:<tag>" installé.
+    if ":" not in pref:
+        for m in installed:
+            if m.split(":")[0] == pref:
+                return m
+    return None
+
+
 def _ollama_candidates() -> list:
     """Modèles à essayer, doctrine « résident d'abord » (rig PCIe x1) : on privilégie
     le modèle DÉJÀ chargé pour ne pas déclencher un cold-load de ~9 Go qui traîne sur
@@ -120,58 +136,121 @@ def _ollama_candidates() -> list:
     if not installed:
         return resident or list(_OLLAMA_PREFERRED)  # tentative à l'aveugle si /api/tags échoue
     ordered = [m for m in resident if m in installed]                       # 1) déjà en VRAM
-    ordered += [m for m in _OLLAMA_PREFERRED if m in installed and m not in ordered]  # 2) préférés
+    for pref in _OLLAMA_PREFERRED:                                           # 2) préférés (tag-insensible)
+        match = _match_installed(pref, installed)
+        if match and match not in ordered:
+            ordered.append(match)
     ordered += [m for m in installed if m not in ordered]                  # 3) reste
     return ordered
 
 def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant IA d'élite.", max_tokens: int = 1024, temperature: float = 0.3) -> dict:
-    """Cascade d'inférence robuste : M6 GPU direct -> M4 Ollama -> Chat Proxy."""
+    """Cascade d'inférence robuste : Ollama GPU / LM Studio GPU -> M6 GPU direct -> Chat Proxy."""
     # Règle M4/M6 : max_tokens >= 512 pour éviter les sorties vides sur modèles à raisonnement
     effective_max_tokens = max(max_tokens, 512)
 
-    # 0. Tier 0 : LM Studio LOCAL (loopback ou tether) — 0 token, illimité, prioritaire.
+    # Récupération du réglage cockpit (par défaut gemma3:4b en mode GPU)
+    cfg_engine = "gemma3:4b"
     try:
-        base = _lmstudio_base()
-        if base:
-            modele = _lmstudio_local_model(base)
-            if modele:
-                # /nothink pour qwen3/deepseek-r1 (usage GitHub) → réponse directe.
-                user_content = prompt
-                if any(tag in modele.lower() for tag in _NOTHINK_MODELS):
-                    user_content = "/nothink\n" + prompt
-                payload = json.dumps({
-                    "model": modele,
-                    "messages": [
-                        {"role": "system", "content": sys_prompt},
-                        {"role": "user", "content": user_content}
-                    ],
-                    "temperature": temperature,
-                    "max_tokens": effective_max_tokens
+        from .settings_engine import get_cockpit_settings
+        cfg_engine = get_cockpit_settings().get("settings", {}).get("ai_engine", "gemma3:4b")
+    except Exception:
+        pass
+
+    prefer_gemma = any(k in str(cfg_engine).lower() for k in ("gemma", "4b"))
+
+    def _call_ollama(cand_list):
+        _gpu_prompt = sys_prompt + "\n\n" + prompt
+        for model_name in cand_list:
+            try:
+                _gpu_payload = json.dumps({
+                    "model": model_name,
+                    "prompt": _gpu_prompt,
+                    "stream": False,
+                    "keep_alive": -1,
+                    "options": {
+                        "num_predict": max(64, effective_max_tokens),
+                        "temperature": temperature,
+                        "num_gpu": 999,
+                    },
                 }).encode("utf-8")
-                req = urllib.request.Request(f"{base}/v1/chat/completions",
-                                             data=payload, headers={"Content-Type": "application/json"})
+                _gpu_req = urllib.request.Request(f"{OLLAMA_URL}/api/generate",
+                                                  data=_gpu_payload,
+                                                  headers={"Content-Type": "application/json"})
                 t0 = time.time()
-                with urllib.request.urlopen(req, timeout=60) as resp:
-                    data = json.loads(resp.read().decode())
-                    choice = data["choices"][0]["message"]
-                    content = (choice.get("content") or "").strip()
-                    if not content and "reasoning_content" in choice:
-                        content = choice["reasoning_content"].strip()
-                    # Reasoning-runaway (doctrine Notion) : qwen3.x/deepseek-r1
-                    # peuvent renvoyer le raisonnement dans <think>…</think> suivi
-                    # de la réponse — on ne garde que ce qui suit le think fermé.
+                with urllib.request.urlopen(_gpu_req, timeout=120) as _gpu_resp:
+                    _gpu_data = json.loads(_gpu_resp.read().decode())
+                    content = (_gpu_data.get("response") or "").strip()
                     if "</think>" in content:
                         content = content.split("</think>")[-1].strip()
                     if content:
                         return {
                             "content": content,
-                            "source": f"LM Studio LOCAL ({modele}, 0 token)",
+                            "source": f"Ollama GPU ({model_name}, 100% GPU)",
                             "latency": round(time.time() - t0, 2),
                             "success": True,
-                            "model": modele
+                            "model": model_name,
                         }
-    except Exception:
-        pass
+            except Exception:
+                continue
+        return None
+
+    def _call_lmstudio():
+        try:
+            base = _lmstudio_base()
+            if base:
+                modele = _lmstudio_local_model(base)
+                if modele:
+                    user_content = prompt
+                    if any(tag in modele.lower() for tag in _NOTHINK_MODELS):
+                        user_content = "/nothink\n" + prompt
+                    payload = json.dumps({
+                        "model": modele,
+                        "messages": [
+                            {"role": "system", "content": sys_prompt},
+                            {"role": "user", "content": user_content}
+                        ],
+                        "temperature": temperature,
+                        "max_tokens": effective_max_tokens
+                    }).encode("utf-8")
+                    req = urllib.request.Request(f"{base}/v1/chat/completions",
+                                                 data=payload, headers={"Content-Type": "application/json"})
+                    t0 = time.time()
+                    with urllib.request.urlopen(req, timeout=60) as resp:
+                        data = json.loads(resp.read().decode())
+                        choice = data["choices"][0]["message"]
+                        content = (choice.get("content") or "").strip()
+                        if not content and "reasoning_content" in choice:
+                            content = choice["reasoning_content"].strip()
+                        if "</think>" in content:
+                            content = content.split("</think>")[-1].strip()
+                        if content:
+                            return {
+                                "content": content,
+                                "source": f"LM Studio GPU ({modele}, 0 token)",
+                                "latency": round(time.time() - t0, 2),
+                                "success": True,
+                                "model": modele
+                            }
+        except Exception:
+            pass
+        return None
+
+    # 1. Si gemma3:4b est préféré/configuré, Ollama GPU tourne en priorité absolue
+    if prefer_gemma:
+        cands = [m for m in _ollama_candidates() if "gemma" in m.lower()]
+        res = _call_ollama(cands)
+        if res:
+            return res
+
+    # 2. Sinon ou en repli : LM Studio GPU (qwen3-8b / qwen2.5-7b)
+    res_lms = _call_lmstudio()
+    if res_lms:
+        return res_lms
+
+    # 3. Repli Ollama général
+    res_ol = _call_ollama(_ollama_candidates())
+    if res_ol:
+        return res_ol
 
     # 1. Tier 1 : Nœud M6 GPU (Lien direct 10.42.0.230) — sondé avant appel
     try:
