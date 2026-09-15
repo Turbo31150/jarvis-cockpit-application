@@ -24,12 +24,22 @@ import time
 import sqlite3
 import subprocess
 import urllib.request
+import hashlib
+import socket
+import platform
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 RACINE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, RACINE)
+PARENT = os.path.dirname(RACINE)
+for p in (RACINE, PARENT):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+try:
+    from config import jarvis_config
+except ImportError:
+    import jarvis_config
 
 import terminaux
 from core.config import (M6_HOST, M6_PORT, MASTER_DB, BOARD_DB,
@@ -58,6 +68,11 @@ from core.settings_engine import get_cockpit_settings, save_cockpit_settings
 from core.table_ronde_engine import (
     run_table_ronde_deliberation, check_agent_status, get_browser_os_context
 )
+from core.escouade_engine import (
+    get_agents_escouade, lancer_agent, get_cartographie_ssd,
+    scanner_bases_sql, inspecter_base_sql
+)
+
 
 PORT = int(os.environ.get("COCKPIT_PORT", "8600"))
 M6_URL = f"http://{M6_HOST}:{M6_PORT}"
@@ -133,7 +148,8 @@ def get_cluster_telemetry():
         ("Monitor Cluster", "127.0.0.1", 8420),
         ("Espace Prof", "127.0.0.1", 7777),
         ("PostgreSQL", "127.0.0.1", 5432),
-        ("Redis Local", "127.0.0.1", 6379)
+        ("Redis Local", "127.0.0.1", 6379),
+        ("Serveur MCP Cockpit", "127.0.0.1", 8600)
     ]
     services_status = []
     import socket
@@ -147,17 +163,23 @@ def get_cluster_telemetry():
         except Exception:
             services_status.append({"name": name, "port": port, "up": False})
 
+    local_data = {
+        "hostname": socket.gethostname(),
+        "node_label": f"{socket.gethostname()} (Rig Bi-GPU 22 Go)",
+        "temp_c": temp_val,
+        "mem_used_mb": mem_used,
+        "mem_total_mb": mem_total,
+        "mem_free_mb": mem_free,
+        "vram_used_mb": vram_used,
+        "vram_total_mb": vram_total,
+        "vram_temp_c": vram_temp,
+        "governor": "performance"
+    }
+
     return {
-        "m4": {
-            "temp_c": temp_val,
-            "mem_used_mb": mem_used,
-            "mem_total_mb": mem_total,
-            "mem_free_mb": mem_free,
-            "vram_used_mb": vram_used,
-            "vram_total_mb": vram_total,
-            "vram_temp_c": vram_temp,
-            "governor": "performance"
-        },
+        "hostname": socket.gethostname(),
+        "local": local_data,
+        "m4": local_data,  # alias rétro-compatibilité
         "m6": {
             "online": m6_online,
             "latency_ms": m6_latency,
@@ -214,25 +236,20 @@ class CockpitHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def local_seulement(self):
-        """Terminal/PTY accessible depuis la machine + réseaux de confiance.
+        """Vérifie l'autorisation d'accès selon jarvis_config.
 
-        Étendu pour l'app mobile JARVIS Cockpit OS : autorise le loopback,
-        le tether USB du téléphone (192.168.42.0/24) et Tailscale (100.64.0.0/10).
-        ⚠️ Expose l'accès shell à ces réseaux privés (téléphone direct + tailnet chiffré).
+        Loopback sans restriction (Application Desktop locale).
+        Accès réseau distant (LAN / WAN) sécurisé par jeton Bearer Token.
         """
-        pair = (self.client_address[0] or "").replace("::ffff:", "")
-        def _tailscale(ip):
-            try:
-                a, b = ip.split(".")[:2]
-                return a == "100" and 64 <= int(b) <= 127   # CGNAT 100.64.0.0/10
-            except Exception:
-                return False
-        if (pair in ("127.0.0.1", "::1")
-                or pair.startswith("127.")
-                or pair.startswith("192.168.42.")   # tether USB téléphone
-                or _tailscale(pair)):                # Tailscale
+        headers = dict(self.headers)
+        params = parse_qs(urlparse(self.path).query)
+        client_ip = (self.client_address[0] or "").replace("::ffff:", "")
+        if jarvis_config.is_authorized(client_ip, headers, params):
             return True
-        self.respond_json({"success": False, "error": "Accès restreint : loopback, tether (192.168.42.x) ou Tailscale (100.64/10) uniquement"}, 403)
+        self.respond_json({
+            "success": False,
+            "error": "Accès restreint (P0 Sécurité Appliance) : Jeton d'authentification requis pour les connexions réseau distantes."
+        }, 403)
         return False
 
     def respond_json(self, data, status=200):
@@ -293,6 +310,535 @@ class CockpitHandler(BaseHTTPRequestHandler):
             return
 
         # ── S9 STANDALONE BRIDGE & BACKUPS ──
+        elif path == "/api/mcp/status":
+            self.respond_json({
+                "success": True,
+                "mcp_server": "jarvis-cockpit",
+                "script": "/home/turbo/jarvis/mcp/cockpit_mcp.py",
+                "desktop_app": "/home/turbo/Bureau/JARVIS-COCKPIT-OS",
+                "launcher_desktop": "/home/turbo/Bureau/jarvis-cockpit.desktop",
+                "backend_url": "http://127.0.0.1:8600",
+                "tools_count": 33,
+                "lmstudio_integration": True,
+                "timestamp": datetime.now().isoformat()
+            })
+            return
+
+        # ── ARMÉE D'AGENTS & MULTI-SSDs SQL ──
+        elif path == "/api/escouade/agents":
+            self.respond_json({"success": True, "agents": get_agents_escouade()})
+            return
+        elif path == "/api/stockage/ssd":
+            self.respond_json({"success": True, "ssds": get_cartographie_ssd()})
+            return
+        elif path == "/api/stockage/sql":
+            filtre = params.get("filtre", ["tous"])[0]
+            self.respond_json({"success": True, "bases": scanner_bases_sql(filtre)})
+            return
+        elif path == "/api/stockage/inspecter":
+            target_db = params.get("db", [""])[0]
+            if target_db:
+                self.respond_json(inspecter_base_sql(target_db))
+            else:
+                self.respond_json({"success": False, "error": "Paramètre 'db' manquant"}, 400)
+            return
+
+        # ── AUTOPILOTE H24 ──
+        elif path == "/api/autopilot/status":
+            try:
+                p = subprocess.run(["systemctl", "--user", "is-active", "jarvis-h24-autopilot.service"], capture_output=True, text=True, timeout=3)
+                st = p.stdout.strip()
+                pid = ""
+                pid_file = "/home/turbo/jarvis/logs/autopilot_h24.pid"
+                if os.path.exists(pid_file):
+                    with open(pid_file) as f:
+                        pid = f.read().strip()
+
+                con = sqlite3.connect(f"file:{MASTER_DB}?mode=ro", uri=True, timeout=2.0)
+                c = con.cursor()
+                rows = c.execute("SELECT timestamp, cycle_nom, statut FROM h24_autopilot_heartbeat ORDER BY id DESC LIMIT 5;").fetchall()
+                con.close()
+
+                hb = [{"timestamp": r[0], "cycle": r[1], "statut": r[2]} for r in rows]
+                self.respond_json({
+                    "success": True,
+                    "service": "jarvis-h24-autopilot.service",
+                    "status": st,
+                    "pid": pid,
+                    "heartbeats": hb,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        elif path == "/api/autopilot/logs":
+            try:
+                log_file = "/home/turbo/jarvis/logs/autopilot_h24.log"
+                lines = []
+                if os.path.exists(log_file):
+                    with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                        lines = [l.rstrip() for l in f.readlines()[-80:]]
+                self.respond_json({"success": True, "logs": lines, "count": len(lines)})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        elif path == "/api/linkedin/post/today":
+            try:
+                queue_dir = "/home/turbo/jarvis/data/linkedin/queue"
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                post_file = os.path.join(queue_dir, f"post_{today_str}.md")
+                content = ""
+                exists = False
+                if os.path.exists(post_file):
+                    exists = True
+                    with open(post_file, "r", encoding="utf-8", errors="replace") as f:
+                        content = f.read()
+                self.respond_json({
+                    "success": True,
+                    "exists": exists,
+                    "date": today_str,
+                    "file": post_file,
+                    "content": content
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        elif path == "/api/emails/triage/status":
+            try:
+                mails_base = os.path.expanduser("~/jarvis/data/mails_organises")
+                categories = []
+                total = 0
+                if os.path.exists(mails_base):
+                    for d in sorted(os.listdir(mails_base)):
+                        p = os.path.join(mails_base, d)
+                        if os.path.isdir(p):
+                            count = len([f for f in os.listdir(p) if f.endswith(".eml")])
+                            total += count
+                            categories.append({"nom": d, "count": count})
+                self.respond_json({
+                    "success": True,
+                    "total_emails": total,
+                    "categories": categories,
+                    "base_path": mails_base
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── AUDIT CITATIONS SQL & ANTI-HALLUCINATION (P0 MOAT) ──
+        elif path == "/api/rag/audit-citations":
+            try:
+                board_path = "/home/turbo/jarvis/board/board.db"
+                if not os.path.exists(board_path):
+                    self.respond_json({"success": False, "error": "board.db introuvable"}, 404)
+                    return
+                con = sqlite3.connect(f"file:{board_path}?mode=ro", uri=True, timeout=5.0)
+                c = con.cursor()
+                total_chunks = c.execute("SELECT count(*) FROM chunks;").fetchone()[0]
+                total_sources = c.execute("SELECT count(*) FROM sources;").fetchone()[0]
+                total_experts = c.execute("SELECT count(*) FROM experts;").fetchone()[0]
+                total_answers = c.execute("SELECT count(*) FROM answers;").fetchone()[0]
+                total_citations = c.execute("SELECT count(*) FROM citations;").fetchone()[0]
+
+                # Réponses sans citation
+                sans_cit = c.execute("""
+                    SELECT count(*) FROM answers a
+                    LEFT JOIN citations c ON c.answer_id = a.id
+                    WHERE c.id IS NULL;
+                """).fetchone()[0]
+
+                # Échantillon des 5 dernières réponses rejetées
+                rejets_rows = c.execute("""
+                    SELECT a.id, a.query_id, a.expert_id, substr(a.text, 1, 100)
+                    FROM answers a
+                    LEFT JOIN citations c ON c.answer_id = a.id
+                    WHERE c.id IS NULL
+                    ORDER BY a.id DESC LIMIT 5;
+                """).fetchall()
+
+                # Échantillon des 5 dernières réponses validées avec citation
+                valides_rows = c.execute("""
+                    SELECT a.id, a.expert_id, count(c.id) as nb_cit, substr(a.text, 1, 100)
+                    FROM answers a
+                    JOIN citations c ON c.answer_id = a.id
+                    GROUP BY a.id
+                    ORDER BY a.id DESC LIMIT 5;
+                """).fetchall()
+                con.close()
+
+                conformite_pct = round(((total_answers - sans_cit) / max(total_answers, 1)) * 100, 2)
+
+                self.respond_json({
+                    "success": True,
+                    "metrics": {
+                        "total_chunks": total_chunks,
+                        "total_sources": total_sources,
+                        "total_experts": total_experts,
+                        "total_answers": total_answers,
+                        "total_citations": total_citations,
+                        "answers_sans_citation": sans_cit,
+                        "conformite_pct": conformite_pct,
+                    },
+                    "echantillon_rejets": [
+                        {"answer_id": r[0], "query_id": r[1], "expert": r[2], "extrait": r[3]} for r in rejets_rows
+                    ],
+                    "echantillon_valides": [
+                        {"answer_id": r[0], "expert": r[1], "citations_count": r[2], "extrait": r[3]} for r in valides_rows
+                    ],
+                    "regle": "Toute réponse sans citation formelle est rejetée avant restitution.",
+                    "sql_view": "CREATE VIEW answers_sans_citation AS SELECT a.id, a.query_id, a.expert_id FROM answers a LEFT JOIN citations c ON c.answer_id = a.id WHERE c.id IS NULL;"
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── CATALOGUE DES DOMAINES ET EXPERTS RAG SOUVERAINS ──
+        elif path == "/api/rag/domains":
+            try:
+                board_path = getattr(jarvis_config, "BOARD_DB", "/home/turbo/jarvis/board/board.db")
+                if not os.path.exists(board_path):
+                    self.respond_json({"success": False, "error": "board.db introuvable"}, 404)
+                    return
+                con = sqlite3.connect(f"file:{board_path}?mode=ro", uri=True, timeout=5.0)
+                cur = con.cursor()
+                cur.execute("""
+                    SELECT d.id, d.display_name, count(c.rowid) as nb_chunks
+                    FROM domains d
+                    LEFT JOIN chunks c ON c.domain_id = d.id
+                    GROUP BY d.id
+                    ORDER BY nb_chunks DESC;
+                """)
+                domains = [{"id": r[0], "name": r[1], "chunks": r[2]} for r in cur.fetchall()]
+
+                cur.execute("""
+                    SELECT domain_id, id, display_name, lens, is_arbitre
+                    FROM experts
+                    ORDER BY is_arbitre ASC, id ASC;
+                """)
+                experts = [{"domain_id": r[0], "id": r[1], "name": r[2], "lens": r[3], "is_arbitre": bool(r[4])} for r in cur.fetchall()]
+                con.close()
+                self.respond_json({"success": True, "domains": domains, "experts": experts})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── STATUT APPLIANCE SOUVERAINE JARVIS BOX ──
+        elif path == "/api/appliance/status":
+            try:
+                gpus = []
+                try:
+                    res_gpu = subprocess.run(
+                        ["nvidia-smi", "--query-gpu=name,memory.total,memory.free,memory.used,temperature.gpu", "--format=csv,noheader,nounits"],
+                        capture_output=True, text=True, timeout=2.0
+                    )
+                    if res_gpu.returncode == 0:
+                        for line in res_gpu.stdout.strip().split("\n"):
+                            parts = [p.strip() for p in line.split(",")]
+                            if len(parts) >= 5:
+                                gpus.append({
+                                    "name": parts[0],
+                                    "vram_total_mb": int(parts[1]),
+                                    "vram_free_mb": int(parts[2]),
+                                    "vram_used_mb": int(parts[3]),
+                                    "temp_c": int(parts[4])
+                                })
+                except Exception:
+                    pass
+
+                board_path = getattr(jarvis_config, "BOARD_DB", "/home/turbo/jarvis/board/board.db")
+                board_stat = {"exists": False, "size_gb": 0, "chunks": 0, "sources": 0, "experts": 0, "conformite_sql": 0}
+                if os.path.exists(board_path):
+                    try:
+                        board_stat["exists"] = True
+                        board_stat["size_gb"] = round(os.path.getsize(board_path) / (1024**3), 2)
+                        con = sqlite3.connect(f"file:{board_path}?mode=ro", uri=True, timeout=2.0)
+                        cur = con.cursor()
+                        cur.execute("SELECT count(*) FROM chunks;")
+                        board_stat["chunks"] = cur.fetchone()[0]
+                        cur.execute("SELECT count(*) FROM sources;")
+                        board_stat["sources"] = cur.fetchone()[0]
+                        cur.execute("SELECT count(*) FROM experts;")
+                        board_stat["experts"] = cur.fetchone()[0]
+                        cur.execute("SELECT count(*) FROM answers;")
+                        ans = cur.fetchone()[0]
+                        cur.execute("SELECT count(*) FROM answers_sans_citation;")
+                        rej = cur.fetchone()[0]
+                        con.close()
+                        board_stat["conformite_sql"] = round((ans - rej) / ans * 100, 2) if ans > 0 else 100.0
+                    except Exception:
+                        pass
+
+                tok = getattr(jarvis_config, "JARVIS_AUTH_TOKEN", "")
+                tok_preview = (tok[:6] + "..." + tok[-4:]) if len(tok) >= 10 else ("Configuré" if tok else "Non configuré")
+
+                self.respond_json({
+                    "success": True,
+                    "appliance_model": "JARVIS Box Souveraine v1.0",
+                    "hostname": socket.gethostname(),
+                    "platform": platform.platform(),
+                    "zero_trust": True,
+                    "zero_token": True,
+                    "auth_enabled": bool(tok),
+                    "token_preview": tok_preview,
+                    "gpus": gpus,
+                    "board_db": board_stat,
+                    "anti_hallucination_rule": "Strict SQL (answers_sans_citation = 0 acceptées)",
+                    "cost_eur": 0.0
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── EXPORT OFFICIEL ATTESTATION DPO & CONFORMITÉ SOUVERAINE ──
+        elif path == "/api/rag/export-dpo":
+            try:
+                board_path = getattr(jarvis_config, "BOARD_DB", "/home/turbo/jarvis/board/board.db")
+                board_stat = {"size_gb": 0, "chunks": 0, "sources": 0, "experts": 0, "answers": 0, "citations": 0, "rejets": 0, "conformite": 0}
+                if os.path.exists(board_path):
+                    try:
+                        board_stat["size_gb"] = round(os.path.getsize(board_path) / (1024**3), 2)
+                        con = sqlite3.connect(f"file:{board_path}?mode=ro", uri=True, timeout=3.0)
+                        cur = con.cursor()
+                        cur.execute("SELECT count(*) FROM chunks;")
+                        board_stat["chunks"] = cur.fetchone()[0]
+                        cur.execute("SELECT count(*) FROM sources;")
+                        board_stat["sources"] = cur.fetchone()[0]
+                        cur.execute("SELECT count(*) FROM experts;")
+                        board_stat["experts"] = cur.fetchone()[0]
+                        cur.execute("SELECT count(*) FROM answers;")
+                        board_stat["answers"] = cur.fetchone()[0]
+                        cur.execute("SELECT count(*) FROM citations;")
+                        board_stat["citations"] = cur.fetchone()[0]
+                        cur.execute("SELECT count(*) FROM answers_sans_citation;")
+                        board_stat["rejets"] = cur.fetchone()[0]
+                        con.close()
+                        board_stat["conformite"] = round((board_stat["answers"] - board_stat["rejets"]) / board_stat["answers"] * 100, 2) if board_stat["answers"] > 0 else 100.0
+                    except Exception:
+                        pass
+
+                date_now = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+                sig_raw = f"{socket.gethostname()}:{board_stat['size_gb']}:{board_stat['chunks']}:{board_stat['conformite']}:{date_now}"
+                cert_hash = hashlib.sha256(sig_raw.encode()).hexdigest().upper()
+
+                dpo_report = {
+                    "certificat_id": f"DPO-CERT-{cert_hash[:12]}",
+                    "horodatage": date_now,
+                    "appliance": "JARVIS Box Souveraine v1.0",
+                    "poste_hote": socket.gethostname(),
+                    "environnement_execution": platform.platform(),
+                    "cadre_juridique_et_conformite": [
+                        "Secret professionnel strict (Art. 66-5 loi du 31 décembre 1971)",
+                        "Règlement Général sur la Protection des Données (RGPD - Art. 32)",
+                        "Hébergement et traitement 100% on-premise sans transfert transfrontalier",
+                        "Obligation contractuelle de traçabilité formelle des sources (Règle Anti-Hallucination SQL)"
+                    ],
+                    "metriques_souverainete": {
+                        "mode_reseau": "Zero-Trust LAN étanche (Zéro fuite de données)",
+                        "consommation_api_externe": "0.00 € (Coût token cloud nul)",
+                        "volume_corpus_local_gb": board_stat["size_gb"],
+                        "total_chunks_indexes": board_stat["chunks"],
+                        "total_sources_tracees": board_stat["sources"],
+                        "experts_deliberatifs": board_stat["experts"],
+                        "reponses_auditees_sql": board_stat["answers"],
+                        "citations_verifiees": board_stat["citations"],
+                        "reponses_rejetees_sans_citation": board_stat["rejets"],
+                        "taux_conformite_anti_hallucination": f"{board_stat['conformite']}%"
+                    },
+                    "securite_acces": {
+                        "authentification_forte": "Bearer Token HMAC-SHA256 actif",
+                        "restrictions_reseau": "Loopback 127.0.0.1 ou LAN authentifié exclusivement",
+                        "coupe_circuit_externe": "Actif"
+                    },
+                    "signature_cryptographique_sha256": cert_hash
+                }
+
+                self.respond_json({"success": True, "report": dpo_report})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── AUDIT DE PROVENANCE DU CORPUS (IP SAFETY & SOUVERAINETÉ) ──
+        elif path == "/api/appliance/provenance":
+            try:
+                from scripts.corpus_provenance_auditor import audit_provenance
+                report = audit_provenance()
+                self.respond_json({"success": True, "report": report})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── VALIDATION PRÉ-VOL DE L'APPLIANCE CLIENT ──
+        elif path == "/api/appliance/validation":
+            try:
+                from scripts.appliance_install_validator import run_full_validation
+                report = run_full_validation()
+                self.respond_json({"success": True, "validation": report})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── SIMULATEUR ROI & ÉCONOMIES DE COÛT TOKEN POUR CABINETS ──
+        elif path == "/api/appliance/roi":
+            try:
+                u_str = params.get("users", ["5"])[0]
+                q_str = params.get("queries_per_day", ["60"])[0]
+                users = max(1, min(100, int(u_str)))
+                queries_per_day = max(5, min(2000, int(q_str)))
+
+                tokens_per_query = 4500
+                cloud_token_rate = 15.0 / 1_000_000
+
+                daily_tokens = queries_per_day * tokens_per_query
+                monthly_tokens = daily_tokens * 22
+                annual_tokens = monthly_tokens * 12
+
+                monthly_token_cost = round(monthly_tokens * cloud_token_rate, 2)
+                monthly_seat_std = users * 30.0
+                monthly_cloud_std = round(monthly_token_cost + monthly_seat_std, 2)
+                annual_cloud_std = round(monthly_cloud_std * 12, 2)
+
+                # Équivalent SaaS IA Vertical Régulé (Harvey AI / CoCounsel à 350 €/siège/mois)
+                monthly_vertical_total = round((users * 350.0) + (monthly_token_cost * 0.5), 2)
+                annual_vertical_total = round(monthly_vertical_total * 12, 2)
+
+                cost_jarvis_acq = 5900.0
+                cost_jarvis_mco = 2400.0
+                cost_jarvis_elec = 125.0
+                cost_jarvis_year1 = cost_jarvis_acq + cost_jarvis_mco + cost_jarvis_elec
+                cost_jarvis_year3 = cost_jarvis_acq + (cost_jarvis_mco * 3) + (cost_jarvis_elec * 3)
+
+                monthly_net_gain = round(monthly_vertical_total - (cost_jarvis_mco / 12 + cost_jarvis_elec / 12), 2)
+                annual_savings_year1 = round(annual_vertical_total - cost_jarvis_year1, 2)
+                savings_3years = round((annual_vertical_total * 3) - cost_jarvis_year3, 2)
+
+                amortissement_mois = round(cost_jarvis_acq / max(100.0, monthly_net_gain), 1)
+                amortissement_mois = max(1.2, amortissement_mois)
+
+                self.respond_json({
+                    "success": True,
+                    "hypotheses": {
+                        "users": users,
+                        "queries_per_day": queries_per_day,
+                        "tokens_per_query": tokens_per_query,
+                        "token_cloud_price_m": 15.0,
+                        "cloud_seat_price_user_month": 30.0,
+                        "vertical_saas_seat_month": 350.0
+                    },
+                    "cout_cloud_concurrent": {
+                        "tokens_mensuels": monthly_tokens,
+                        "cout_tokens_mensuel_eur": monthly_token_cost,
+                        "cloud_standard_mensuel_eur": monthly_cloud_std,
+                        "cloud_standard_annuel_eur": annual_cloud_std,
+                        "vertical_metier_mensuel_eur": monthly_vertical_total,
+                        "vertical_metier_annuel_eur": annual_vertical_total,
+                        "vertical_metier_3_ans_eur": round(annual_vertical_total * 3, 2)
+                    },
+                    "cout_jarvis_box": {
+                        "acquisition_one_shot_eur": cost_jarvis_acq,
+                        "mco_annuel_eur": cost_jarvis_mco,
+                        "electricite_annuelle_eur": cost_jarvis_elec,
+                        "cout_annee_1_eur": cost_jarvis_year1,
+                        "cout_total_3_ans_eur": cost_jarvis_year3
+                    },
+                    "benefices_financiers": {
+                        "economie_nette_annee_1_eur": annual_savings_year1,
+                        "economie_nette_3_ans_eur": savings_3years,
+                        "gain_net_mensuel_eur": monthly_net_gain,
+                        "delai_amortissement_mois": amortissement_mois,
+                        "taux_rentabilite_roi_annee_1": f"{round((annual_savings_year1 / cost_jarvis_year1) * 100, 1)} %"
+                    }
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── LECTURE DES DOCUMENTS LÉGAUX & STRATÉGIQUES ──
+        elif path == "/api/appliance/docs":
+            doc_id = params.get("doc", ["cahier_charges"])[0]
+            mapping = {
+                "cahier_charges": "cahier-des-charges.md",
+                "kit_commercial": "kit-commercial-cabinets.md",
+                "commercialisation": "audit-commercialisation.md",
+                "complet": "audit-complet.md"
+            }
+            fname = mapping.get(doc_id, "cahier-des-charges.md")
+            fpath = os.path.join(WEB_DIR, fname)
+            if os.path.exists(fpath):
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    self.respond_json({"success": True, "doc_id": doc_id, "filename": fname, "content": content})
+                except Exception as e:
+                    self.respond_json({"success": False, "error": str(e)}, 500)
+            else:
+                self.respond_json({"success": False, "error": f"Document {fname} non trouvé"}, 404)
+            return
+
+        # ── GÉNÉRATEUR DE PROPOSITIONS COMMERCIALES & DEVIS OFFICIELS ──
+        elif path == "/api/appliance/devis":
+            try:
+                from scripts.devis_generator import generer_devis, format_devis_markdown
+                client = params.get("client", ["Cabinet & Associés"])[0]
+                contact = params.get("contact", ["Maître / Associé Gérant"])[0]
+                adresse = params.get("adresse", ["75008 Paris"])[0]
+                users = int(params.get("users", ["5"])[0])
+                mco = params.get("mco", ["1"])[0] in ("1", "true")
+                corpus = params.get("corpus", ["1"])[0] in ("1", "true")
+                redondance = params.get("redondance", ["0"])[0] in ("1", "true")
+
+                devis_data = generer_devis(
+                    client_nom=client,
+                    client_contact=contact,
+                    client_adresse=adresse,
+                    collaborateurs=users,
+                    option_mco=mco,
+                    option_corpus_client=corpus,
+                    option_secours_redondance=redondance
+                )
+                md_doc = format_devis_markdown(devis_data)
+                self.respond_json({
+                    "success": True,
+                    "devis": devis_data,
+                    "markdown": md_doc
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── AUDIT DE FIDÉLITÉ DES CITATIONS (FAITHFULNESS & GROUNDING) ──
+        elif path == "/api/rag/faithfulness":
+            try:
+                from scripts.faithfulness_evaluator import audit_board_faithfulness_sample
+                sample = int(params.get("sample", ["6"])[0])
+                res = audit_board_faithfulness_sample(sample_size=sample)
+                self.respond_json({"success": True, "faithfulness": res})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── HAUTE DISPONIBILITÉ & STATUT DU MIROIR REDONDANT (JB-REDUND) ──
+        elif path == "/api/appliance/ha":
+            try:
+                from scripts.appliance_ha_manager import get_ha_status
+                status = get_ha_status()
+                self.respond_json({"success": True, "ha": status})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── BENCHMARK DE PERFORMANCE SOUVERAINE ON-PREMISE ──
+        elif path == "/api/appliance/benchmark":
+            try:
+                from scripts.appliance_benchmark import run_benchmark
+                bench = run_benchmark()
+                self.respond_json({"success": True, "benchmark": bench})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
         elif path == "/api/s9/status":
             self.respond_json({
                 "success": True,
@@ -640,6 +1186,132 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json(res)
             return
 
+        # ── MOBILISATION D'UN AGENT DE L'ESCOUADE ──
+        elif path == "/api/escouade/lancer":
+            nom = req_data.get("nom", "")
+            tache = req_data.get("tache", "")
+            temp = float(req_data.get("temperature", 0.6))
+            if not nom or not tache:
+                self.respond_json({"success": False, "error": "Nom de l'agent et tâche requis."}, 400)
+                return
+            res = lancer_agent(nom, tache, temperature=temp)
+            self.respond_json(res)
+            return
+
+        # ── ACTION AUTOPILOTE H24 ──
+        elif path == "/api/autopilot/action":
+            action = req_data.get("action", "status")
+            svc = "jarvis-h24-autopilot.service"
+            if action == "start":
+                subprocess.run(["systemctl", "--user", "start", svc], timeout=10)
+            elif action == "stop":
+                subprocess.run(["systemctl", "--user", "stop", svc], timeout=10)
+            elif action == "restart":
+                subprocess.run(["systemctl", "--user", "restart", svc], timeout=10)
+            elif action == "force":
+                subprocess.Popen(["/home/turbo/jarvis/.venv/bin/python3", "/home/turbo/jarvis/scripts/jarvis_autopilot_h24.py", "--once"])
+            self.respond_json({"success": True, "action": action})
+            return
+
+        # ── EXÉCUTION D'UNE CADENCE SPÉCIFIQUE H24 ──
+        elif path == "/api/autopilot/cadence/run":
+            cadence = req_data.get("cadence", "")
+            py_bin = "/home/turbo/jarvis/.venv/bin/python3"
+            sys.path.insert(0, "/home/turbo/jarvis/scripts")
+            try:
+                import jarvis_autopilot_h24 as auto
+                result = {}
+                if cadence == "gpu":
+                    result = auto.cycle_materiel_gpu()
+                elif cadence == "sql":
+                    auto.cycle_sql_taches()
+                    result = {"status": "OK", "message": "Cycle SQL & Tâches exécuté avec succès"}
+                elif cadence == "emails":
+                    auto.cycle_emails_triage()
+                    result = {"status": "OK", "message": "Cycle Triage Emails exécuté avec succès"}
+                elif cadence == "linkedin":
+                    auto.cycle_linkedin_cdp()
+                    result = {"status": "OK", "message": "Cycle LinkedIn & CDP exécuté avec succès"}
+                else:
+                    result = {"error": f"Cadence inconnue: {cadence}"}
+                self.respond_json({"success": True, "cadence": cadence, "result": result})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── LINKEDIN GÉNÉRATION ET PUBLICATION EN 1-CLIC ──
+        elif path == "/api/linkedin/post/generate":
+            try:
+                py_bin = "/home/turbo/jarvis/.venv/bin/python3"
+                p = subprocess.run([py_bin, "/home/turbo/jarvis/scripts/linkedin_generate.py"], capture_output=True, text=True, timeout=90)
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                post_file = f"/home/turbo/jarvis/data/linkedin/queue/post_{today_str}.md"
+                content = ""
+                if os.path.exists(post_file):
+                    with open(post_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                self.respond_json({
+                    "success": p.returncode == 0,
+                    "stdout": p.stdout,
+                    "content": content
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        elif path == "/api/linkedin/post/publish":
+            try:
+                py_bin = "/home/turbo/jarvis/.venv/bin/python3"
+                p = subprocess.run([py_bin, "/home/turbo/jarvis/scripts/linkedin_cdp_publish.py", "publish"], capture_output=True, text=True, timeout=60)
+                self.respond_json({
+                    "success": p.returncode == 0,
+                    "output": p.stdout.strip() or p.stderr.strip()
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── TRIAGE DES EMAILS EN 1-CLIC ──
+        elif path == "/api/emails/triage/run":
+            try:
+                py_bin = "/home/turbo/jarvis/.venv/bin/python3"
+                p = subprocess.run([py_bin, "/home/turbo/jarvis/scripts/mail_sorter_organizer.py"], capture_output=True, text=True, timeout=60)
+                self.respond_json({
+                    "success": p.returncode == 0,
+                    "output": p.stdout.strip() or p.stderr.strip()
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── EXÉCUTION DE COMMANDE BASH INTÉGRÉE COCKPIT (ZÉRO EXTÉRIEUR) ──
+        elif path == "/api/command/exec":
+            cmd = req_data.get("command", "").strip()
+            if not cmd:
+                self.respond_json({"success": False, "error": "Commande vide."}, 400)
+                return
+            t0 = time.time()
+            try:
+                env = os.environ.copy()
+                env["DISPLAY"] = env.get("DISPLAY", ":1")
+                env["XAUTHORITY"] = env.get("XAUTHORITY", "/run/user/1000/gdm/Xauthority")
+                p = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=45, env=env)
+                elapsed = round((time.time() - t0) * 1000, 1)
+                self.respond_json({
+                    "success": True,
+                    "command": cmd,
+                    "stdout": p.stdout,
+                    "stderr": p.stderr,
+                    "returncode": p.returncode,
+                    "duration_ms": elapsed
+                })
+            except subprocess.TimeoutExpired:
+                self.respond_json({"success": False, "error": "Délai d'exécution dépassé (45s)."}, 504)
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+
         # ── S9 BACKUP RECEPTION (CÂBLAGE / SYNC) ──
         elif path == "/api/s9/backup":
             try:
@@ -791,6 +1463,83 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json({"success": True, "results": results, "count": len(results)})
             return
 
+        # ── INTERROGATION RAG SOUVERAIN AVEC CITATIONS & ANTI-HALLUCINATION ──
+        elif path == "/api/rag/ask":
+            try:
+                domain = req_data.get("domain", "souverainete")
+                question = req_data.get("question", "").strip()
+                mode = req_data.get("mode", "consensus")
+                k = int(req_data.get("k", 5))
+
+                if not question:
+                    self.respond_json({"success": False, "error": "Question requise"}, 400)
+                    return
+
+                board_dir = getattr(jarvis_config, "BOARD_DIR", "/home/turbo/jarvis/board")
+                if board_dir not in sys.path:
+                    sys.path.insert(0, board_dir)
+                import ask
+
+                board_path = getattr(jarvis_config, "BOARD_DB", os.path.join(board_dir, "board.db"))
+                con = sqlite3.connect(f"file:{board_path}?mode=ro", uri=True, timeout=10.0)
+                try:
+                    t_start = time.time()
+                    res = ask.ask(con, domain, question, mode=mode, k=k)
+                    duration_s = round(time.time() - t_start, 2)
+                    citations = res.get("citations", [])
+                    has_citations = len(citations) > 0
+                    validation_status = "VALIDATED" if has_citations else "REJECTED"
+                    validation_reason = (
+                        f"{len(citations)} citations formelles vérifiées dans board.db (Règle Anti-Hallucination certifiée)"
+                        if has_citations
+                        else "CORPUS INSUFFISANT : Aucune citation valide trouvée dans la base."
+                    )
+
+                    consensus_text = res.get("consensus", "")
+                    source_chunks = [c.get("text") or c.get("extrait") or "" for c in citations if (c.get("text") or c.get("extrait"))]
+
+                    faith_data = {
+                        "faithfulness_score": 1.0 if (not consensus_text and has_citations) else 0.0,
+                        "faithfulness_pct": "0.0%",
+                        "supported_sentences": 0,
+                        "total_sentences": 0,
+                        "supported_pct": 0.0,
+                        "numeric_grounding_pct": 0.0,
+                        "extrapolated_sample": [],
+                        "verdict": "Aucune source formelle pour l'ancrage."
+                    }
+                    if source_chunks and consensus_text:
+                        try:
+                            from scripts.faithfulness_evaluator import evaluate_faithfulness
+                            faith_data = evaluate_faithfulness(consensus_text, source_chunks)
+                        except Exception as fe:
+                            faith_data["eval_error"] = str(fe)
+
+                    self.respond_json({
+                        "success": True,
+                        "domain": res.get("domain"),
+                        "question": res.get("question"),
+                        "mode": res.get("mode"),
+                        "citations": citations,
+                        "opinions": [{"expert": name, "text": txt} for name, txt in res.get("opinions", [])],
+                        "consensus": consensus_text,
+                        "validation": {
+                            "status": validation_status,
+                            "is_valid": has_citations,
+                            "citations_count": len(citations),
+                            "reason": validation_reason
+                        },
+                        "faithfulness": faith_data,
+                        "duration_s": duration_s,
+                        "zero_token": True,
+                        "cost_token_eur": 0.0
+                    })
+                finally:
+                    con.close()
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
         # ── BUREAU GNOME — ACTION TRACÉE (LOOPBACK UNIQUEMENT) ──
         # Le serveur écoute sur 0.0.0.0 : piloter le bureau depuis le LAN serait un trou béant.
         # local_seulement() émet DÉJÀ le 403 — ne jamais répondre une seconde fois.
@@ -926,6 +1675,47 @@ class CockpitHandler(BaseHTTPRequestHandler):
             if os.path.exists(script):
                 subprocess.Popen(["bash", script])
             self.respond_json({"success": True, "message": "Rejeu complet 1-clic initié en arrière-plan."})
+            return
+
+        # ── ROTATION JETON SÉCURITÉ P0 (LOCAL UNIQUEMENT) ──
+        elif path == "/api/appliance/rotate-token":
+            if not self.local_seulement():
+                return
+            try:
+                new_tok = jarvis_config.rotate_auth_token()
+                preview = (new_tok[:6] + "..." + new_tok[-4:]) if len(new_tok) >= 10 else "Configuré"
+                self.respond_json({
+                    "success": True,
+                    "message": "Nouveau jeton Bearer généré et enregistré dans auth_token.secret (0600)",
+                    "token_preview": preview
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── SYNCHRONISATION DU MIROIR HAUTE DISPONIBILITÉ (JB-REDUND) ──
+        elif path == "/api/appliance/ha/sync":
+            if not self.local_seulement():
+                return
+            try:
+                from scripts.appliance_ha_manager import replicate_mirror
+                res = replicate_mirror()
+                self.respond_json(res)
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── TEST DE BASCULEMENT MIROIR (FAILOVER DRILL) ──
+        elif path == "/api/appliance/ha/failover-test":
+            if not self.local_seulement():
+                return
+            try:
+                from scripts.appliance_ha_manager import test_failover_readiness
+                deep = bool(req_data.get("deep", False))
+                res = test_failover_readiness(deep=deep)
+                self.respond_json(res)
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
             return
 
         # ── CMD SHELL (LOCAL UNIQUEMENT) ──

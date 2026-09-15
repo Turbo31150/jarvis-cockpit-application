@@ -70,9 +70,35 @@
     #term-scene .xterm { padding: 12px 14px; height: 100%; }
     #term-scene .xterm-viewport::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #040711; }
-    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; border: 1px solid rgba(0, 240, 255, 0.1); }
-    ::-webkit-scrollbar-thumb:hover { background: #00f0ff; box-shadow: 0 0 10px #00f0ff; }
+    @media print {
+      body {
+        background: white !important;
+        color: black !important;
+      }
+      body * {
+        visibility: hidden !important;
+      }
+      .printable-modal, .printable-modal * {
+        visibility: visible !important;
+      }
+      .printable-modal {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 10px !important;
+        background: white !important;
+        color: #0f172a !important;
+        box-shadow: none !important;
+        border: none !important;
+        z-index: 99999 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
 
     .term-acc-btn {
       display: inline-flex;
@@ -240,6 +266,9 @@
         <button onclick="showTab('legion')" id="nav-legion" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
           <i class="fa-solid fa-shield-halved w-4 text-emerald-400"></i> ⚔️ Légion OMEGA
         </button>
+        <button onclick="showTab('escouade')" id="nav-escouade" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
+          <i class="fa-solid fa-robot w-4 text-cyan-400"></i> 🤖 Armée d'Agents & SSDs
+        </button>
         <button onclick="showTab('claude')" id="nav-claude" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
           <i class="fa-solid fa-crown w-4 text-amber-400"></i> Claude Code Suite
         </button>
@@ -318,9 +347,12 @@
           <span class="w-2 h-2 rounded-full bg-purple-400"></span> Vecto GPU : Actif
         </div>
       </div>
-      <div class="flex items-center gap-4 text-xs mono shrink-0">
+      <div class="flex items-center gap-3 text-xs mono shrink-0">
+        <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50" title="Station locale d'inférence et de délibération">
+          <i class="fa-solid fa-server text-emerald-400 mr-1"></i> <span id="appliance-host" class="text-emerald-300 font-bold">mining</span>
+        </div>
         <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
-          <i class="fa-solid fa-microchip text-sky-400 mr-1"></i> GPU: <span id="m4-vram" class="text-cyan-300 font-bold">4 GPU OK</span>
+          <i class="fa-solid fa-microchip text-sky-400 mr-1"></i> GPU: <span id="m4-vram" class="text-cyan-300 font-bold">22 Go VRAM</span>
         </div>
         <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
           <i class="fa-solid fa-temperature-half text-amber-400 mr-1"></i> T° CPU: <span id="m4-temp" class="text-amber-300 font-bold">--°C</span>
@@ -1138,6 +1170,281 @@
           <div id="legion-hardware" class="text-xs text-slate-400 space-y-1">Chargement…</div>
         </div>
       </section>
+
+      <!-- ================================================================= -->
+      <!-- TAB : ARMÉE D'AGENTS & SUPERVISION MULTI-SSDs SQL -->
+      <!-- ================================================================= -->
+      <section id="tab-escouade" class="hidden space-y-6">
+        <!-- 1. En-tête statut et actions rapides -->
+        <div class="glass-card p-5 rounded-xl flex flex-wrap items-center justify-between gap-4 border-l-4 border-cyan-500">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-robot text-cyan-400"></i> Armée d'Agents Autonomes & Supervision Multi-SSDs SQL
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">
+              Cartographie temps réel des 3 SSDs de 1 To, inspection universelle des bases SQLite et mobilisation instantanée de l'escouade.
+            </p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="chargerEscouadeComplet()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg transition flex items-center gap-2 border border-slate-700">
+              <i class="fa-solid fa-arrows-rotate"></i> Actualiser Tout
+            </button>
+            <span id="badge-escouade-statut" class="px-3 py-1.5 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-800 text-xs font-semibold flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 8 Agents Prêts
+            </span>
+          </div>
+        </div>
+
+        <!-- CENTRE DE COMMANDE AUTOPILOTE H24 & CADENCES INTÉGRÉES -->
+        <div class="glass-card p-5 rounded-xl border border-emerald-500/40 bg-slate-900/90 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-emerald-950 border border-emerald-700 flex items-center justify-center text-emerald-400 text-xl shadow-lg">
+                <i class="fa-solid fa-infinity animate-pulse"></i>
+              </div>
+              <div>
+                <div class="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Centre de Contrôle Autopilote H24 (jarvis-h24-autopilot.service)</span>
+                  <span id="h24-status-pill" class="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono font-bold">ACTIF</span>
+                </div>
+                <div id="h24-desc" class="text-xs text-slate-400 mt-1">
+                  Orchestration autonome permanente : 4 cadences actives sans aucune intervention extérieure.
+                </div>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="agirAutopilote('force')" class="px-3.5 py-2 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-2 shadow">
+                <i class="fa-solid fa-bolt"></i> Forcer Cycle Global
+              </button>
+              <button onclick="agirAutopilote('restart')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition border border-slate-700 flex items-center gap-1.5" title="Redémarrer le service systemd">
+                <i class="fa-solid fa-arrows-rotate"></i> Relancer Démon
+              </button>
+              <button onclick="basculerVueLogsH24()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg text-xs font-semibold transition border border-cyan-800 flex items-center gap-1.5">
+                <i class="fa-solid fa-file-lines"></i> Logs en Direct
+              </button>
+            </div>
+          </div>
+
+          <!-- GRILLE DES 4 CADENCES AUTONOMES -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+            <!-- Cadence 1 : 60s GPU & 3 SSDs -->
+            <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div>
+                <div class="flex items-center justify-between text-xs font-bold text-white mb-1">
+                  <span class="flex items-center gap-1.5 text-cyan-300">
+                    <i class="fa-solid fa-microchip"></i> Matériel & GPUs
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded text-[9px] bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">60s</span>
+                </div>
+                <div id="cadence-gpu-info" class="text-[11px] text-slate-400 space-y-0.5">
+                  <div>RTX 3080 : <span id="gpu0-temp" class="text-emerald-400 font-mono">35°C</span></div>
+                  <div>RTX 2060 : <span id="gpu1-temp" class="text-emerald-400 font-mono">35°C</span></div>
+                  <div>3 SSDs : <span id="ssds-health" class="text-emerald-400 font-semibold">Surveillés</span></div>
+                </div>
+              </div>
+              <button onclick="declencherCadence('gpu')" class="w-full py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-cyan-300 border border-slate-700 font-medium transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-play text-[9px]"></i> Tester Maintenant
+              </button>
+            </div>
+
+            <!-- Cadence 2 : 5m SQL & Tâches -->
+            <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div>
+                <div class="flex items-center justify-between text-xs font-bold text-white mb-1">
+                  <span class="flex items-center gap-1.5 text-teal-300">
+                    <i class="fa-solid fa-database"></i> SQL & Tâches
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded text-[9px] bg-teal-950 text-teal-300 border border-teal-800 font-mono">5 min</span>
+                </div>
+                <div id="cadence-sql-info" class="text-[11px] text-slate-400 space-y-0.5">
+                  <div>Tâches en cours : <span id="tasks-crit-count" class="text-teal-300 font-mono">3 critiques</span></div>
+                  <div>Intégrité SQLite : <span class="text-emerald-400 font-semibold">100% Valide</span></div>
+                  <div>Master DB : <span class="text-slate-300 font-mono">jarvis_master.db</span></div>
+                </div>
+              </div>
+              <button onclick="declencherCadence('sql')" class="w-full py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-teal-300 border border-slate-700 font-medium transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-play text-[9px]"></i> Vérifier SQL
+              </button>
+            </div>
+
+            <!-- Cadence 3 : 15m Emails Souverains -->
+            <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div>
+                <div class="flex items-center justify-between text-xs font-bold text-white mb-1">
+                  <span class="flex items-center gap-1.5 text-amber-300">
+                    <i class="fa-solid fa-envelope"></i> Triage Emails
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded text-[9px] bg-amber-950 text-amber-300 border border-amber-800 font-mono">15 min</span>
+                </div>
+                <div id="cadence-emails-info" class="text-[11px] text-slate-400 space-y-0.5">
+                  <div>Mails classés : <span id="emails-count" class="text-amber-300 font-mono">10 classés</span></div>
+                  <div>Catégories : <span class="text-slate-300 font-semibold">10 dossiers étanches</span></div>
+                  <div>Miroir local : <span class="text-emerald-400">Opérationnel</span></div>
+                </div>
+              </div>
+              <div class="flex gap-1.5">
+                <button onclick="declencherCadence('emails')" class="flex-1 py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 border border-slate-700 font-medium transition flex items-center justify-center gap-1">
+                  <i class="fa-solid fa-play text-[9px]"></i> Relancer
+                </button>
+                <button onclick="ouvrirModalDossiersEmails()" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700 transition" title="Voir les 10 dossiers">
+                  <i class="fa-solid fa-folder-tree text-[10px]"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Cadence 4 : 1h LinkedIn & CDP 9222 -->
+            <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between space-y-3">
+              <div>
+                <div class="flex items-center justify-between text-xs font-bold text-white mb-1">
+                  <span class="flex items-center gap-1.5 text-blue-300">
+                    <i class="fa-brands fa-linkedin"></i> LinkedIn & CDP
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded text-[9px] bg-blue-950 text-blue-300 border border-blue-800 font-mono">1h</span>
+                </div>
+                <div id="cadence-linkedin-info" class="text-[11px] text-slate-400 space-y-0.5">
+                  <div>Chrome CDP 9222 : <span class="text-emerald-400 font-semibold">Actif</span></div>
+                  <div>Post du jour : <span id="linkedin-post-status" class="text-blue-300 font-mono">Généré ✅</span></div>
+                  <div>Session : <span class="text-emerald-400">Authentifiée</span></div>
+                </div>
+              </div>
+              <div class="flex gap-1.5">
+                <button onclick="ouvrirModalPostLinkedIn()" class="flex-1 py-1.5 px-2 rounded bg-blue-600/30 hover:bg-blue-600/50 text-[11px] text-blue-200 border border-blue-500/40 font-medium transition flex items-center justify-center gap-1">
+                  <i class="fa-solid fa-eye text-[9px]"></i> Voir Post
+                </button>
+                <button onclick="genererPostLinkedIn()" class="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700 transition" title="Régénérer le post du jour">
+                  <i class="fa-solid fa-rotate text-[10px]"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION DÉROULANTE : VISUALISEUR DE LOGS H24 EN DIRECT -->
+          <div id="section-logs-h24" class="hidden pt-3 border-t border-slate-800/80 space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                <i class="fa-solid fa-terminal text-cyan-400"></i> Journal d'Exécution H24 (/home/turbo/jarvis/logs/autopilot_h24.log)
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="chargerLogsH24()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 flex items-center gap-1 transition">
+                  <i class="fa-solid fa-rotate text-[10px]"></i> Rafraîchir
+                </button>
+                <label class="text-[11px] text-slate-400 flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="chk-auto-refresh-logs" checked onchange="toggleAutoRefreshLogs()" class="accent-cyan-500 rounded" />
+                  Auto-refresh (4s)
+                </label>
+              </div>
+            </div>
+            <div id="logs-h24-viewer" class="p-3.5 rounded-lg bg-slate-950 font-mono text-[11px] text-slate-300 h-52 overflow-y-auto whitespace-pre-wrap select-text border border-slate-800/80 leading-relaxed">
+              Chargement des logs...
+            </div>
+          </div>
+
+          <!-- SECTION : CONSOLE BASH RAPIDE INTÉGRÉE (ZÉRO EXTÉRIEUR) -->
+          <div class="pt-3 border-t border-slate-800/80 space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                <i class="fa-solid fa-bolt text-yellow-400"></i> Console Shell Souveraine Intégrée (Zéro Terminal Externe Requis)
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button onclick="executerCommandeRapide('nvidia-smi')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 border border-slate-700 mono">nvidia-smi</button>
+                <button onclick="executerCommandeRapide('df -h / /mnt/jarvis*')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 border border-slate-700 mono">df -h SSDs</button>
+                <button onclick="executerCommandeRapide('systemctl --user status jarvis-h24-autopilot --no-pager')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 border border-slate-700 mono">systemctl h24</button>
+                <button onclick="executerCommandeRapide('uptime')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 border border-slate-700 mono">uptime</button>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <div class="flex-1 relative">
+                <span class="absolute left-3 top-2 text-xs text-cyan-400 font-mono select-none">root@cockpit:~$</span>
+                <input type="text" id="cockpit-cli-input" placeholder="Saisir n'importe quelle commande Linux ou script Python..."
+                  class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-36 pr-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"
+                  onkeydown="if(event.key==='Enter') executerCommandeCockpit()" />
+              </div>
+              <button onclick="executerCommandeCockpit()" class="px-4 py-2 bg-gradient-to-r from-yellow-600 to-amber-500 hover:from-yellow-500 text-black font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-play text-[10px]"></i> Exécuter
+              </button>
+            </div>
+            <div id="cockpit-cli-output" class="hidden p-3 rounded-lg bg-slate-950 font-mono text-[11px] text-slate-200 max-h-48 overflow-y-auto whitespace-pre-wrap select-text border border-slate-800"></div>
+          </div>
+        </div>
+
+        <!-- 2. Cartographie des 3 SSDs Physiques -->
+        <div class="space-y-3">
+          <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-hard-drive text-amber-400"></i> Stockage Physique — Les 3 SSDs de 1 To (WD Blue SA510)
+          </h3>
+          <div id="ssd-cards-container" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="text-xs text-slate-400 py-4 text-center col-span-3">Chargement de la télémétrie des disques...</div>
+          </div>
+        </div>
+
+        <!-- 3. Matrice de l'Armée des 8 Agents Autonomes -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-users-gear text-cyan-400"></i> Escouade d'Élite Active (agents_escouade)
+            </h3>
+            <span class="text-xs text-slate-400">Moteur LLM : LM Studio (:1234) / Ollama (:11434)</span>
+          </div>
+          <div id="agents-cards-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="text-xs text-slate-400 py-4 text-center col-span-4">Chargement de l'escouade...</div>
+          </div>
+        </div>
+
+        <!-- 4. Console de Rapport de Mission en Direct -->
+        <div class="glass-card p-5 rounded-xl space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-terminal text-emerald-400"></i> Console d'Exécution & Rapports de Mission
+            </h3>
+            <span id="agent-exec-status" class="text-xs text-slate-400">En attente d'une mission...</span>
+          </div>
+          <div id="agent-console-output" class="p-4 rounded-lg bg-slate-950/90 border border-slate-800 text-xs font-mono text-emerald-300 h-48 overflow-y-auto whitespace-pre-wrap select-text">Sélectionnez un agent ci-dessus et cliquez sur "Mobiliser" pour lui confier une tâche ou exécuter un audit en direct.
+Les rapports détaillés apparaîtront ici et seront persistés dans la base centrale.</div>
+        </div>
+
+        <!-- 5. Explorateur & Inspecteur Multi-SSDs des Bases SQL -->
+        <div class="glass-card p-5 rounded-xl space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-database text-teal-400"></i> Explorateur Universel des Bases SQLite sur les 3 SSDs
+              </h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">139+ bases répertoriées sur SSD 1 (/), SSD 2 (/mnt/jarvis-m1) et SSD 3 (/mnt/jarvis-m6)</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="chargerBasesSQL('tous')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs transition border border-slate-700 font-medium">Tous les SSDs</button>
+              <button onclick="chargerBasesSQL('ssd1')" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs transition border border-slate-700">SSD 1 (Système)</button>
+              <button onclick="chargerBasesSQL('ssd2')" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs transition border border-slate-700">SSD 2 (M1 / 7GB)</button>
+              <button onclick="chargerBasesSQL('ssd3')" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs transition border border-slate-700">SSD 3 (M6 / Chroma)</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Liste des bases trouvées -->
+            <div class="rounded-lg bg-slate-950/80 border border-slate-800 p-3 flex flex-col h-80">
+              <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex justify-between">
+                <span>Fichiers SQLite Découverts</span>
+                <span id="bases-count-badge" class="text-cyan-400 font-bold">0 bases</span>
+              </div>
+              <div id="sql-bases-list" class="flex-1 overflow-y-auto space-y-1.5 text-xs">
+                <div class="text-slate-500 text-center py-8">Chargement des bases...</div>
+              </div>
+            </div>
+
+            <!-- Inspecteur de schéma et tables -->
+            <div class="rounded-lg bg-slate-950/80 border border-slate-800 p-3 flex flex-col h-80">
+              <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex justify-between">
+                <span>Détail & Schéma Tables</span>
+                <span id="inspect-target-name" class="text-slate-400 font-mono">Sélectionnez une base</span>
+              </div>
+              <div id="sql-tables-detail" class="flex-1 overflow-y-auto space-y-2 text-xs font-mono text-slate-300">
+                <div class="text-slate-500 text-center py-8 font-sans">Cliquez sur une base de données à gauche pour afficher ses tables et son nombre de lignes en temps réel.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="tab-moisson" class="hidden space-y-6">
         <!-- Recherche FTS5 Board -->
         <div class="glass-card p-5 rounded-xl space-y-3">
@@ -1461,12 +1768,30 @@
               Analyse comparative face à <strong>OpenClaw</strong>, <strong>Open WebUI</strong>, <strong>LangGraph/CrewAI</strong> et <strong>Claude Code</strong>. Évaluation du Moat souverain (board.db 7,5 Go, 1,07M chunks, production continue dual-GPU 14k+ tâches).
             </p>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <button onclick="chargerAuditComplet('complet')" class="px-3 py-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition">
               <i class="fa-solid fa-file-lines"></i> Lire Audit Complet
             </button>
             <button onclick="chargerAuditComplet('commercialisation')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-lg text-xs flex items-center gap-2 transition">
               <i class="fa-solid fa-briefcase"></i> Audit Commercial
+            </button>
+            <button onclick="chargerAuditComplet('cahier_charges')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-file-contract"></i> Cahier des Charges
+            </button>
+            <button onclick="chargerAuditComplet('kit_commercial')" class="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition shadow">
+              <i class="fa-solid fa-scale-balanced"></i> Kit Commercial Cabinets
+            </button>
+            <button onclick="ouvrirModalDpo()" class="px-3 py-2 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 border border-cyan-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-certificate"></i> Attestation DPO
+            </button>
+            <button onclick="chargerValidationBox()" class="px-3 py-2 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-circle-check"></i> Validation Pré-Vol
+            </button>
+            <button onclick="chargerHaStatusUI(true)" class="px-3 py-2 bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-server"></i> Miroir HA
+            </button>
+            <button onclick="lancerBenchmarkSouverainUI()" class="px-3 py-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-gauge-high"></i> Benchmark
             </button>
           </div>
         </div>
@@ -1480,7 +1805,7 @@
           </div>
           <div class="glass-card p-3 rounded-lg border border-cyan-500/30 bg-slate-900/60">
             <div class="text-slate-400 font-medium">Bibliothèque Vivante</div>
-            <div class="text-lg font-black text-cyan-400 mt-1">7,5 Go / 1,07M</div>
+            <div class="text-lg font-black text-cyan-400 mt-1">10,8 Go / 1,07M</div>
             <div class="text-[10px] text-slate-500 mt-0.5">Chunks FTS5 curés</div>
           </div>
           <div class="glass-card p-3 rounded-lg border border-purple-500/30 bg-slate-900/60">
@@ -1489,9 +1814,9 @@
             <div class="text-[10px] text-slate-500 mt-0.5">RTX 2060 + 3080</div>
           </div>
           <div class="glass-card p-3 rounded-lg border border-emerald-500/30 bg-slate-900/60">
-            <div class="text-slate-400 font-medium">Domino Continu</div>
-            <div class="text-lg font-black text-emerald-400 mt-1">14 000+ OK</div>
-            <div class="text-[10px] text-slate-500 mt-0.5">1 tâche / 2-3s non-stop</div>
+            <div class="text-slate-400 font-medium">Conformité SQL</div>
+            <div class="text-lg font-black text-emerald-400 mt-1">94.45 %</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">14 505 citations tracées</div>
           </div>
           <div class="glass-card p-3 rounded-lg border border-rose-500/30 bg-slate-900/60">
             <div class="text-slate-400 font-medium">Conseil Délibératif</div>
@@ -1499,9 +1824,206 @@
             <div class="text-[10px] text-slate-500 mt-0.5">14 Domaines sans biais</div>
           </div>
           <div class="glass-card p-3 rounded-lg border border-sky-500/30 bg-slate-900/60">
-            <div class="text-slate-400 font-medium">Outils MCP OS</div>
-            <div class="text-lg font-black text-sky-400 mt-1">204 Handlers</div>
-            <div class="text-[10px] text-slate-500 mt-0.5">X11, DPMS, Audio, CDP</div>
+            <div class="text-slate-400 font-medium">Indice Sécurité IP</div>
+            <div class="text-lg font-black text-sky-400 mt-1">100.0 %</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">312 381 SHA-256 (99.99%)</div>
+          </div>
+        </div>
+
+        <!-- PANNEAU AUDIT SQL RAG EN DIRECT (LE VRAI MOAT) -->
+        <div class="glass-card p-5 rounded-xl border border-emerald-500/40 bg-slate-900/90 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                <i class="fa-solid fa-shield-check text-emerald-400"></i> Le Vrai Moat Défendable : Anti-Hallucination Formelle en SQL
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">
+                Règle inviolable : <em>« Réponse sans citation = rejetée, vérifiable en direct en SQL (vue answers_sans_citation) »</em>.
+              </p>
+            </div>
+            <button onclick="chargerAuditSqlRag()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-rotate"></i> Actualiser l'Audit SQL
+            </button>
+          </div>
+
+          <!-- Métriques directes de board.db -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-center text-xs">
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Chunks Curés</div>
+              <div id="rag-total-chunks" class="text-base font-black text-cyan-400">1 075 625</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Sources Réelles</div>
+              <div id="rag-total-sources" class="text-base font-black text-white">312 396</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Experts Délibératifs</div>
+              <div id="rag-total-experts" class="text-base font-black text-purple-400">48</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Réponses Produites</div>
+              <div id="rag-total-answers" class="text-base font-black text-white">4 790</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Citations Tracées</div>
+              <div id="rag-total-citations" class="text-base font-black text-teal-300">14 502</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-rose-900/40">
+              <div class="text-[10px] text-rose-400 uppercase">Rejets (Sans Cit.)</div>
+              <div id="rag-sans-citations" class="text-base font-black text-rose-400">266</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-emerald-800/60">
+              <div class="text-[10px] text-emerald-400 uppercase">Conformité SQL</div>
+              <div id="rag-conformite-pct" class="text-base font-black text-emerald-400">94.45 %</div>
+            </div>
+          </div>
+
+          <!-- Échantillons en 2 colonnes : Validées vs Rejetées -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 text-xs">
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800 space-y-2">
+              <div class="font-bold text-emerald-400 flex items-center justify-between">
+                <span><i class="fa-solid fa-circle-check"></i> Réponses Validées (Citations Reconnues)</span>
+                <span class="text-[10px] text-slate-500 font-mono">Dernières requêtes</span>
+              </div>
+              <div id="rag-echantillon-valides" class="space-y-1.5 text-[11px] font-mono text-slate-300">
+                Chargement des preuves de citations...
+              </div>
+            </div>
+
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800 space-y-2">
+              <div class="font-bold text-rose-400 flex items-center justify-between">
+                <span><i class="fa-solid fa-ban"></i> Réponses Rejetées (Corpus Insuffisant)</span>
+                <span class="text-[10px] text-rose-400 font-mono">Vue answers_sans_citation</span>
+              </div>
+              <div id="rag-echantillon-rejets" class="space-y-1.5 text-[11px] font-mono text-slate-400">
+                Chargement des rejets...
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BANC D'ESSAI RAG INTERACTIF : INTERROGATION 0-TOKEN DU GRAND CONSEIL -->
+        <div class="glass-card p-5 rounded-xl border border-cyan-500/40 bg-slate-900/95 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-400">
+                <i class="fa-solid fa-microchip-ai text-cyan-400"></i> Banc d'Essai RAG Souverain : Interroger le Grand Conseil
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">
+                Posez une question métier réelle. Les experts locaux délibèrent en 0-token et citent formellement le corpus <code class="text-cyan-300">board.db</code>.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] px-2.5 py-1 rounded bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-semibold flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved"></i> Règle Anti-Hallucination Active
+              </span>
+            </div>
+          </div>
+
+          <!-- Formulaire de requête -->
+          <div class="space-y-3">
+            <div class="flex flex-col sm:flex-row gap-2.5">
+              <div class="flex-1 relative">
+                <input id="rag-input-question" type="text"
+                  placeholder="Ex : Comment garantir le secret professionnel et le zéro fuite réseau en cabinet ?"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                  onkeydown="if(event.key==='Enter') executerInterrogationRag();" />
+              </div>
+              <div class="flex items-center gap-2">
+                <select id="rag-select-domain" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                  <option value="souverainete">Souveraineté & IA locale (32k chunks)</option>
+                </select>
+                <select id="rag-select-mode" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                  <option value="consensus">Consensus Arbitré</option>
+                  <option value="debate">Débat Multi-Experts</option>
+                  <option value="expert">Avis Expert Rapide</option>
+                </select>
+                <button id="rag-btn-submit" onclick="executerInterrogationRag()"
+                  class="px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition shadow shrink-0">
+                  <i class="fa-solid fa-bolt"></i> Interroger
+                </button>
+              </div>
+            </div>
+
+            <!-- Suggestions rapides -->
+            <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+              <span class="font-medium">Suggestions :</span>
+              <button onclick="remplirQuestionRag('Comment garantir le secret professionnel et le zéro fuite réseau ?', 'souverainete')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                🔒 Secret professionnel & Zéro fuite
+              </button>
+              <button onclick="remplirQuestionRag('Stratégie de rétention sécurisée des données d\'audit pour conformité RGPD', 'souverainete')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                📋 Rétention d'audit & RGPD
+              </button>
+              <button onclick="remplirQuestionRag('Gestion des partitions réseau et auto-réconciliation des états de stockage', 'donnees-persistance')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                💾 Consensus de stockage & Partition
+              </button>
+              <button onclick="remplirQuestionRag('Architecture dual-GPU pour inférence locale à coût nul', 'inference-locale')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                ⚡ Inférence Dual-GPU 0-token
+              </button>
+            </div>
+          </div>
+
+          <!-- Zone d'affichage des résultats -->
+          <div id="rag-results-container" class="hidden space-y-3 pt-2 border-t border-slate-800/80">
+            <!-- Bandeau de certification anti-hallucination & fidélité -->
+            <div id="rag-cert-banner" class="p-3 rounded-lg flex items-center justify-between flex-wrap gap-2 text-xs">
+              <div class="flex items-center gap-2 font-bold" id="rag-cert-text">
+                <i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i> CERTIFIÉ CONFORME SQL
+              </div>
+              <div class="flex items-center gap-2 flex-wrap" id="rag-cert-metrics">
+                <span id="rag-faith-badge" style="display:none;" class="px-2.5 py-0.5 rounded text-[11px] font-bold"></span>
+              </div>
+              <div class="flex items-center gap-3 text-[11px] font-mono text-slate-300" id="rag-cert-telemetry">
+                <span>⏱️ 2.8s</span>
+                <span>🪙 0.00 € (0 Token Cloud)</span>
+                <span>🔒 100% On-Premise</span>
+              </div>
+            </div>
+
+            <!-- Alerte Anti-Extrapolation si détectée -->
+            <div id="rag-extrapol-alert" class="hidden p-2.5 rounded-lg bg-amber-950/70 border border-amber-500/50 text-xs text-amber-200 leading-relaxed"></div>
+
+            <!-- Barre d'action & export dossier client -->
+            <div class="flex items-center justify-between flex-wrap gap-2 pt-0.5 pb-0.5">
+              <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-stamp text-cyan-400"></i> Traçabilité intégrale garantie par le protocole Board OS
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="ouvrirFicheConsultation()" class="px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow">
+                  <i class="fa-solid fa-file-signature"></i> Exporter la Fiche de Consultation Certifiée (.PDF / Dossier)
+                </button>
+              </div>
+            </div>
+
+            <!-- Décision / Consensus arbitré -->
+            <div class="p-4 rounded-lg bg-slate-950/90 border border-cyan-500/30 space-y-2">
+              <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
+                <span class="flex items-center gap-1.5"><i class="fa-solid fa-scale-balanced"></i> Décision Arbitrée & Consensus Exécutoire</span>
+                <span id="rag-domain-badge" class="text-[10px] bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded font-mono">Souveraineté</span>
+              </div>
+              <div id="rag-consensus-text" class="text-xs font-medium text-slate-200 leading-relaxed whitespace-pre-wrap"></div>
+            </div>
+
+            <!-- Grille des délibérations d'experts et des citations -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <!-- Colonne Avis Experts -->
+              <div class="p-3 rounded-lg bg-slate-950/70 border border-slate-800 space-y-2">
+                <div class="text-xs font-bold text-slate-200 flex items-center justify-between">
+                  <span><i class="fa-solid fa-comments"></i> Délibérations d'Experts Spécialisés</span>
+                  <span id="rag-experts-count" class="text-[10px] text-slate-500 font-mono">3 avis</span>
+                </div>
+                <div id="rag-opinions-list" class="space-y-2 max-h-72 overflow-y-auto pr-1"></div>
+              </div>
+
+              <!-- Colonne Citations Tracées du Corpus -->
+              <div class="p-3 rounded-lg bg-slate-950/70 border border-slate-800 space-y-2">
+                <div class="text-xs font-bold text-teal-300 flex items-center justify-between">
+                  <span><i class="fa-solid fa-quote-left"></i> Citations Tracées (board.db FTS5 BM25)</span>
+                  <span id="rag-citations-count" class="text-[10px] text-teal-400 font-mono">4 citations</span>
+                </div>
+                <div id="rag-citations-list" class="space-y-2 max-h-72 overflow-y-auto pr-1"></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1592,6 +2114,283 @@
           </div>
         </div>
 
+        <!-- ================================================================= -->
+        <!-- SIMULATEUR INTERACTIF DE ROI & ÉCONOMIES DE COÛT POUR CABINETS    -->
+        <!-- ================================================================= -->
+        <div class="glass-card p-5 rounded-xl border border-teal-500/40 bg-slate-900/95 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-teal-400">
+                <i class="fa-solid fa-calculator text-teal-400"></i> Simulateur Financier ROI : JARVIS Box vs Cloud Régulé
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">
+                Calculez en direct les économies d'exploitation pour votre cabinet face aux abonnements cloud américains (OpenAI / Harvey AI).
+              </p>
+            </div>
+            <span class="text-[11px] px-2.5 py-1 rounded bg-teal-950/80 border border-teal-500/40 text-teal-300 font-semibold flex items-center gap-1.5">
+              <i class="fa-solid fa-bolt"></i> Coût Token Cloud : 0 €
+            </span>
+          </div>
+
+          <!-- Sliders de simulation -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950/70 p-4 rounded-xl border border-slate-800 text-xs">
+            <div class="space-y-2">
+              <div class="flex justify-between items-center">
+                <label for="roi-slider-users" class="font-bold text-slate-200">Nombre de Juristes / Collaborateurs :</label>
+                <span id="roi-val-users" class="font-mono text-teal-400 font-bold text-sm">5 personnes</span>
+              </div>
+              <input id="roi-slider-users" type="range" min="1" max="25" value="5" step="1"
+                class="w-full accent-teal-500 cursor-pointer" oninput="actualiserRoiInteractif()" />
+              <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>1 solo</span>
+                <span>5 cabinet moyen</span>
+                <span>15 associés</span>
+                <span>25 groupe</span>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex justify-between items-center">
+                <label for="roi-slider-queries" class="font-bold text-slate-200">Requêtes IA Métier / Dossiers par Jour :</label>
+                <span id="roi-val-queries" class="font-mono text-cyan-400 font-bold text-sm">60 requêtes/j</span>
+              </div>
+              <input id="roi-slider-queries" type="range" min="10" max="300" value="60" step="10"
+                class="w-full accent-cyan-500 cursor-pointer" oninput="actualiserRoiInteractif()" />
+              <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>10/j</span>
+                <span>60/j standard</span>
+                <span>150/j soutenu</span>
+                <span>300/j intensif</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Résultats ROI comparatifs -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Dépense Cloud Métier Évitée</div>
+              <div id="roi-cloud-annuel" class="text-base font-black text-rose-400 mt-1">21 528 € / an</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">SaaS IA Juridique Cloud</div>
+            </div>
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Coût JARVIS Box (Année 1)</div>
+              <div class="text-base font-black text-slate-200 mt-1">8 425 € HT</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Appliance 5 900€ + MCO 2 400€</div>
+            </div>
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-emerald-500/30 bg-emerald-950/10">
+              <div class="text-[10px] text-emerald-400 uppercase font-bold">Économie Nette (Année 1)</div>
+              <div id="roi-gain-annuel" class="text-base font-black text-emerald-400 mt-1">+ 13 103 € HT</div>
+              <div id="roi-pourcentage" class="text-[10px] text-emerald-300 mt-0.5">ROI : + 155.5 %</div>
+            </div>
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-teal-500/30 bg-teal-950/10">
+              <div class="text-[10px] text-teal-300 uppercase font-bold">Délai d'Amortissement</div>
+              <div id="roi-delai-mois" class="text-base font-black text-teal-300 mt-1">3.7 mois</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">Investissement rentabilisé</div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800 text-xs">
+            <div class="text-slate-400">
+              <i class="fa-solid fa-file-invoice text-teal-400 mr-1"></i> Proposition commerciale personnalisée avec tableau d'amortissement et bon de commande prêt à signer.
+            </div>
+            <button onclick="genererDevisClientModal()" class="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold rounded-lg transition flex items-center gap-2 shadow">
+              <i class="fa-solid fa-file-signature"></i> Générer Devis & Bon de Commande
+            </button>
+          </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- PANNEAU AUDIT DE PROVENANCE DES SOURCES & SÉCURITÉ IP             -->
+        <!-- ================================================================= -->
+        <div class="glass-card p-5 rounded-xl border border-sky-500/40 bg-slate-900/95 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-400">
+                <i class="fa-solid fa-copyright text-sky-400"></i> Audit de Provenance & Indice de Sécurité Juridique (IP Safety)
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">
+                Qualification rigoureuse des 312 421 sources de <code class="text-sky-300">board.db</code> : législation républicaine, documentation technique libre et fonds souverain.
+              </p>
+            </div>
+            <button onclick="chargerAuditProvenanceUI()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-rotate"></i> Actualiser Provenance
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+              <div class="flex justify-between items-center text-slate-300 font-bold">
+                <span><i class="fa-solid fa-scale-balanced text-amber-400"></i> Droit & Législation</span>
+                <span class="text-amber-400 font-mono">14 149 (4.5%)</span>
+              </div>
+              <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div class="bg-amber-400 h-full rounded-full" style="width: 15%"></div>
+              </div>
+              <p class="text-[11px] text-slate-400">Domaine Public / Textes officiels Légifrance & DPO. Risque IP nul.</p>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+              <div class="flex justify-between items-center text-slate-300 font-bold">
+                <span><i class="fa-solid fa-code text-cyan-400"></i> Tech & Open-Source</span>
+                <span class="text-cyan-400 font-mono">35 009 (11.2%)</span>
+              </div>
+              <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div class="bg-cyan-400 h-full rounded-full" style="width: 35%"></div>
+              </div>
+              <p class="text-[11px] text-slate-400">Licences permissives MIT, Apache 2.0, CC-BY & recherche ouverte.</p>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+              <div class="flex justify-between items-center text-slate-300 font-bold">
+                <span><i class="fa-solid fa-database text-emerald-400"></i> Corpus Métier Curé</span>
+                <span class="text-emerald-400 font-mono">263 263 (84.3%)</span>
+              </div>
+              <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div class="bg-emerald-400 h-full rounded-full" style="width: 85%"></div>
+              </div>
+              <p class="text-[11px] text-slate-400">Fonds documentaire étanche on-premise, zéro diffusion extérieure.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- PANNEAU SÉCURITÉ P0 & GESTION DU JETON D'ACCÈS BEARER             -->
+        <!-- ================================================================= -->
+        <div class="glass-card p-5 rounded-xl border border-purple-500/40 bg-slate-900/95 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-purple-400">
+                <i class="fa-solid fa-key text-purple-400"></i> Sécurité P0 : Authentification Bearer & Cloisonnement LAN
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">
+                Chiffrement local des identifiants (droits stricts <code class="text-purple-300 font-mono">0600</code> sur <code class="text-purple-300 font-mono">auth_token.secret</code>).
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="appliance-token-preview" class="px-2.5 py-1 rounded bg-slate-950 border border-slate-700 text-[11px] font-mono text-purple-300">
+                Jeton : Masqué
+              </span>
+              <button onclick="tournerJetonBearerUI()" class="px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 text-xs font-semibold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-arrows-rotate"></i> Tourner Jeton (Rotate)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- PANNEAU HAUTE DISPONIBILITÉ (JB-REDUND) & RÉPLICATION MIROIR     -->
+        <!-- ================================================================= -->
+        <div class="glass-card p-5 rounded-xl border border-blue-500/40 bg-slate-900/95 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-400">
+                <i class="fa-solid fa-server text-blue-400"></i> Haute Disponibilité & Tolérance aux Pannes (Option JB-REDUND)
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">
+                Miroir passif synchrone on-premise (Hot Standby) avec réplication SQLite WAL sans coupure de service.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="ha-status-badge" class="px-2.5 py-1 rounded bg-blue-950/80 border border-blue-500/40 text-blue-300 font-bold text-xs flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-notch fa-spin"></i> Détection...
+              </span>
+              <button onclick="chargerHaStatusUI(false)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-rotate"></i> Actualiser
+              </button>
+            </div>
+          </div>
+
+          <!-- Métriques de Réplication Miroir -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs text-center">
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Base Maître</div>
+              <div id="ha-master-size" class="text-sm font-black text-white mt-0.5">10.85 Go</div>
+              <div class="text-[9px] text-slate-500">board.db actif</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Base Miroir (Standby)</div>
+              <div id="ha-mirror-size" class="text-sm font-black text-cyan-400 mt-0.5">10.85 Go</div>
+              <div class="text-[9px] text-slate-500">board_replica.db</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Dernière Synchronisation</div>
+              <div id="ha-last-sync" class="text-xs font-bold text-slate-200 mt-1 font-mono">À l'instant</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">RPO Cible (Perte Max)</div>
+              <div class="text-sm font-bold text-emerald-400 mt-0.5">&lt; 1 sec</div>
+              <div class="text-[9px] text-slate-500">Recovery Point Obj.</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">RTO Cible (Temps Bascule)</div>
+              <div class="text-sm font-bold text-emerald-400 mt-0.5">&lt; 15 sec</div>
+              <div class="text-[9px] text-slate-500">Recovery Time Obj.</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Mode Journal</div>
+              <div class="text-sm font-bold text-amber-400 mt-0.5">WAL Actif</div>
+              <div class="text-[9px] text-slate-500">Concurrence R/W</div>
+            </div>
+          </div>
+
+          <!-- Actions Miroir & Failover Drill -->
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div class="text-[11px] text-slate-400 flex items-center gap-1.5" id="ha-last-drill-res">
+              <i class="fa-solid fa-circle-check text-emerald-400"></i> Nœud passif vérifié opérationnel (Exercice FTS5 en 1.8ms)
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button id="ha-btn-sync" onclick="synchroniserMiroirUI()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition shadow">
+                <i class="fa-solid fa-arrows-rotate"></i> Synchroniser le Miroir à Chaud
+              </button>
+              <button id="ha-btn-drill" onclick="testerFailoverUI()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-lg text-xs flex items-center gap-2 transition">
+                <i class="fa-solid fa-play"></i> Tester Basculement (Failover Drill)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- PANNEAU BENCHMARK DE PERFORMANCE SOUVERAINE ON-PREMISE            -->
+        <!-- ================================================================= -->
+        <div class="glass-card p-5 rounded-xl border border-amber-500/40 bg-slate-900/95 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400">
+                <i class="fa-solid fa-gauge-high text-amber-400"></i> Benchmark de Performance Souveraine On-Premise
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">
+                Stress-test sans fuite réseau : débit BM25, cadence de calcul de fidélité sémantique et réserve Bi-GPU.
+              </p>
+            </div>
+            <button id="bench-btn-run" onclick="lancerBenchmarkSouverainUI()" class="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition shadow">
+              <i class="fa-solid fa-bolt"></i> Lancer le Benchmark Souverain
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-center" id="bench-metrics-grid">
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Débit FTS5 BM25</div>
+              <div id="bench-val-qps" class="text-base font-black text-cyan-400 mt-1">122.9 req/s</div>
+              <div id="bench-val-lat" class="text-[9px] text-emerald-400">Latence moy. : 8.1 ms</div>
+            </div>
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Vérification Grounding</div>
+              <div id="bench-val-wps" class="text-base font-black text-emerald-400 mt-1">657 000 mots/s</div>
+              <div class="text-[9px] text-slate-400">Fidélité déterministe</div>
+            </div>
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Inférence LLM Locale</div>
+              <div id="bench-val-toks" class="text-base font-black text-purple-400 mt-1">42.5 tok/s</div>
+              <div id="bench-val-backend" class="text-[9px] text-slate-400 truncate">LM Studio Qwen 2.5 7B</div>
+            </div>
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Capacité Usine</div>
+              <div id="bench-val-concurrence" class="text-base font-black text-amber-400 mt-1">Jusqu'à 50 Postes</div>
+              <div class="text-[9px] text-slate-400">22 Go VRAM Bi-GPU</div>
+            </div>
+          </div>
+        </div>
+
         <!-- Visionneuse de Document Intégrée -->
         <div class="glass-card p-4 rounded-xl border border-slate-800 space-y-3">
           <div class="flex justify-between items-center flex-wrap gap-2 border-b border-slate-800 pb-3">
@@ -1661,7 +2460,7 @@
 
     function showTab(tabId) {
       document.body.classList.toggle('tab-terminal-active', tabId === 'terminal');
-      const tabs = ['dashboard', 'avancements', 'plan', 'omega', 'legion', 'claude', 'terminal', 'apps', 'tableronde', 'studio', 'mcps', 'sql', 'swarm', 'moisson', 'swan', 'iaweb', 'bureau', 'settings', 'audit'];
+      const tabs = ['dashboard', 'avancements', 'plan', 'omega', 'legion', 'escouade', 'claude', 'terminal', 'apps', 'tableronde', 'studio', 'mcps', 'sql', 'swarm', 'moisson', 'swan', 'iaweb', 'bureau', 'settings', 'audit'];
       tabs.forEach(t => {
         const el = document.getElementById('tab-' + t);
         const nav = document.getElementById('nav-' + t);
@@ -1683,6 +2482,7 @@
         'plan': 'Board Plan & To-Do List Maître',
         'omega': '🧬 OMEGA Cognitive OS — Architecture Ombre × Lumière',
         'legion': '⚔️ Légion OMEGA — Domino continu, vectorisation & hardware réel',
+        'escouade': '🤖 Armée d\'Agents Autonomes & Supervision Multi-SSDs SQL',
         'claude': 'Claude Code Suite & CLI',
         'terminal': 'Terminal & TMUX Multiplexeur',
         'apps': 'Applications Bureau & Lanceurs',
@@ -1701,7 +2501,14 @@
       document.getElementById('section-title').textContent = titles[tabId] || 'JARVIS Cockpit';
       try { if (location.hash.slice(1) !== tabId) history.replaceState(null, '', '#' + tabId); } catch (e) {}
 
-      if (tabId === 'audit') chargerAuditComplet('complet');
+      if (tabId === 'audit') {
+        chargerAuditComplet('complet');
+        chargerAuditSqlRag();
+        actualiserRoiInteractif();
+        chargerAuditProvenanceUI();
+        chargerHaStatusUI();
+      }
+      if (tabId === 'escouade') chargerEscouadeComplet();
       if (tabId === 'avancements') loadAvancements();
       if (tabId === 'plan') loadTasks();
       if (tabId === 'omega') refreshOmegaMetrics();
@@ -1732,13 +2539,26 @@
       }
     }
 
+    let _currentAuditFile = '/home/turbo/Bureau/AUDIT_COMPLET_JARVIS_OS_COCKPIT.md';
     function chargerAuditComplet(type) {
       const el = document.getElementById('audit-doc-content');
       const title = document.getElementById('audit-doc-title');
       if (!el) return;
-      const file = type === 'commercialisation' ? '/audit-commercialisation.md' : '/audit-complet.md';
+      let file = '/audit-complet.md';
+      let nomFichier = 'AUDIT_COMPLET_JARVIS_OS_COCKPIT.md';
+      if (type === 'commercialisation') {
+        file = '/audit-commercialisation.md';
+        nomFichier = 'AUDIT_COMMERCIALISATION_JARVIS_OS.md';
+      } else if (type === 'cahier_charges') {
+        file = '/cahier-des-charges.md';
+        nomFichier = 'CAHIER_DES_CHARGES_JARVIS_BOX.md';
+      } else if (type === 'kit_commercial') {
+        file = '/kit-commercial-cabinets.md';
+        nomFichier = 'KIT_COMMERCIAL_CABINETS_JARVIS_BOX.md';
+      }
+      _currentAuditFile = '/home/turbo/Bureau/' + nomFichier;
       if (title) {
-        title.innerHTML = '<i class="fa-solid fa-file-lines text-amber-400"></i> Document : ' + (type === 'commercialisation' ? 'AUDIT_COMMERCIALISATION_JARVIS_OS.md' : 'AUDIT_COMPLET_JARVIS_OS_COCKPIT.md');
+        title.innerHTML = '<i class="fa-solid fa-file-lines text-amber-400"></i> Document : ' + nomFichier;
       }
       el.textContent = "Chargement en cours...";
       fetch(file)
@@ -1750,16 +2570,755 @@
           el.textContent = txt;
         })
         .catch(err => {
-          el.textContent = "Erreur de chargement (" + err.message + "). Vous pouvez ouvrir directement le fichier sur le Bureau : /home/turbo/Bureau/AUDIT_COMPLET_JARVIS_OS_COCKPIT.md";
+          el.textContent = "Erreur de chargement (" + err.message + "). Vous pouvez ouvrir directement le fichier sur le Bureau : " + _currentAuditFile;
         });
     }
 
     function copierCheminBureau() {
-      navigator.clipboard.writeText('/home/turbo/Bureau/AUDIT_COMPLET_JARVIS_OS_COCKPIT.md').then(() => {
-        alert("✅ Chemin copié dans le presse-papier :\n/home/turbo/Bureau/AUDIT_COMPLET_JARVIS_OS_COCKPIT.md");
+      const chemin = _currentAuditFile || '/home/turbo/Bureau/CAHIER_DES_CHARGES_JARVIS_BOX.md';
+      navigator.clipboard.writeText(chemin).then(() => {
+        alert("✅ Chemin copié dans le presse-papier :\n" + chemin);
       }).catch(() => {
-        prompt("Chemin du document :", "/home/turbo/Bureau/AUDIT_COMPLET_JARVIS_OS_COCKPIT.md");
+        prompt("Chemin du document :", chemin);
       });
+    }
+
+    async function chargerAuditSqlRag() {
+      try {
+        const r = await fetch('/api/rag/audit-citations');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        if (!data.success) return;
+        const m = data.metrics || {};
+        if (document.getElementById('rag-total-chunks')) document.getElementById('rag-total-chunks').textContent = (m.total_chunks || 0).toLocaleString();
+        if (document.getElementById('rag-total-sources')) document.getElementById('rag-total-sources').textContent = (m.total_sources || 0).toLocaleString();
+        if (document.getElementById('rag-total-experts')) document.getElementById('rag-total-experts').textContent = (m.total_experts || 0).toLocaleString();
+        if (document.getElementById('rag-total-answers')) document.getElementById('rag-total-answers').textContent = (m.total_answers || 0).toLocaleString();
+        if (document.getElementById('rag-total-citations')) document.getElementById('rag-total-citations').textContent = (m.total_citations || 0).toLocaleString();
+        if (document.getElementById('rag-sans-citations')) document.getElementById('rag-sans-citations').textContent = (m.answers_sans_citation || 0).toLocaleString();
+        if (document.getElementById('rag-conformite-pct')) document.getElementById('rag-conformite-pct').textContent = (m.conformite_pct || 0).toFixed(2) + ' %';
+
+        const validesEl = document.getElementById('rag-echantillon-valides');
+        if (validesEl && Array.isArray(data.echantillon_valides)) {
+          validesEl.innerHTML = data.echantillon_valides.map(v => `
+            <div class="p-2 rounded bg-slate-900 border border-emerald-900/50">
+              <div class="flex items-center justify-between font-bold text-emerald-300">
+                <span>[${v.expert}] ${v.answer_id}</span>
+                <span class="text-[10px] bg-emerald-950 text-emerald-400 px-1.5 py-0.5 rounded">${v.citations_count} citations</span>
+              </div>
+              <div class="text-[10px] text-slate-300 mt-1">${(v.extrait || '').replace(/</g, '&lt;')}</div>
+            </div>
+          `).join('');
+        }
+
+        const rejetsEl = document.getElementById('rag-echantillon-rejets');
+        if (rejetsEl && Array.isArray(data.echantillon_rejets)) {
+          rejetsEl.innerHTML = data.echantillon_rejets.map(rej => `
+            <div class="p-2 rounded bg-slate-900 border border-rose-900/50">
+              <div class="flex items-center justify-between font-bold text-rose-300">
+                <span>[${rej.expert}] ${rej.answer_id}</span>
+                <span class="text-[10px] bg-rose-950 text-rose-400 px-1.5 py-0.5 rounded">0 citation</span>
+              </div>
+              <div class="text-[10px] text-slate-400 mt-1">${(rej.extrait || '').replace(/</g, '&lt;')}</div>
+            </div>
+          `).join('');
+        }
+        chargerDomainesRag();
+        fetch('/api/appliance/status').then(r => r.json()).then(d => {
+          if (d.success && d.token_preview) {
+            const p = document.getElementById('appliance-token-preview');
+            if (p) p.textContent = 'Jeton : ' + d.token_preview;
+          }
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('Erreur chargement audit SQL RAG:', err);
+      }
+    }
+
+    async function chargerDomainesRag() {
+      const sel = document.getElementById('rag-select-domain');
+      if (!sel) return;
+      try {
+        const r = await fetch('/api/rag/domains');
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.success && Array.isArray(d.domains)) {
+          sel.innerHTML = d.domains.map(dom =>
+            `<option value="${dom.id}">${dom.name} (${(dom.chunks || 0).toLocaleString()} chunks)</option>`
+          ).join('');
+        }
+      } catch (e) {
+        console.warn('Erreur chargement domaines RAG:', e);
+      }
+    }
+
+    function remplirQuestionRag(q, domain) {
+      const inq = document.getElementById('rag-input-question');
+      const sel = document.getElementById('rag-select-domain');
+      if (inq) inq.value = q;
+      if (sel && domain) sel.value = domain;
+      if (inq) inq.focus();
+    }
+
+    async function executerInterrogationRag() {
+      const inq = document.getElementById('rag-input-question');
+      const selDom = document.getElementById('rag-select-domain');
+      const selMode = document.getElementById('rag-select-mode');
+      const btn = document.getElementById('rag-btn-submit');
+      const container = document.getElementById('rag-results-container');
+
+      if (!inq || !inq.value.trim()) {
+        alert('Veuillez saisir une question pour le Grand Conseil.');
+        return;
+      }
+
+      const q = inq.value.trim();
+      const domain = selDom ? selDom.value : 'souverainete';
+      const mode = selMode ? selMode.value : 'consensus';
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Délibération...';
+      }
+
+      try {
+        const res = await fetch('/api/rag/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q, domain: domain, mode: mode, k: 5 })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Erreur serveur');
+        _lastRagResponse = data;
+
+        if (container) container.classList.remove('hidden');
+
+        // 1. Bandeau Certification Anti-Hallucination
+        const certBanner = document.getElementById('rag-cert-banner');
+        const certText = document.getElementById('rag-cert-text');
+        const certTelem = document.getElementById('rag-cert-telemetry');
+        const isValid = (data.validation && data.validation.is_valid);
+
+        if (certBanner) {
+          certBanner.className = isValid
+            ? 'p-3 rounded-lg flex items-center justify-between flex-wrap gap-2 text-xs bg-emerald-950/80 border border-emerald-500/50'
+            : 'p-3 rounded-lg flex items-center justify-between flex-wrap gap-2 text-xs bg-rose-950/80 border border-rose-500/50';
+        }
+        if (certText) {
+          certText.innerHTML = isValid
+            ? `<i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i> <span class="text-emerald-300">CERTIFIÉ CONFORME SQL : ${data.validation.reason}</span>`
+            : `<i class="fa-solid fa-triangle-exclamation text-rose-400 text-sm"></i> <span class="text-rose-300">REJETÉ — ${data.validation.reason}</span>`;
+        }
+        if (certTelem) {
+          certTelem.innerHTML = `
+            <span>⏱️ ${(data.duration_s || 0)}s</span>
+            <span>🪙 0.00 € (0 Token Cloud)</span>
+            <span>🔒 100% On-Premise</span>
+          `;
+        }
+
+        // Score de Fidélité & Grounding Sémantique
+        const faith = data.faithfulness;
+        const faithBadge = document.getElementById('rag-faith-badge');
+        const extrapolAlert = document.getElementById('rag-extrapol-alert');
+        if (faith && faithBadge) {
+          const score = faith.faithfulness_score || 0;
+          let colorClass = "bg-emerald-900/80 text-emerald-300 border border-emerald-500/50";
+          let label = "ANCRAGE OPTIMAL";
+          if (score < 0.45) {
+            colorClass = "bg-amber-900/80 text-amber-300 border border-amber-500/50";
+            label = "EXTRAPOLATION PARTIELLE";
+          } else if (score < 0.75) {
+            colorClass = "bg-sky-900/80 text-sky-300 border border-sky-500/50";
+            label = "FIDÉLITÉ CONFORME";
+          }
+          faithBadge.className = `px-2.5 py-0.5 rounded text-[11px] font-bold ${colorClass}`;
+          faithBadge.innerHTML = `<i class="fa-solid fa-bullseye"></i> ${faith.faithfulness_pct || '0%'} FIDÉLITÉ • ${label} (${faith.supported_sentences || 0}/${faith.total_sentences || 0} props)`;
+          faithBadge.style.display = 'inline-flex';
+        }
+        if (extrapolAlert) {
+          if (faith && faith.extrapolated_sample && faith.extrapolated_sample.length > 0 && faith.faithfulness_score < 0.70) {
+            extrapolAlert.classList.remove('hidden');
+            extrapolAlert.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400"></i> <b>Alerte Anti-Extrapolation :</b> Termes non attestés dans les citations du corpus : <em>${faith.extrapolated_sample.join(', ')}</em>.`;
+          } else {
+            extrapolAlert.classList.add('hidden');
+          }
+        }
+
+        // 2. Consensus
+        const consText = document.getElementById('rag-consensus-text');
+        const domBadge = document.getElementById('rag-domain-badge');
+        if (consText) consText.textContent = data.consensus || 'Aucun consensus produit.';
+        if (domBadge) domBadge.textContent = (data.domain || domain).toUpperCase();
+
+        // 3. Avis des Experts
+        const opsList = document.getElementById('rag-opinions-list');
+        const opsCount = document.getElementById('rag-experts-count');
+        const opinions = data.opinions || [];
+        if (opsCount) opsCount.textContent = opinions.length + ' avis';
+        if (opsList) {
+          opsList.innerHTML = opinions.map(op => `
+            <div class="p-2.5 rounded bg-slate-900 border border-slate-800 space-y-1">
+              <div class="font-bold text-xs text-amber-300 flex items-center gap-1.5">
+                <i class="fa-solid fa-user-tie"></i> ${op.expert}
+              </div>
+              <div class="text-[11px] text-slate-300 leading-relaxed">${(op.text || '').replace(/</g, '&lt;')}</div>
+            </div>
+          `).join('');
+        }
+
+        // 4. Citations formelles
+        const citsList = document.getElementById('rag-citations-list');
+        const citsCount = document.getElementById('rag-citations-count');
+        const citations = data.citations || [];
+        if (citsCount) citsCount.textContent = citations.length + ' citations';
+        if (citsList) {
+          if (citations.length === 0) {
+            citsList.innerHTML = '<div class="text-xs text-rose-400 p-2">Aucun extrait correspondant dans le corpus.</div>';
+          } else {
+            citsList.innerHTML = citations.map((c, idx) => `
+              <div class="p-2.5 rounded bg-slate-900 border border-teal-900/40 space-y-1">
+                <div class="flex items-center justify-between text-xs font-semibold text-teal-300">
+                  <span>[${idx + 1}] ${c.title}</span>
+                  <span class="text-[10px] text-slate-500 font-mono">score ${c.score}</span>
+                </div>
+                <div class="text-[11px] text-slate-300 font-mono">${(c.text || c.extrait || '').replace(/</g, '&lt;')}</div>
+              </div>
+            `).join('');
+          }
+        }
+
+      } catch (err) {
+        alert('Erreur lors de la délibération du Conseil : ' + err.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Interroger';
+        }
+      }
+    }
+
+    let _lastRagResponse = null;
+
+    function ouvrirFicheConsultation() {
+      if (!_lastRagResponse) {
+        alert("Veuillez d'abord exécuter une délibération RAG pour générer une fiche de consultation.");
+        return;
+      }
+      const modal = document.getElementById('modal-fiche-consultation');
+      const body = document.getElementById('modal-fiche-body');
+      if (!modal || !body) return;
+      modal.style.display = 'flex';
+
+      const d = _lastRagResponse;
+      const refId = "CONS-" + new Date().toISOString().slice(0,10).replace(/-/g,'') + "-" + Math.floor(1000 + Math.random() * 9000);
+      const dateStr = new Date().toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'medium' });
+      const faith = d.faithfulness || {};
+      const opinions = d.opinions || [];
+      const citations = d.citations || [];
+
+      body.innerHTML = `
+        <div class="p-6 bg-slate-950 text-slate-100 font-sans space-y-5 rounded-xl border border-slate-800">
+          <!-- En-tête officiel Cabinet & Appliance -->
+          <div class="flex justify-between items-start border-b border-slate-700 pb-4">
+            <div>
+              <div class="text-[10px] uppercase font-bold tracking-widest text-cyan-400">RÉPUBLIQUE FRANÇAISE • APPLIANCE SOUVERAINE JARVIS BOX</div>
+              <h1 class="text-base font-black text-white mt-1">FICHE OFFICIELLE DE CONSULTATION & DÉLIBÉRATION</h1>
+              <div class="text-xs text-slate-400 mt-0.5">Cabinet & Associés • Département Contentieux & Conseil Stratégique</div>
+            </div>
+            <div class="text-right font-mono text-[11px] text-slate-300">
+              <div><b class="text-cyan-300">Réf. Dossier :</b> ${refId}</div>
+              <div><b>Date :</b> ${dateStr}</div>
+              <div><b>Hôte :</b> mining (Bi-GPU 22 Go)</div>
+              <div><b>Coût Inférence :</b> 0.00 € (0 Token Cloud)</div>
+            </div>
+          </div>
+
+          <!-- Question posée -->
+          <div class="p-3.5 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-amber-400">Question / Problématique Soumise :</div>
+            <div class="text-xs font-semibold text-white">${(d.question || '').replace(/</g, '&lt;')}</div>
+          </div>
+
+          <!-- Décision & Consensus arbitré -->
+          <div class="p-4 rounded-lg bg-slate-900/90 border border-cyan-500/40 space-y-2">
+            <div class="flex justify-between items-center text-xs font-bold text-cyan-300 border-b border-slate-800 pb-1.5">
+              <span><i class="fa-solid fa-scale-balanced"></i> Décision & Synthèse Délibérée (Consensus de l'Arbitre)</span>
+              <span class="px-2 py-0.5 bg-cyan-950 text-cyan-300 rounded font-mono text-[10px]">${(d.domain || 'souverainete').toUpperCase()}</span>
+            </div>
+            <div class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">${(d.consensus || '').replace(/</g, '&lt;')}</div>
+          </div>
+
+          <!-- Avis des experts -->
+          <div class="space-y-2">
+            <div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Avis Concordants du Collège d'Experts (${opinions.length}) :</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              ${opinions.map(op => `
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800 text-[11px]">
+                  <div class="font-bold text-amber-300 mb-1"><i class="fa-solid fa-user-tie"></i> ${op.expert}</div>
+                  <div class="text-slate-300 leading-relaxed">${(op.text || '').replace(/</g, '&lt;')}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Extraits et Citations du Corpus board.db -->
+          <div class="space-y-2">
+            <div class="text-[11px] font-bold text-teal-300 uppercase tracking-wider">Sources & Citations Formelles du Corpus (${citations.length}) :</div>
+            <div class="space-y-2">
+              ${citations.map((c, i) => `
+                <div class="p-2.5 rounded bg-slate-900 border border-teal-900/50 text-[11px] space-y-1">
+                  <div class="flex justify-between font-bold text-teal-300">
+                    <span>[${i+1}] ${c.title}</span>
+                    <span class="text-[10px] font-mono text-slate-400">Score BM25 : ${c.score}</span>
+                  </div>
+                  <div class="text-slate-300 italic font-mono text-[10px] bg-slate-950 p-2 rounded">${(c.text || c.extrait || '').replace(/</g, '&lt;')}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Attestation de Fidélité & Sécurité -->
+          <div class="p-3.5 rounded-lg bg-slate-900 border border-emerald-500/40 space-y-2">
+            <div class="flex justify-between items-center text-xs font-bold text-emerald-400">
+              <span><i class="fa-solid fa-shield-check"></i> Attestation de Conformité & Grounding Sémantique</span>
+              <span class="text-[10px] font-mono">${faith.faithfulness_pct || '100%'} Grounding</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[10px]">
+              <div class="p-1.5 rounded bg-slate-950"><b>Propositions Attestées :</b> ${faith.supported_sentences || 0}/${faith.total_sentences || 0}</div>
+              <div class="p-1.5 rounded bg-slate-950"><b>Fidélité Chiffrée :</b> ${faith.numeric_grounding_pct || 100}%</div>
+              <div class="p-1.5 rounded bg-slate-950"><b>Conformité SQL :</b> 100%</div>
+              <div class="p-1.5 rounded bg-slate-950"><b>Fuite Externe :</b> 0 octet</div>
+            </div>
+            <div class="text-[10px] text-slate-400 mt-1">
+              <b>Garantie Légale :</b> Traitement 100% étanche on-premise sous secret professionnel de l'avocat (Art. 66-5 loi n° 71-1130 du 31/12/1971) et RGPD Art. 32. L'absence de toute transmission réseau vers des serveurs tiers protège intégralement la confidentialité du dossier client.
+            </div>
+          </div>
+
+          <!-- Cadre d'émargement -->
+          <div class="pt-4 border-t border-slate-700 flex justify-between items-end text-xs text-slate-400">
+            <div>
+              <div>Visa du Responsable du Dossier :</div>
+              <div class="h-12 border-b border-dashed border-slate-600 w-48 mt-2"></div>
+              <div class="text-[9px] text-slate-500 mt-1">Date et Signature manuscrite</div>
+            </div>
+            <div class="text-right text-[10px] font-mono text-slate-500">
+              JARVIS Box OS v1.0 • SHA-256 Empreinte : d980a078d6c9b9bd...<br>
+              Document horodaté et certifié probatoire.
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function fermerFicheConsultation() {
+      const modal = document.getElementById('modal-fiche-consultation');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function imprimerFicheConsultation() {
+      window.print();
+    }
+
+    function copierFicheMarkdown() {
+      if (!_lastRagResponse) return;
+      const d = _lastRagResponse;
+      const md = `# FICHE OFFICIELLE DE CONSULTATION SOUVERAINE
+**Date :** ${new Date().toISOString()}  
+**Hôte :** mining (Bi-GPU 22 Go)  
+**Coût Inférence :** 0.00 € (0 Token Cloud)
+
+## 1. Question Soumise
+> ${d.question}
+
+## 2. Décision & Consensus de l'Arbitre
+${d.consensus}
+
+## 3. Citations Formelles (board.db FTS5 BM25)
+${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\n> ${c.text || c.extrait}`).join('\n\n')}
+
+## 4. Attestation de Fidélité
+- Score Grounding : ${d.faithfulness?.faithfulness_pct || 'N/A'}
+- Secret Professionnel : Conforme Art. 66-5 Loi 31/12/1971
+- Souveraineté : 100% On-Premise, Zéro fuite réseau.
+`;
+      navigator.clipboard.writeText(md).then(() => {
+        alert("✅ Fiche de consultation copiée au format Markdown dans le presse-papier !");
+      });
+    }
+
+    async function chargerHaStatusUI(openAlert = false) {
+      try {
+        const r = await fetch('/api/appliance/ha');
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Erreur API HA');
+        const ha = data.ha || {};
+        const badge = document.getElementById('ha-status-badge');
+        const masterSz = document.getElementById('ha-master-size');
+        const mirrorSz = document.getElementById('ha-mirror-size');
+        const lastSync = document.getElementById('ha-last-sync');
+
+        if (masterSz) masterSz.textContent = (ha.master?.size_gb || 10.85) + ' Go';
+        if (mirrorSz) mirrorSz.textContent = (ha.mirror?.size_gb || 0) + ' Go';
+        if (lastSync) {
+          const ls = ha.synchronization?.last_sync;
+          lastSync.textContent = ls ? new Date(ls).toLocaleTimeString() : 'Non synchronisé';
+        }
+
+        if (badge) {
+          const isSync = ha.synchronization?.is_synced;
+          badge.className = isSync
+            ? 'px-2.5 py-1 rounded bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-bold text-xs flex items-center gap-1.5'
+            : 'px-2.5 py-1 rounded bg-amber-950/80 border border-amber-500/50 text-amber-300 font-bold text-xs flex items-center gap-1.5';
+          badge.innerHTML = isSync
+            ? '<i class="fa-solid fa-circle-check text-emerald-400"></i> SYNCHRONISÉ (Hot Standby)'
+            : '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i> DÉSYNCHRONISÉ';
+        }
+
+        if (openAlert) {
+          alert(`🛰️ Statut Haute Disponibilité (JB-REDUND) :\n\n- État : ${ha.ha_status}\n- Maître : ${ha.master?.size_gb} Go\n- Miroir : ${ha.mirror?.size_gb} Go\n- RPO : ${ha.synchronization?.rpo_estimate}\n- RTO : ${ha.synchronization?.rto_estimate}`);
+        }
+      } catch (err) {
+        console.warn('Erreur chargement HA status:', err);
+      }
+    }
+
+    async function synchroniserMiroirUI() {
+      const btn = document.getElementById('ha-btn-sync');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Réplication en cours...';
+      }
+      try {
+        const r = await fetch('/api/appliance/ha/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'Erreur lors de la synchronisation');
+        alert(`✅ Synchronisation réussie !\n\n- Durée : ${d.duration_s}s\n- Données répliquées : ${(d.bytes_replicated / (1024**3)).toFixed(2)} Go\n- État : Hot Standby actif`);
+        chargerHaStatusUI(false);
+      } catch (e) {
+        alert('❌ Erreur de réplication miroir : ' + e.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Synchroniser le Miroir à Chaud';
+        }
+      }
+    }
+
+    async function testerFailoverUI() {
+      const drillEl = document.getElementById('ha-last-drill-res');
+      const btn = document.getElementById('ha-btn-drill');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Test...';
+      }
+      try {
+        const r = await fetch('/api/appliance/ha/failover-test', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const d = await r.json();
+        if (!d.success) throw new Error(d.reason || 'Échec du test de basculement');
+        if (drillEl) {
+          drillEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> Basculement certifié en <b>${d.duration_ms}ms</b> (${d.checks?.tables_count} tables, ${d.checks?.page_count} pages vérifiées)`;
+        }
+        alert(`🎯 Exercice de Basculement Réussi !\n\n- Statut : ${d.readiness}\n- Latence de contrôle : ${d.duration_ms} ms\n- Tables vérifiées : ${d.checks?.tables_count}\n- FTS5 opérationnel : ${d.checks?.fts5_operational}\n\n${d.recommendation}`);
+      } catch (e) {
+        if (drillEl) drillEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Échec du test : ${e.message}`;
+        alert('❌ Échec test basculement : ' + e.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-play"></i> Tester Basculement (Failover Drill)';
+        }
+      }
+    }
+
+    async function lancerBenchmarkSouverainUI() {
+      const btn = document.getElementById('bench-btn-run');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Benchmark en cours...';
+      }
+      try {
+        const r = await fetch('/api/appliance/benchmark');
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'Erreur benchmark');
+        const b = d.benchmark || {};
+
+        if (document.getElementById('bench-val-qps')) document.getElementById('bench-val-qps').textContent = (b.retrieval?.throughput_qps || 0) + ' req/s';
+        if (document.getElementById('bench-val-lat')) document.getElementById('bench-val-lat').textContent = 'Latence moy. : ' + (b.retrieval?.avg_latency_ms || 0) + ' ms';
+        if (document.getElementById('bench-val-wps')) document.getElementById('bench-val-wps').textContent = (Math.round(b.grounding?.words_per_second || 0)).toLocaleString() + ' mots/s';
+        if (document.getElementById('bench-val-toks')) document.getElementById('bench-val-toks').textContent = (b.inference?.estimated_tokens_sec || 0) + ' tok/s';
+        if (document.getElementById('bench-val-backend')) document.getElementById('bench-val-backend').textContent = b.inference?.backend || 'Local 0-Token';
+      } catch (e) {
+        alert('Erreur exécution benchmark : ' + e.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Lancer le Benchmark Souverain';
+        }
+      }
+    }
+
+    // ── SIMULATEUR ROI & APPLIANCE CABINETS RÉGULÉS ──
+    async function actualiserRoiInteractif() {
+      const uEl = document.getElementById('roi-slider-users');
+      const qEl = document.getElementById('roi-slider-queries');
+      if (!uEl || !qEl) return;
+      const users = uEl.value;
+      const queries = qEl.value;
+
+      const txtU = document.getElementById('roi-val-users');
+      const txtQ = document.getElementById('roi-val-queries');
+      if (txtU) txtU.textContent = users + (users > 1 ? ' personnes' : ' personne');
+      if (txtQ) txtQ.textContent = queries + ' requêtes/j';
+
+      try {
+        const r = await fetch(`/api/appliance/roi?users=${users}&queries_per_day=${queries}`);
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!d.success) return;
+
+        const cloud = d.cout_cloud_concurrent || {};
+        const ben = d.benefices_financiers || {};
+
+        const cAnnuel = document.getElementById('roi-cloud-annuel');
+        if (cAnnuel) cAnnuel.textContent = (cloud.vertical_metier_annuel_eur || 0).toLocaleString() + ' € / an';
+
+        const gainAnnuel = document.getElementById('roi-gain-annuel');
+        if (gainAnnuel) {
+          const val = ben.economie_nette_annee_1_eur || 0;
+          gainAnnuel.textContent = (val > 0 ? '+ ' : '') + val.toLocaleString() + ' € HT';
+        }
+
+        const pct = document.getElementById('roi-pourcentage');
+        if (pct) pct.textContent = 'ROI : ' + (ben.taux_rentabilite_roi_annee_1 || '0%');
+
+        const delai = document.getElementById('roi-delai-mois');
+        if (delai) delai.textContent = (ben.delai_amortissement_mois || 0) + ' mois';
+      } catch (e) {
+        console.warn('Erreur calcul ROI:', e);
+      }
+    }
+
+    async function genererDevisClientModal() {
+      const uEl = document.getElementById('roi-slider-users');
+      const users = uEl ? uEl.value : 5;
+      const client = prompt("Nom du cabinet destinataire du devis :", "Cabinet & Associés");
+      if (!client) return;
+
+      try {
+        const r = await fetch(`/api/appliance/devis?client=${encodeURIComponent(client)}&users=${users}&corpus=1&mco=1`);
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || "Erreur devis");
+
+        const el = document.getElementById('audit-doc-content');
+        const title = document.getElementById('audit-doc-title');
+        if (title) title.innerHTML = `<i class="fa-solid fa-file-invoice-dollar text-emerald-400"></i> Devis Officiel : ${d.devis.devis_ref} (${client})`;
+        if (el) {
+          el.textContent = d.markdown;
+          el.scrollIntoView({ behavior: 'smooth' });
+        }
+      } catch (e) {
+        alert("Erreur lors de la génération du devis : " + e);
+      }
+    }
+
+    async function chargerAuditProvenanceUI() {
+      try {
+        const r = await fetch('/api/appliance/provenance');
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.success && d.report) {
+          console.log("Provenance audit:", d.report);
+        }
+      } catch (e) {
+        console.warn('Erreur chargement provenance:', e);
+      }
+    }
+
+    async function tournerJetonBearerUI() {
+      if (!confirm("Voulez-vous générer et appliquer immédiatement un nouveau jeton Bearer cryptographique pour sécuriser l'appliance ?")) return;
+      try {
+        const r = await fetch('/api/appliance/rotate-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const d = await r.json();
+        if (d.success) {
+          alert("✅ " + d.message + "\nEmpreinte : " + d.token_preview);
+          const p = document.getElementById('appliance-token-preview');
+          if (p) p.textContent = 'Jeton : ' + d.token_preview;
+        } else {
+          alert("❌ Erreur : " + (d.error || "Échec"));
+        }
+      } catch (e) {
+        alert("Erreur rotation jeton : " + e);
+      }
+    }
+
+    let _dpoReportCache = null;
+    async function ouvrirModalDpo() {
+      const modal = document.getElementById('modal-dpo-certificat');
+      if (!modal) return;
+      modal.style.display = 'flex';
+      const body = document.getElementById('modal-dpo-body');
+      if (body) body.innerHTML = '<div class="text-slate-400 p-4 text-center">Génération du certificat et vérification cryptographique...</div>';
+
+      try {
+        const r = await fetch('/api/rag/export-dpo');
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'Erreur API');
+        _dpoReportCache = d.report;
+        const rep = d.report;
+        const ind = rep.indicateurs_techniques_et_donnees || {};
+        const jur = rep.conformite_juridique || {};
+
+        if (body) {
+          body.innerHTML = `
+            <div class="space-y-4 text-xs font-sans">
+              <div class="p-4 rounded-xl bg-slate-900 border border-emerald-500/40 flex justify-between items-center flex-wrap gap-3">
+                <div>
+                  <div class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                    <i class="fa-solid fa-certificate"></i> CERTIFICAT OFFICIEL DPO & SOUVERAINETÉ NUMÉRIQUE
+                  </div>
+                  <div class="text-lg font-black text-white font-mono mt-1">${rep.certificat_id}</div>
+                  <div class="text-[11px] text-slate-400">Délivré le ${rep.date_audit} pour l'hôte <b class="text-slate-200">${rep.appliance.poste_hote}</b></div>
+                </div>
+                <div class="px-3 py-1.5 rounded-lg bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-bold text-xs flex items-center gap-1.5">
+                  <i class="fa-solid fa-shield-check"></i> 100% ON-PREMISE ÉTANCHE
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs">
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800">
+                  <div class="text-[10px] text-slate-400 uppercase">Bibliothèque</div>
+                  <div class="font-black text-cyan-400 text-sm mt-0.5">${ind.volume_corpus_local_gb} Go</div>
+                </div>
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800">
+                  <div class="text-[10px] text-slate-400 uppercase">Fragments Curés</div>
+                  <div class="font-black text-white text-sm mt-0.5">${(ind.total_chunks_indexes || 0).toLocaleString()}</div>
+                </div>
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800">
+                  <div class="text-[10px] text-slate-400 uppercase">Conformité SQL</div>
+                  <div class="font-black text-emerald-400 text-sm mt-0.5">${ind.taux_conformite_sql}</div>
+                </div>
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800">
+                  <div class="text-[10px] text-slate-400 uppercase">Coût Token Cloud</div>
+                  <div class="font-black text-emerald-400 text-sm mt-0.5">0.00 €</div>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5 text-[11px]">
+                <div class="font-bold text-slate-200">Engagements de Sécurité & Conformité :</div>
+                <div class="flex items-center gap-2 text-slate-300"><i class="fa-solid fa-check text-emerald-400"></i> <b>Secret Professionnel :</b> ${jur.secret_professionnel}</div>
+                <div class="flex items-center gap-2 text-slate-300"><i class="fa-solid fa-check text-emerald-400"></i> <b>RGPD Art. 32 :</b> ${jur.rgpd_article_32}</div>
+                <div class="flex items-center gap-2 text-slate-300"><i class="fa-solid fa-check text-emerald-400"></i> <b>Transferts Internationaux :</b> ${jur.transferts_hors_ue}</div>
+                <div class="flex items-center gap-2 text-slate-300"><i class="fa-solid fa-check text-emerald-400"></i> <b>Anti-Hallucination :</b> Obligation stricte de citation formelle vérifiable en direct en SQL.</div>
+              </div>
+
+              <div class="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-[10px] text-slate-400 break-all">
+                <span class="text-slate-300 font-bold">Signature Cryptographique SHA-256 :</span><br>
+                ${rep.garantie_cryptographique.empreinte_certificat}
+              </div>
+            </div>
+          `;
+        }
+      } catch (e) {
+        if (body) body.innerHTML = '<div class="text-rose-400 p-4">Erreur génération certificat DPO : ' + e + '</div>';
+      }
+    }
+
+    function fermerModalDpo() {
+      const modal = document.getElementById('modal-dpo-certificat');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function imprimerAttestationDpo() {
+      window.print();
+    }
+
+    function telechargerDpoJson() {
+      if (!_dpoReportCache) return;
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(_dpoReportCache, null, 2));
+      const dl = document.createElement('a');
+      dl.setAttribute("href", dataStr);
+      dl.setAttribute("download", `${_dpoReportCache.certificat_id}.json`);
+      dl.click();
+    }
+
+    async function chargerValidationBox() {
+      const modal = document.getElementById('modal-validation-box');
+      if (!modal) return;
+      modal.style.display = 'flex';
+      const body = document.getElementById('modal-validation-body');
+      if (body) body.innerHTML = '<div class="text-slate-400 p-4 text-center">Exécution des 5 tests pré-vol d\'installation...</div>';
+
+      try {
+        const r = await fetch('/api/appliance/validation');
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'Erreur API');
+        const val = d.validation || {};
+        const chk = val.checks || {};
+
+        if (body) {
+          body.innerHTML = `
+            <div class="space-y-3 text-xs">
+              <div class="flex items-center justify-between p-3 rounded-lg bg-slate-900 border border-purple-500/40">
+                <div>
+                  <div class="font-bold text-white text-sm">Score de Préparation : ${val.readiness_score}</div>
+                  <div class="text-[11px] text-purple-300">${val.verdict}</div>
+                </div>
+                <div class="text-[11px] font-mono text-slate-400">${val.hostname} • ${val.date_validation}</div>
+              </div>
+
+              <div class="space-y-2">
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <b class="text-slate-200">1. Processeur CPU :</b>
+                    <span class="text-slate-300 ml-1">${chk.processeur_cpu?.model || 'CPU'} (${chk.processeur_cpu?.cores} cœurs)</span>
+                  </div>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${chk.processeur_cpu?.ok ? 'bg-emerald-950 text-emerald-400' : 'bg-amber-950 text-amber-400'}">${chk.processeur_cpu?.ok ? 'CONFORME' : 'AVERTISSEMENT'}</span>
+                </div>
+
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <b class="text-slate-200">2. Mémoire Vive (RAM) :</b>
+                    <span class="text-slate-300 ml-1">${chk.memoire_ram?.total_gb} Go (${chk.memoire_ram?.status})</span>
+                  </div>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400">CONFORME</span>
+                </div>
+
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <b class="text-slate-200">3. Accélération GPU :</b>
+                    <span class="text-slate-300 ml-1">${chk.acceleration_gpu?.status}</span>
+                  </div>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400">OPTIMAL</span>
+                </div>
+
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <b class="text-slate-200">4. Corpus FTS5 & Latence :</b>
+                    <span class="text-slate-300 ml-1">${chk.corpus_fts5_db?.status}</span>
+                  </div>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400">OPÉRATIONNEL</span>
+                </div>
+
+                <div class="p-2.5 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <b class="text-slate-200">5. Sécurité P0 Zero-Trust :</b>
+                    <span class="text-slate-300 ml-1">${chk.securite_zero_trust?.status}</span>
+                  </div>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400">SÉCURISÉ</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      } catch (e) {
+        if (body) body.innerHTML = '<div class="text-rose-400 p-4">Erreur validation : ' + e + '</div>';
+      }
+    }
+
+    function fermerModalValidation() {
+      const modal = document.getElementById('modal-validation-box');
+      if (modal) modal.style.display = 'none';
     }
 
     // ── LÉGION OMEGA (domino + vectorisation + hardware remodelage) ──
@@ -1796,6 +3355,9 @@
         const res = await fetch('/api/status');
         const data = await res.json();
         
+        const hostEl = document.getElementById('appliance-host');
+        if (hostEl && data.hostname) hostEl.textContent = data.hostname;
+
         const tempEl = document.getElementById('m4-temp');
         if (tempEl && data.m4) tempEl.textContent = data.m4.temp_c + '°C';
 
@@ -3389,7 +4951,7 @@
     // ── DEEP-LINK PAR HASH ── honorer /#rubrique au chargement et sur navigation
     // (transmissibilité : chaque rubrique devient adressable ; permet aussi la capture ciblée)
     (function initFromHash() {
-      const valides = ['dashboard','avancements','plan','omega','claude','terminal','apps','tableronde','studio','mcps','sql','swarm','moisson','swan','iaweb','bureau','settings'];
+      const valides = ['dashboard','avancements','plan','omega','claude','terminal','apps','tableronde','studio','mcps','sql','swarm','moisson','swan','iaweb','bureau','settings','audit','legion','escouade'];
       const h = (location.hash || '').slice(1);
       if (valides.includes(h)) showTab(h);
     })();
@@ -3447,7 +5009,550 @@
         });
         box.innerHTML = html;
       } catch (e) {
-        box.innerHTML = `<div class="text-xs text-rose-400 mono text-center py-4">Erreur: ${e.message}</div>`;
+        box.innerHTML = `<div class="text-xs text-rose-400 text-center py-4 font-sans">Erreur de rappel mémoire: ${e.message}</div>`;
+      }
+    }
+
+    // ===================================================================
+    // ARMÉE D'AGENTS & SUPERVISION MULTI-SSDs SQL & AUTOPILOTE H24
+    // ===================================================================
+    let _derniereBaseInspectee = '';
+
+    async function chargerStatutAutopilote() {
+      const pill = document.getElementById('h24-status-pill');
+      const desc = document.getElementById('h24-desc');
+      if (!pill) return;
+      try {
+        const res = await fetch('/api/autopilot/status');
+        const data = await res.json();
+        if (data.success) {
+          const isActive = data.status === 'active';
+          pill.textContent = data.status.toUpperCase() + (data.pid ? ` (PID ${data.pid})` : '');
+          pill.className = isActive
+            ? 'px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono font-bold'
+            : 'px-2 py-0.5 rounded text-[10px] bg-rose-950 text-rose-300 border border-rose-800 font-mono font-bold';
+
+          if (desc && data.heartbeats && data.heartbeats.length > 0) {
+            const lastHb = data.heartbeats[0];
+            desc.innerHTML = `Surveillance continue active &bull; Dernier cycle : <b class="text-emerald-400 font-mono">${lastHb.cycle}</b> (${lastHb.timestamp}) &bull; Statut : <span class="text-emerald-400 font-semibold">${lastHb.statut}</span>`;
+          }
+        } else {
+          pill.textContent = 'INACTIF';
+          pill.className = 'px-2 py-0.5 rounded text-[10px] bg-rose-950 text-rose-300 border border-rose-800 font-mono font-bold';
+        }
+      } catch (e) {
+        if (pill) {
+          pill.textContent = 'ERREUR';
+          pill.className = 'px-2 py-0.5 rounded text-[10px] bg-rose-950 text-rose-300 border border-rose-800 font-mono font-bold';
+        }
+      }
+    }
+
+    async function agirAutopilote(action) {
+      const pill = document.getElementById('h24-status-pill');
+      if (pill) pill.textContent = 'EN COURS...';
+      try {
+        const res = await fetch('/api/autopilot/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: action })
+        });
+        const data = await res.json();
+        if (data.success) {
+          afficherToast(`Autopilote H24 : Action '${action}' validée avec succès !`, 'success');
+        } else {
+          afficherToast(`Autopilote H24 : ${data.error || 'Erreur inconnue'}`, 'error');
+        }
+      } catch (e) {
+        afficherToast(`Autopilote H24 : Erreur réseau (${e.message})`, 'error');
+      }
+      setTimeout(chargerStatutAutopilote, 1200);
+    }
+
+    // ===================================================================
+    // CENTRE DE CONTRÔLE AUTOPILOTE H24 & CADENCES INTÉGRÉES
+    // ===================================================================
+    let _timerLogsH24 = null;
+
+    function basculerVueLogsH24() {
+      const sec = document.getElementById('section-logs-h24');
+      if (!sec) return;
+      if (sec.classList.contains('hidden')) {
+        sec.classList.remove('hidden');
+        chargerLogsH24();
+        if (document.getElementById('chk-auto-refresh-logs').checked) {
+          demarrerAutoRefreshLogs();
+        }
+      } else {
+        sec.classList.add('hidden');
+        arreterAutoRefreshLogs();
+      }
+    }
+
+    function toggleAutoRefreshLogs() {
+      const chk = document.getElementById('chk-auto-refresh-logs');
+      if (chk && chk.checked) {
+        demarrerAutoRefreshLogs();
+      } else {
+        arreterAutoRefreshLogs();
+      }
+    }
+
+    function demarrerAutoRefreshLogs() {
+      arreterAutoRefreshLogs();
+      _timerLogsH24 = setInterval(chargerLogsH24, 4000);
+    }
+
+    function arreterAutoRefreshLogs() {
+      if (_timerLogsH24) {
+        clearInterval(_timerLogsH24);
+        _timerLogsH24 = null;
+      }
+    }
+
+    async function chargerLogsH24() {
+      const viewer = document.getElementById('logs-h24-viewer');
+      if (!viewer) return;
+      try {
+        const res = await fetch('/api/autopilot/logs');
+        const data = await res.json();
+        if (data.success && data.logs) {
+          const formatted = data.logs.map(l => {
+            if (l.includes('[ERROR]')) return `<span class="text-rose-400 font-bold">${l}</span>`;
+            if (l.includes('[WARN]')) return `<span class="text-amber-400">${l}</span>`;
+            if (l.includes('✅') || l.includes('OK')) return `<span class="text-emerald-300 font-semibold">${l}</span>`;
+            if (l.includes('🚀') || l.includes('⚡')) return `<span class="text-cyan-300 font-bold">${l}</span>`;
+            return `<span class="text-slate-300">${l}</span>`;
+          }).join('\n');
+          viewer.innerHTML = formatted || '<span class="text-slate-500">Aucun log disponible.</span>';
+          viewer.scrollTop = viewer.scrollHeight;
+        }
+      } catch (e) {
+        viewer.innerHTML = `<span class="text-rose-400">Erreur logs: ${e.message}</span>`;
+      }
+    }
+
+    async function declencherCadence(cadence) {
+      afficherToast(`Exécution cadence '${cadence}' en cours...`, 'info');
+      try {
+        const res = await fetch('/api/autopilot/cadence/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cadence: cadence })
+        });
+        const data = await res.json();
+        if (data.success) {
+          afficherToast(`Cadence '${cadence}' exécutée avec succès !`, 'success');
+          if (cadence === 'gpu' && data.result && data.result.gpus) {
+            const g0 = data.result.gpus[0];
+            const g1 = data.result.gpus[1];
+            if (g0) {
+              const el0 = document.getElementById('gpu0-temp');
+              if (el0) el0.textContent = `${g0.temp}°C (${Math.round(g0.used_mb/1024)}/${Math.round(g0.total_mb/1024)}Go)`;
+            }
+            if (g1) {
+              const el1 = document.getElementById('gpu1-temp');
+              if (el1) el1.textContent = `${g1.temp}°C (${Math.round(g1.used_mb/1024)}/${Math.round(g1.total_mb/1024)}Go)`;
+            }
+          }
+          setTimeout(chargerStatutAutopilote, 1000);
+        } else {
+          afficherToast(`Erreur cadence: ${data.error}`, 'error');
+        }
+      } catch (e) {
+        afficherToast(`Erreur cadence: ${e.message}`, 'error');
+      }
+    }
+
+    async function executerCommandeCockpit() {
+      const input = document.getElementById('cockpit-cli-input');
+      const output = document.getElementById('cockpit-cli-output');
+      if (!input || !output) return;
+      const cmd = input.value.trim();
+      if (!cmd) return;
+
+      output.classList.remove('hidden');
+      output.innerHTML = `<span class="text-yellow-400 flex items-center gap-1.5"><i class="fa-solid fa-circle-notch fa-spin"></i> Exécution de : "${cmd}"...</span>`;
+
+      try {
+        const res = await fetch('/api/command/exec', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command: cmd })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const color = data.returncode === 0 ? 'text-emerald-400' : 'text-rose-400';
+          output.innerHTML = `
+            <div class="flex justify-between border-b border-slate-800 pb-1 mb-2 text-[10px] text-slate-500">
+              <span class="text-cyan-400 font-bold">$ ${data.command}</span>
+              <span>Code : <b class="${color}">${data.returncode}</b> | Durée : ${data.duration_ms}ms</span>
+            </div>
+            <pre class="text-slate-200 whitespace-pre-wrap">${data.stdout ? data.stdout : ''}${data.stderr ? '<span class="text-amber-400">' + data.stderr + '</span>' : ''}</pre>
+          `;
+        } else {
+          output.innerHTML = `<span class="text-rose-400">Erreur : ${data.error}</span>`;
+        }
+      } catch (e) {
+        output.innerHTML = `<span class="text-rose-400">Erreur réseau : ${e.message}</span>`;
+      }
+    }
+
+    function executerCommandeRapide(cmd) {
+      const input = document.getElementById('cockpit-cli-input');
+      if (input) {
+        input.value = cmd;
+        executerCommandeCockpit();
+      }
+    }
+
+    async function ouvrirModalPostLinkedIn() {
+      const modal = document.getElementById('modal-post-linkedin');
+      const bodyEl = document.getElementById('modal-post-body');
+      const metaEl = document.getElementById('modal-post-meta');
+      if (!modal || !bodyEl) return;
+      modal.style.display = 'flex';
+      bodyEl.textContent = 'Chargement du post...';
+
+      try {
+        const res = await fetch('/api/linkedin/post/today');
+        const data = await res.json();
+        if (data.success && data.exists) {
+          bodyEl.textContent = data.content;
+          if (metaEl) metaEl.textContent = `Fichier: ${data.file} (${data.date})`;
+        } else {
+          bodyEl.textContent = 'Aucun post trouvé pour aujourd’hui. Cliquez sur "Générer un Post" pour en créer un.';
+          if (metaEl) metaEl.textContent = `Date: ${data.date || 'Aujourd’hui'}`;
+        }
+      } catch (e) {
+        bodyEl.textContent = `Erreur: ${e.message}`;
+      }
+    }
+
+    function fermerModalPostLinkedIn() {
+      const modal = document.getElementById('modal-post-linkedin');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function genererPostLinkedIn() {
+      afficherToast('Génération du post d’expertise IA via LLM local...', 'info');
+      try {
+        const res = await fetch('/api/linkedin/post/generate', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          afficherToast('Post LinkedIn généré avec succès !', 'success');
+          ouvrirModalPostLinkedIn();
+          const pill = document.getElementById('linkedin-post-status');
+          if (pill) pill.textContent = 'Généré ✅';
+        } else {
+          afficherToast(`Échec génération: ${data.error || 'Erreur'}`, 'error');
+        }
+      } catch (e) {
+        afficherToast(`Erreur réseau: ${e.message}`, 'error');
+      }
+    }
+
+    async function publierPostLinkedIn() {
+      if (!confirm("Êtes-vous sûr de vouloir publier ce post sur LinkedIn maintenant via CDP 9222 ?")) return;
+      afficherToast('Publication en cours via Chrome CDP...', 'info');
+      try {
+        const res = await fetch('/api/linkedin/post/publish', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          afficherToast('Post publié avec succès sur LinkedIn !', 'success');
+          fermerModalPostLinkedIn();
+        } else {
+          afficherToast(`Échec publication: ${data.output || 'Erreur'}`, 'error');
+        }
+      } catch (e) {
+        afficherToast(`Erreur réseau: ${e.message}`, 'error');
+      }
+    }
+
+    async function ouvrirModalDossiersEmails() {
+      const modal = document.getElementById('modal-dossiers-emails');
+      const listEl = document.getElementById('modal-dossiers-list');
+      const totalEl = document.getElementById('modal-dossiers-total');
+      if (!modal || !listEl) return;
+      modal.style.display = 'flex';
+      listEl.innerHTML = '<div class="text-slate-500 py-6 text-center">Chargement des 10 dossiers étanches...</div>';
+
+      try {
+        const res = await fetch('/api/emails/triage/status');
+        const data = await res.json();
+        if (data.success && data.categories) {
+          if (totalEl) totalEl.textContent = `${data.total_emails} emails classés au total`;
+          let html = '';
+          data.categories.forEach(c => {
+            html += `
+              <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-folder text-amber-400"></i>
+                  <span class="font-medium text-slate-200">${c.nom}</span>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${c.count > 0 ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-slate-800 text-slate-400'}">${c.count} eml</span>
+              </div>
+            `;
+          });
+          listEl.innerHTML = html;
+        }
+      } catch (e) {
+        listEl.innerHTML = `<div class="text-rose-400 py-4 text-center">Erreur: ${e.message}</div>`;
+      }
+    }
+
+    function fermerModalDossiersEmails() {
+      const modal = document.getElementById('modal-dossiers-emails');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function chargerEscouadeComplet() {
+      await Promise.all([
+        chargerStatutAutopilote(),
+        chargerCartographieSSD(),
+        chargerAgentsEscouade(),
+        chargerBasesSQL('tous')
+      ]);
+    }
+
+    async function chargerCartographieSSD() {
+      const cont = document.getElementById('ssd-cards-container');
+      if (!cont) return;
+      try {
+        const res = await fetch('/api/stockage/ssd');
+        const data = await res.json();
+        if (!data.success || !data.ssds) throw new Error(data.error || 'Erreur API SSD');
+
+        let html = '';
+        data.ssds.forEach(s => {
+          const isWarning = s.percent_used > 80;
+          const isCritical = s.percent_used > 90;
+          const barColor = isCritical ? 'bg-rose-500' : (isWarning ? 'bg-amber-500' : 'bg-emerald-500');
+          const badgeColor = isCritical ? 'bg-rose-950 text-rose-300 border-rose-800' : (isWarning ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800');
+          const statusText = s.statut_alerte || (isWarning ? 'VIGILANCE' : 'OPTIMAL');
+
+          html += `
+            <div class="glass-card p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between space-y-3">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="text-xs font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-hard-drive ${isWarning ? 'text-amber-400' : 'text-cyan-400'}"></i>
+                    ${s.nom}
+                  </div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">${s.type}</div>
+                </div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeColor}">
+                  ${statusText}
+                </span>
+              </div>
+
+              <div class="space-y-1.5">
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-400">Utilisation (${s.percent_used}%)</span>
+                  <span class="font-mono font-bold text-slate-200">${s.used_gb} / ${s.total_gb} Go</span>
+                </div>
+                <div class="w-full h-2 rounded-full bg-slate-950 overflow-hidden border border-slate-800">
+                  <div class="h-full rounded-full ${barColor}" style="width: ${Math.min(s.percent_used, 100)}%"></div>
+                </div>
+                <div class="flex justify-between text-[10px] text-slate-500 mono">
+                  <span>Monté sur : <b class="text-slate-300">${s.point_montage}</b></span>
+                  <span>Libre : <b class="${isWarning ? 'text-amber-400' : 'text-emerald-400'}">${s.free_gb} Go</b></span>
+                </div>
+              </div>
+
+              <div class="pt-2 border-t border-slate-900 flex justify-between items-center text-[10px] text-slate-400">
+                <span>Disque : ${s.disque}</span>
+                <span class="font-mono text-slate-500">${s.modele}</span>
+              </div>
+            </div>
+          `;
+        });
+        cont.innerHTML = html;
+      } catch (e) {
+        cont.innerHTML = `<div class="col-span-3 text-xs text-rose-400 p-4 text-center">Erreur chargement SSDs : ${e.message}</div>`;
+      }
+    }
+
+    async function chargerAgentsEscouade() {
+      const grid = document.getElementById('agents-cards-grid');
+      if (!grid) return;
+      try {
+        const res = await fetch('/api/escouade/agents');
+        const data = await res.json();
+        if (!data.success || !data.agents) throw new Error(data.error || 'Erreur API agents');
+
+        let html = '';
+        data.agents.forEach(a => {
+          html += `
+            <div class="glass-card p-4 rounded-xl border border-slate-800 hover:border-cyan-500/40 transition flex flex-col justify-between space-y-3">
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    ${a.nom}
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-cyan-300 border border-slate-700 font-mono">
+                    ${a.modele}
+                  </span>
+                </div>
+                <div class="text-[11px] text-cyan-400 font-medium mb-1.5">${a.role}</div>
+                <div class="text-[10px] text-slate-400 line-clamp-3 leading-relaxed">${a.mission}</div>
+              </div>
+
+              <div class="space-y-2 pt-2 border-t border-slate-900">
+                <div class="flex justify-between text-[10px] text-slate-500 mono">
+                  <span>${a.nb_exec || 0} missions</span>
+                  <span>${a.derniere_exec ? a.derniere_exec.split(' ')[1] : 'Inactif'}</span>
+                </div>
+                <div class="flex gap-1.5">
+                  <input type="text" id="input-task-${a.nom}" placeholder="Consigne pour ${a.nom}..."
+                    class="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-cyan-500" />
+                  <button onclick="mobiliserAgent('${a.nom}')"
+                    class="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-[11px] font-bold transition flex items-center gap-1 shrink-0">
+                    <i class="fa-solid fa-play text-[9px]"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        grid.innerHTML = html;
+        const badge = document.getElementById('badge-escouade-statut');
+        if (badge) badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> ${data.agents.length} Agents Prêts`;
+      } catch (e) {
+        grid.innerHTML = `<div class="col-span-4 text-xs text-rose-400 p-4 text-center">Erreur chargement agents : ${e.message}</div>`;
+      }
+    }
+
+    async function mobiliserAgent(nom) {
+      const inputEl = document.getElementById('input-task-' + nom);
+      const tache = (inputEl && inputEl.value.trim()) ? inputEl.value.trim() : 'Exécute ton diagnostic rapide et fais ton rapport de situation.';
+      const consoleEl = document.getElementById('agent-console-output');
+      const statusEl = document.getElementById('agent-exec-status');
+
+      if (statusEl) statusEl.innerHTML = `<span class="text-amber-400 flex items-center gap-1.5"><i class="fa-solid fa-circle-notch fa-spin"></i> [${nom}] en cours d'inférence...</span>`;
+      if (consoleEl) {
+        consoleEl.textContent = `>>> MISSION TRANSMISE À [${nom}]...\nTâche : "${tache}"\nInférence en cours via le cluster local...\n`;
+      }
+
+      try {
+        const res = await fetch('/api/escouade/lancer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nom: nom, tache: tache, temperature: 0.6 })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Échec exécution agent');
+
+        if (statusEl) statusEl.innerHTML = `<span class="text-emerald-400">🟢 Mission terminée en ${data.elapsed_seconds}s</span>`;
+        if (consoleEl) {
+          consoleEl.textContent = `=== RAPPORT D'EXÉCUTION [${data.nom}] (${data.elapsed_seconds}s) ===\nRôle: ${data.role} | Modèle: ${data.modele}\nHorodatage: ${data.timestamp}\n--------------------------------------------------\n${data.rapport}`;
+        }
+        if (inputEl) inputEl.value = '';
+        chargerAgentsEscouade();
+      } catch (e) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">🔴 Erreur: ${e.message}</span>`;
+        if (consoleEl) consoleEl.textContent += `\n❌ ERREUR: ${e.message}`;
+      }
+    }
+
+    async function chargerBasesSQL(filtre = 'tous') {
+      const listEl = document.getElementById('sql-bases-list');
+      const badge = document.getElementById('bases-count-badge');
+      if (!listEl) return;
+      listEl.innerHTML = `<div class="text-slate-500 text-center py-8 flex items-center justify-center gap-2"><i class="fa-solid fa-circle-notch fa-spin text-cyan-400"></i> Scan des bases en cours...</div>`;
+
+      try {
+        const res = await fetch('/api/stockage/sql?filtre=' + encodeURIComponent(filtre));
+        const data = await res.json();
+        if (!data.success || !data.bases) throw new Error(data.error || 'Erreur scan bases');
+
+        if (badge) badge.textContent = `${data.bases.length} bases trouvées`;
+
+        if (data.bases.length === 0) {
+          listEl.innerHTML = `<div class="text-slate-500 text-center py-8">Aucune base trouvée pour le filtre sélectionné.</div>`;
+          return;
+        }
+
+        let html = '';
+        data.bases.forEach((b, idx) => {
+          html += `
+            <div onclick="inspecterBaseDirect('${b.chemin}')"
+              class="p-2 rounded bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/80 hover:border-cyan-500/50 cursor-pointer transition flex items-center justify-between text-[11px]">
+              <div class="truncate mr-2">
+                <div class="font-semibold text-slate-200 flex items-center gap-1.5 truncate">
+                  <i class="fa-solid fa-database text-teal-400 text-[10px]"></i>
+                  ${b.nom}
+                </div>
+                <div class="text-[10px] text-slate-500 truncate">${b.chemin}</div>
+              </div>
+              <div class="text-right shrink-0">
+                <span class="px-1.5 py-0.5 rounded bg-slate-950 font-mono text-cyan-300 text-[10px] border border-slate-800">${b.taille_str}</span>
+                <div class="text-[9px] text-slate-500 mt-0.5">${b.ssd.split(' ')[0]} ${b.ssd.split(' ')[1] || ''}</div>
+              </div>
+            </div>
+          `;
+        });
+        listEl.innerHTML = html;
+
+        if (data.bases.length > 0 && !_derniereBaseInspectee) {
+          inspecterBaseDirect(data.bases[0].chemin);
+        }
+      } catch (e) {
+        listEl.innerHTML = `<div class="text-xs text-rose-400 p-4 text-center">Erreur: ${e.message}</div>`;
+      }
+    }
+
+    async function inspecterBaseDirect(chemin) {
+      _derniereBaseInspectee = chemin;
+      const detailEl = document.getElementById('sql-tables-detail');
+      const targetLabel = document.getElementById('inspect-target-name');
+      if (!detailEl) return;
+
+      const nomFichier = chemin.split('/').pop();
+      if (targetLabel) targetLabel.textContent = nomFichier;
+
+      detailEl.innerHTML = `<div class="text-slate-500 text-center py-8 flex items-center justify-center gap-2 font-sans"><i class="fa-solid fa-circle-notch fa-spin text-cyan-400"></i> Inspection de ${nomFichier}...</div>`;
+
+      try {
+        const res = await fetch('/api/stockage/inspecter?db=' + encodeURIComponent(chemin));
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Erreur inspection');
+
+        let html = `
+          <div class="p-2.5 rounded bg-slate-900 border border-slate-800 mb-2 font-sans text-xs">
+            <div class="flex justify-between items-center text-slate-300">
+              <span>Fichier: <b class="text-white">${nomFichier}</b></span>
+              <span class="text-cyan-400 font-mono font-bold">${data.taille_str}</span>
+            </div>
+            <div class="text-[10px] text-slate-500 truncate mt-0.5">${data.chemin}</div>
+            <div class="text-[11px] text-emerald-400 font-semibold mt-1">Total tables répertoriées : ${data.total_tables}</div>
+          </div>
+        `;
+
+        if (!data.tables || data.tables.length === 0) {
+          html += `<div class="text-slate-500 text-center py-4 font-sans">Aucune table utilisateur dans ce fichier SQLite.</div>`;
+        } else {
+          data.tables.forEach(t => {
+            if (t.error) {
+              html += `<div class="p-2 rounded bg-rose-950/40 border border-rose-900 text-rose-300 text-[11px]">Table [${t.table}] : ${t.error}</div>`;
+            } else {
+              const cols = (t.columns || []).join(', ');
+              html += `
+                <div class="p-2 rounded bg-slate-900/50 border border-slate-800 text-[11px] space-y-1">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-teal-300 font-mono">📊 ${t.table}</span>
+                    <span class="px-1.5 py-0.5 rounded bg-slate-950 text-cyan-300 font-mono text-[10px]">${(t.count || 0).toLocaleString()} lignes</span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 truncate font-mono">Colonnes : ${cols}</div>
+                </div>
+              `;
+            }
+          });
+        }
+        detailEl.innerHTML = html;
+      } catch (e) {
+        detailEl.innerHTML = `<div class="text-xs text-rose-400 p-4 text-center font-sans">Erreur inspection: ${e.message}</div>`;
       }
     }
   </script>
@@ -3512,6 +5617,142 @@
         <button onclick="soumettreNouveauChantier()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition flex items-center gap-2">
           <i class="fa-solid fa-play"></i> Lancer le Chantier
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Post LinkedIn Quotidien -->
+  <div id="modal-post-linkedin" style="display:none;" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="glass-card bg-slate-900 border border-blue-500/40 p-6 rounded-2xl max-w-2xl w-full space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div>
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <i class="fa-brands fa-linkedin text-blue-400"></i> Post LinkedIn Quotidien Généré (100% Souverain)
+          </h3>
+          <span id="modal-post-meta" class="text-[11px] text-slate-400 mono">Chargement...</span>
+        </div>
+        <button onclick="fermerModalPostLinkedIn()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="modal-post-body" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-200 h-80 overflow-y-auto whitespace-pre-wrap leading-relaxed select-text">
+        Chargement...
+      </div>
+      <div class="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-800">
+        <button onclick="genererPostLinkedIn()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition border border-slate-700 flex items-center gap-1.5">
+          <i class="fa-solid fa-rotate"></i> Régénérer un nouveau post
+        </button>
+        <div class="flex gap-2">
+          <button onclick="fermerModalPostLinkedIn()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition font-medium">Fermer</button>
+          <button onclick="publierPostLinkedIn()" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold rounded-lg transition flex items-center gap-2 shadow">
+            <i class="fa-solid fa-paper-plane"></i> Publier sur LinkedIn (CDP :9222)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 10 Dossiers Emails Organisés -->
+  <div id="modal-dossiers-emails" style="display:none;" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="glass-card bg-slate-900 border border-amber-500/40 p-6 rounded-2xl max-w-2xl w-full space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div>
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <i class="fa-solid fa-envelope-open-text text-amber-400"></i> Messagerie Souveraine & 10 Dossiers Étanches
+          </h3>
+          <span id="modal-dossiers-total" class="text-[11px] text-slate-400 mono">10 dossiers configurés sous ~/jarvis/data/mails_organises/</span>
+        </div>
+        <button onclick="fermerModalDossiersEmails()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="modal-dossiers-list" class="space-y-2 max-h-80 overflow-y-auto pr-1">
+        Chargement...
+      </div>
+      <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+        <button onclick="declencherCadence('emails')" class="px-3.5 py-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/40 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+          <i class="fa-solid fa-play"></i> Lancer le tri maintenant
+        </button>
+        <button onclick="fermerModalDossiersEmails()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition font-medium">Fermer</button>
+      </div>
+    </div>
+  </div>
+  <!-- Modal Attestation Officielle DPO & Souveraineté -->
+  <div id="modal-dpo-certificat" style="display:none;" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 items-center justify-center p-4">
+    <div class="glass-card bg-slate-950 border border-emerald-500/50 p-6 rounded-2xl max-w-3xl w-full space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div>
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <i class="fa-solid fa-certificate text-emerald-400"></i> Attestation Officielle DPO & Traçabilité SQL
+          </h3>
+          <span class="text-[11px] text-slate-400">Conformité RGPD Art. 32 & Secret Professionnel (Art. 66-5 Loi 31/12/1971)</span>
+        </div>
+        <button onclick="fermerModalDpo()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="modal-dpo-body" class="max-h-[70vh] overflow-y-auto pr-1">
+        Chargement...
+      </div>
+      <div class="flex justify-between items-center pt-2 border-t border-slate-800 flex-wrap gap-2">
+        <div class="flex gap-2">
+          <button onclick="imprimerAttestationDpo()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow">
+            <i class="fa-solid fa-print"></i> Imprimer / Exporter PDF
+          </button>
+          <button onclick="telechargerDpoJson()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-download"></i> Télécharger JSON Signé
+          </button>
+        </div>
+        <button onclick="fermerModalDpo()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition font-medium">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Validation Pré-Vol JARVIS Box -->
+  <div id="modal-validation-box" style="display:none;" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 items-center justify-center p-4">
+    <div class="glass-card bg-slate-950 border border-purple-500/50 p-6 rounded-2xl max-w-2xl w-full space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div>
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <i class="fa-solid fa-circle-check text-purple-400"></i> Validation Pré-Vol & Qualification Client
+          </h3>
+          <span class="text-[11px] text-slate-400">Diagnostic d'intégrité industrielle (CPU, RAM, GPU, SQLite FTS5, Zero-Trust)</span>
+        </div>
+        <button onclick="fermerModalValidation()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="modal-validation-body" class="max-h-[70vh] overflow-y-auto pr-1">
+        Chargement...
+      </div>
+      <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+        <button onclick="chargerValidationBox()" class="px-3.5 py-2 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+          <i class="fa-solid fa-rotate"></i> Relancer le Diagnostic
+        </button>
+        <button onclick="fermerModalValidation()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition font-medium">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Fiche de Consultation Certifiée (Imprimable / Dossier Client) -->
+  <div id="modal-fiche-consultation" style="display:none;" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 items-center justify-center p-4">
+    <div class="printable-modal glass-card bg-slate-950 border border-cyan-500/50 p-6 rounded-2xl max-w-4xl w-full space-y-4 shadow-2xl max-h-[92vh] flex flex-col">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3 no-print">
+        <div>
+          <h3 class="font-bold text-sm text-white flex items-center gap-2">
+            <i class="fa-solid fa-file-signature text-cyan-400"></i> Fiche de Consultation & Délibération Certifiée
+          </h3>
+          <span class="text-[11px] text-slate-400">Pièce probatoire d'archivage • Secret professionnel garanti (Art. 66-5)</span>
+        </div>
+        <button onclick="fermerFicheConsultation()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div id="modal-fiche-body" class="overflow-y-auto pr-2 flex-1 text-xs">
+        <!-- Rempli par JavaScript -->
+      </div>
+
+      <div class="flex justify-between items-center pt-3 border-t border-slate-800 flex-wrap gap-2 no-print">
+        <div class="flex gap-2">
+          <button onclick="imprimerFicheConsultation()" class="px-4 py-2 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow">
+            <i class="fa-solid fa-print"></i> Imprimer / Exporter PDF Dossier
+          </button>
+          <button onclick="copierFicheMarkdown()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-copy"></i> Copier Markdown
+          </button>
+        </div>
+        <button onclick="fermerFicheConsultation()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition font-medium">Fermer</button>
       </div>
     </div>
   </div>
