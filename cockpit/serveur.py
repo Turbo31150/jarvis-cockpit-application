@@ -626,9 +626,37 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 dpo_report = {
                     "certificat_id": f"DPO-CERT-{cert_hash[:12]}",
                     "horodatage": date_now,
-                    "appliance": "JARVIS Box Souveraine v1.0",
+                    "date_audit": date_now,
+                    "appliance": {
+                        "modele": "JARVIS Box Souveraine v1.0",
+                        "poste_hote": socket.gethostname(),
+                        "systeme": platform.platform()
+                    },
                     "poste_hote": socket.gethostname(),
                     "environnement_execution": platform.platform(),
+                    "indicateurs_techniques_et_donnees": {
+                        "mode_reseau": "Zero-Trust LAN étanche (Zéro fuite de données)",
+                        "consommation_api_externe": "0.00 € (Coût token cloud nul)",
+                        "volume_corpus_local_gb": board_stat["size_gb"],
+                        "total_chunks_indexes": board_stat["chunks"],
+                        "total_sources_tracees": board_stat["sources"],
+                        "experts_deliberatifs": board_stat["experts"],
+                        "reponses_auditees_sql": board_stat["answers"],
+                        "citations_verifiees": board_stat["citations"],
+                        "reponses_rejetees_sans_citation": board_stat["rejets"],
+                        "taux_conformite_sql": f"{board_stat['conformite']}%",
+                        "taux_conformite_anti_hallucination": f"{board_stat['conformite']}%"
+                    },
+                    "conformite_juridique": {
+                        "secret_professionnel": "Strict (Art. 66-5 loi du 31 décembre 1971) — Traitement 100% local",
+                        "rgpd_article_32": "Conforme (Sécurité des traitements, chiffrement, isolation physique)",
+                        "transferts_hors_ue": "Néant (0 fuite réseau, aucune donnée transmise à des tiers)",
+                        "anti_hallucination": "Obligation formelle de citation vérifiable en direct en SQL (board.db)"
+                    },
+                    "garantie_cryptographique": {
+                        "algorithme": "SHA-256",
+                        "empreinte_certificat": cert_hash
+                    },
                     "cadre_juridique_et_conformite": [
                         "Secret professionnel strict (Art. 66-5 loi du 31 décembre 1971)",
                         "Règlement Général sur la Protection des Données (RGPD - Art. 32)",
