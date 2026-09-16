@@ -6,6 +6,7 @@ Gère l'état, les lanceurs, les tests audio, les workflows et l'intégration co
 """
 
 import os
+import re
 import sys
 import json
 import socket
@@ -13,6 +14,17 @@ import tempfile
 import subprocess
 from pathlib import Path
 from datetime import datetime
+
+try:
+    from .platform_compat import (
+        IS_WINDOWS, which, run_cmd, run_shell_script, record_audio_wav, process_running,
+        find_browser, popen_detached, local_listening_ports, unavailable,
+    )
+except ImportError:  # exécution directe (python voice_flow_engine.py)
+    from platform_compat import (
+        IS_WINDOWS, which, run_cmd, run_shell_script, record_audio_wav, process_running,
+        find_browser, popen_detached, local_listening_ports, unavailable,
+    )
 
 JARVIS_DIR = Path(os.path.expanduser("~/jarvis"))
 SCRIPTS_DIR = JARVIS_DIR / "scripts"
@@ -22,6 +34,11 @@ N8N_DIR = JARVIS_DIR / "n8n_workflows"
 
 
 def is_port_listening(port: int, host: str = "127.0.0.1", timeout: float = 0.3) -> bool:
+    if IS_WINDOWS and host in ("127.0.0.1", "localhost", "::1"):
+        # Windows : port loopback fermé = timeout brûlé → table LISTEN psutil (2 ms)
+        ports = local_listening_ports()
+        if ports:
+            return int(port) in ports
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(timeout)
@@ -30,6 +47,29 @@ def is_port_listening(port: int, host: str = "127.0.0.1", timeout: float = 0.3) 
         return r == 0
     except Exception:
         return False
+
+
+def _process_name_running(pattern: str) -> bool:
+    """Windows : équivalent allégé de `pgrep -f` limité au NOM des exécutables.
+    psutil.process_iter(['name']) coûte ~12 ms contre ~2 s avec la ligne de
+    commande complète (mesuré : 316 processus) — indispensable pour un statut
+    rafraîchi périodiquement. Repli process_running() (complet) si psutil manque."""
+    try:
+        import psutil
+    except ImportError:
+        return process_running(pattern)
+    try:
+        rx = re.compile(pattern, re.IGNORECASE)
+        me = os.getpid()
+        for proc in psutil.process_iter(["name"]):
+            if proc.pid == me:
+                continue
+            name = proc.info.get("name") or ""
+            if name and rx.search(name):
+                return True
+    except Exception:
+        pass
+    return False
 
 
 def get_whisper_status() -> dict:
@@ -42,7 +82,10 @@ def get_whisper_status() -> dict:
     except ImportError:
         pass
 
-    has_arecord = subprocess.run("which arecord", shell=True, capture_output=True).returncode == 0
+    if IS_WINDOWS:
+        has_arecord = False  # arecord (ALSA) n'existe pas sous Windows ; which() évite un cmd.exe
+    else:
+        has_arecord = subprocess.run("which arecord", shell=True, capture_output=True).returncode == 0
 
     return {
         "active": port_9743 or port_9742 or has_faster_whisper,
@@ -62,38 +105,50 @@ def record_and_transcribe(duration: int = 5, model_size: str = "distil-large-v3"
     wav_path = tmp_wav.name
 
     try:
-        rec_cmd = f"arecord -D default -f S16_LE -r 16000 -c 1 -d {duration} '{wav_path}'"
-        res_rec = subprocess.run(rec_cmd, shell=True, capture_output=True, text=True, timeout=duration + 3)
-        if res_rec.returncode != 0 or not os.path.exists(wav_path) or os.path.getsize(wav_path) < 1000:
-            return {"success": False, "error": f"Erreur enregistrement micro: {res_rec.stderr or 'Fichier audio vide'}"}
+        if IS_WINDOWS:
+            # Windows : ffmpeg -f dshow (si présent) sinon message « indisponible » propre
+            ok_rec, err_rec = record_audio_wav(wav_path, duration, rate=16000)
+            if not ok_rec or not os.path.exists(wav_path) or os.path.getsize(wav_path) < 1000:
+                return unavailable("Enregistrement micro (arecord)", error=f"Erreur enregistrement micro: {err_rec or 'Fichier audio vide'}")
+        else:
+            rec_cmd = f"arecord -D default -f S16_LE -r 16000 -c 1 -d {duration} '{wav_path}'"
+            res_rec = subprocess.run(rec_cmd, shell=True, capture_output=True, text=True, timeout=duration + 3)
+            if res_rec.returncode != 0 or not os.path.exists(wav_path) or os.path.getsize(wav_path) < 1000:
+                return {"success": False, "error": f"Erreur enregistrement micro: {res_rec.stderr or 'Fichier audio vide'}"}
 
         lumen_cli = LUMEN_DIR / "lumen-cli.sh"
         if lumen_cli.exists() and os.access(str(lumen_cli), os.X_OK):
-            cmd_trans = f"bash '{lumen_cli}' record-file '{wav_path}'"
-            res_trans = subprocess.run(cmd_trans, shell=True, capture_output=True, text=True, timeout=30)
-            text = res_trans.stdout.strip()
+            if IS_WINDOWS:
+                # Uniquement via Git bash (jamais « bash » nu = lanceur WSL) ; None → on saute
+                res_trans = run_shell_script(str(lumen_cli), ["record-file", wav_path], timeout=30)
+                text = res_trans.stdout.strip() if res_trans is not None else ""
+            else:
+                cmd_trans = f"bash '{lumen_cli}' record-file '{wav_path}'"
+                res_trans = subprocess.run(cmd_trans, shell=True, capture_output=True, text=True, timeout=30)
+                text = res_trans.stdout.strip()
             if text:
                 return {"success": True, "text": text, "duration": duration, "source": "lumen-cli"}
 
+        # repr() : les chemins Windows contiennent des « \ » qui casseraient la f-string
         py_script = f"""
 import sys
 try:
     from faster_whisper import WhisperModel
-    model = WhisperModel('{model_size}', device='cuda', compute_type='float16')
-    segments, _ = model.transcribe('{wav_path}', language='{lang}', vad_filter=True)
+    model = WhisperModel({model_size!r}, device='cuda', compute_type='float16')
+    segments, _ = model.transcribe({wav_path!r}, language={lang!r}, vad_filter=True)
     text = ' '.join([s.text for s in segments]).strip()
     print(text)
 except Exception as e:
     try:
         from faster_whisper import WhisperModel
-        model = WhisperModel('{model_size}', device='cpu', compute_type='int8')
-        segments, _ = model.transcribe('{wav_path}', language='{lang}', vad_filter=True)
+        model = WhisperModel({model_size!r}, device='cpu', compute_type='int8')
+        segments, _ = model.transcribe({wav_path!r}, language={lang!r}, vad_filter=True)
         text = ' '.join([s.text for s in segments]).strip()
         print(text)
     except Exception as e2:
         print(f"ERREUR: {{e2}}", file=sys.stderr)
 """
-        res = subprocess.run([sys.executable, "-c", py_script], capture_output=True, text=True, timeout=40)
+        res = run_cmd([sys.executable, "-c", py_script], timeout=40)
         out_text = res.stdout.strip()
         if out_text:
             return {"success": True, "text": out_text, "duration": duration, "source": "faster-whisper-python"}
@@ -112,8 +167,11 @@ except Exception as e:
 
 def get_flo_status() -> dict:
     wf_exists = WHISPERFLOW_DIR.exists()
-    res_ps = subprocess.run("pgrep -f 'whisperflow|electron' || true", shell=True, capture_output=True, text=True)
-    is_running = bool(res_ps.stdout.strip())
+    if IS_WINDOWS:
+        is_running = _process_name_running("whisperflow|electron")  # pgrep -f allégé (noms d'exe)
+    else:
+        res_ps = subprocess.run("pgrep -f 'whisperflow|electron' || true", shell=True, capture_output=True, text=True)
+        is_running = bool(res_ps.stdout.strip())
 
     workflows = []
     if N8N_DIR.exists():
@@ -139,8 +197,15 @@ def launch_whisperflow_ui() -> dict:
         if not html_file.exists():
             html_file = WHISPERFLOW_DIR / "index.html"
 
-        cmd = ["google-chrome", f"--app=file://{html_file.resolve()}", "--window-size=450,600"]
-        proc = subprocess.Popen(cmd, start_new_session=True)
+        if IS_WINDOWS:
+            navigateur = find_browser()  # chrome.exe / msedge.exe
+            if not navigateur:
+                return unavailable("Interface WhisperFlow (aucun navigateur Chrome/Edge trouvé)")
+            cmd = [navigateur, f"--app={html_file.resolve().as_uri()}", "--window-size=450,600"]
+            proc = popen_detached(cmd)
+        else:
+            cmd = ["google-chrome", f"--app=file://{html_file.resolve()}", "--window-size=450,600"]
+            proc = subprocess.Popen(cmd, start_new_session=True)
         return {"success": True, "pid": proc.pid, "message": "Interface WhisperFlow lancée avec succès"}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -186,7 +251,12 @@ def toggle_lumen_mic() -> dict:
     if not script.exists():
         return {"success": False, "error": "Script lumen-toggle-mic.sh absent"}
     try:
-        res = subprocess.run(["bash", str(script)], capture_output=True, text=True, timeout=8)
+        if IS_WINDOWS:
+            res = run_shell_script(str(script), timeout=8)
+            if res is None:
+                return unavailable("Toggle micro Lumen (script bash du rig)")
+        else:
+            res = subprocess.run(["bash", str(script)], capture_output=True, text=True, timeout=8)
         return {"success": True, "output": res.stdout.strip(), "message": "Toggle micro déclenché"}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -197,7 +267,12 @@ def lumen_summarize_clipboard() -> dict:
     if not cli.exists():
         return {"success": False, "error": "lumen-cli.sh introuvable"}
     try:
-        res = subprocess.run(["bash", str(cli), "summarize"], capture_output=True, text=True, timeout=25)
+        if IS_WINDOWS:
+            res = run_shell_script(str(cli), ["summarize"], timeout=25)
+            if res is None:
+                return unavailable("Résumé presse-papiers Lumen (script bash du rig)")
+        else:
+            res = subprocess.run(["bash", str(cli), "summarize"], capture_output=True, text=True, timeout=25)
         out = res.stdout.strip()
         return {"success": True, "summary": out or "Presse-papiers résumé avec succès"}
     except Exception as e:
@@ -209,6 +284,9 @@ def lumen_inject_cursor() -> dict:
     if not script.exists():
         return {"success": False, "error": "lumen-inject-cursor.sh introuvable"}
     try:
+        if IS_WINDOWS:
+            # Dépend de xdotool/wtype (X11/Wayland) : sans objet sous Windows
+            return unavailable("Injection au curseur Lumen (xdotool/wtype)")
         res = subprocess.run(["bash", str(script)], capture_output=True, text=True, timeout=5)
         return {"success": True, "message": "Transcription injectée au curseur"}
     except Exception as e:

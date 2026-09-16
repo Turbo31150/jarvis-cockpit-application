@@ -41,7 +41,26 @@ try:
 except ImportError:
     import jarvis_config
 
-import terminaux
+# Couche de compatibilité Linux rig ⇄ Windows 11 : shells (jamais 'bash' nu
+# sous Windows = WSL), interpréteur, RAM/CPU, dossier Bureau, jointure sûre des
+# chemins statiques, flux UTF-8. Le chemin Linux reste celui du rig.
+from core.platform_compat import (
+    IS_WINDOWS, run_cmd, run_shell, launch_detached, python_exe, bash_exe,
+    get_mem_info_mb, get_cpu_temp_c, user_desktop_dir, safe_join, cockpit_root,
+    tmux_available, unavailable, ensure_utf8_stdio,
+)
+
+# terminaux.py (PTY + tmux) importe pty/fcntl/termios au niveau module :
+# introuvables sous Windows → le serveur ne démarrait pas du tout. Import gardé :
+# router_terminal répond 501 « indisponible sous Windows » quand terminaux is None.
+try:
+    import terminaux
+except ImportError as _e_term:
+    terminaux = None
+    _TERMINAUX_ERREUR = f"{type(_e_term).__name__}: {_e_term}"
+else:
+    _TERMINAUX_ERREUR = ""
+
 from core.config import (M6_HOST, M6_PORT, MASTER_DB, BOARD_DB,
                          CONTENT_DIR, JARVIS_DIR)
 from core.database import (
@@ -75,9 +94,15 @@ from core.escouade_engine import (
 
 
 PORT = int(os.environ.get("COCKPIT_PORT", "8600"))
+# COCKPIT_BIND : 0.0.0.0 par défaut (inchangé : PWA mobile S9 via tether/Tailscale) ;
+# 127.0.0.1 possible sous Windows pour éviter la demande du Pare-feu.
+BIND = os.environ.get("COCKPIT_BIND", "0.0.0.0")
 M6_URL = f"http://{M6_HOST}:{M6_PORT}"
 OL_URL = "http://127.0.0.1:11434"
 WEB_DIR = os.path.join(RACINE, "web")
+# Sauvegardes S9 : ~/Bureau/SAUVEGARDE_S9 sur le rig (xdg-user-dir DESKTOP),
+# Bureau Windows (OneDrive compris) sur le PC — plus de /home/turbo en dur.
+S9_BACKUP_DIR = os.path.join(user_desktop_dir(), "SAUVEGARDE_S9")
 
 
 def run_inference_engine(prompt, sys_prompt="Tu es l'assistant IA JARVIS.", max_tokens=1000):
@@ -100,17 +125,17 @@ def run_inference_engine(prompt, sys_prompt="Tu es l'assistant IA JARVIS.", max_
 def get_cluster_telemetry():
     """Télémétrie complète temps réel du cluster M4 + M6."""
     # 1. Matériel M4 (CPU / RAM / VRAM)
-    temp_c = subprocess.getoutput("cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | sort -rn | head -1").strip()
-    temp_val = int(temp_c) // 1000 if temp_c.isdigit() else 0
+    # Température : lecture Python des thermal_zone* (Linux) ; None sous Windows
+    # (aucun capteur CPU fiable sans WMI/pilote) → temp_c null, l'UI affiche n/d.
+    _t = get_cpu_temp_c()
+    temp_val = int(_t) if _t is not None else (None if IS_WINDOWS else 0)
 
-    mem_info = subprocess.getoutput("free -m").splitlines()
-    mem_used, mem_total, mem_free = 0, 16000, 0
-    for l in mem_info:
-        if l.startswith("Mem:"):
-            parts = l.split()
-            mem_total = int(parts[1])
-            mem_used = int(parts[2])
-            mem_free = int(parts[6])
+    # RAM : psutil / GlobalMemoryStatusEx / /proc/meminfo / free -m — plus de
+    # `free -m` via shell (renvoyait silencieusement 0/16000 sous Windows).
+    _m = get_mem_info_mb()
+    mem_total = int(_m.get("total", 0) or 0) or 16000
+    mem_used = int(_m.get("used", 0) or 0)
+    mem_free = int(_m.get("available", 0) or 0)   # colonne 'available' de free -m
 
     # VRAM agrégée sur les 4 GPU du rig via get_vram_info() (multi-GPU correct +
     # garde thermique doctrine excluant la 1660S). L'ancien parse inline supposait
@@ -173,7 +198,7 @@ def get_cluster_telemetry():
         "vram_used_mb": vram_used,
         "vram_total_mb": vram_total,
         "vram_temp_c": vram_temp,
-        "governor": "performance"
+        "governor": "n/d" if IS_WINDOWS else "performance"
     }
 
     return {
@@ -197,9 +222,10 @@ def get_legion_status():
     Ajout 2026-09-11 : donne au cockpit une vue de ce qui tourne réellement en
     tâche de fond (fiches générées, embeddings, fenêtres agents). Lecture seule.
     """
-    ddb = os.path.expanduser("~/jarvis/omega/domino-continu/domino_continu.db")
-    bdb = os.path.expanduser("~/jarvis/board/board.db")
-    out = {"domino": {}, "vectorisation": {}, "fenetres_tmux": 0}
+    ddb = os.path.join(JARVIS_DIR, "omega", "domino-continu", "domino_continu.db")
+    bdb = BOARD_DB
+    out = {"domino": {}, "vectorisation": {}, "fenetres_tmux": 0,
+           "tmux_disponible": tmux_available()}
     try:
         c = sqlite3.connect(f"file:{ddb}?mode=ro", uri=True)
         for s, n in c.execute("SELECT statut, COUNT(*) FROM taches GROUP BY statut"):
@@ -215,12 +241,12 @@ def get_legion_status():
         c.close()
     except Exception:
         pass
-    try:
-        w = subprocess.run(["tmux", "list-windows", "-t", "OMEGA-LEGION"],
-                           capture_output=True, text=True, timeout=3)
-        out["fenetres_tmux"] = len([l for l in w.stdout.splitlines() if l.strip()])
-    except Exception:
-        pass
+    if out["tmux_disponible"]:
+        try:
+            w = run_cmd(["tmux", "list-windows", "-t", "OMEGA-LEGION"], timeout=3)
+            out["fenetres_tmux"] = len([l for l in (w.stdout or "").splitlines() if l.strip()])
+        except Exception:
+            pass
     return out
 
 
@@ -265,6 +291,11 @@ class CockpitHandler(BaseHTTPRequestHandler):
         if not path.startswith("/api/term"):
             return False
         if not self.local_seulement():
+            return True
+        if terminaux is None:
+            # Windows : pas de PTY/tmux — réponse JSON explicite plutôt qu'un 500.
+            self.respond_json(unavailable("Terminal PTY/tmux", detail=_TERMINAUX_ERREUR,
+                                          sessions=[], apps=[], tmux=[]), 501)
             return True
         try:
             if path == "/api/term/apps":
@@ -872,12 +903,12 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 "success": True,
                 "bridge": "online",
                 "device_target": "S9/S8",
-                "backup_dir": "/home/turbo/Bureau/SAUVEGARDE_S9",
+                "backup_dir": S9_BACKUP_DIR,
                 "timestamp": datetime.now().isoformat()
             })
             return
         elif path == "/api/s9/backups":
-            bdir = "/home/turbo/Bureau/SAUVEGARDE_S9"
+            bdir = S9_BACKUP_DIR
             backups = []
             if os.path.exists(bdir):
                 for f in sorted(os.listdir(bdir), reverse=True):
@@ -1100,9 +1131,18 @@ class CockpitHandler(BaseHTTPRequestHandler):
 
         # ── REMODELAGE : vrai hardware du rig (source de vérité agent remodelage) ──
         elif path == "/api/remodelage":
+            # ~/jarvis/cockpit/hardware.json (rig) puis cockpit/hardware.json du
+            # dépôt (Windows : le dépôt n'est pas dans ~/jarvis). Le fichier décrit
+            # le matériel du rig Linux : on le signale sous Windows.
             try:
-                with open(os.path.expanduser("~/jarvis/cockpit/hardware.json"), encoding="utf-8") as f:
-                    self.respond_json({"success": True, "hardware": json.load(f)})
+                hw_p = os.path.join(JARVIS_DIR, "cockpit", "hardware.json")
+                if not os.path.isfile(hw_p):
+                    hw_p = os.path.join(cockpit_root(), "hardware.json")
+                with open(hw_p, encoding="utf-8") as f:
+                    payload = {"success": True, "hardware": json.load(f), "source": hw_p}
+                if IS_WINDOWS:
+                    payload["note"] = "hardware.json décrit le rig Linux, pas ce PC Windows"
+                self.respond_json(payload)
             except Exception as e:
                 self.respond_json({"success": False, "error": str(e)}, 404)
             return
@@ -1297,8 +1337,11 @@ class CockpitHandler(BaseHTTPRequestHandler):
         if path == "/" or path == "":
             path = "/index.html"
 
-        file_path = os.path.join(WEB_DIR, path.lstrip("/"))
-        if os.path.exists(file_path) and os.path.isfile(file_path):
+        # safe_join : refuse chemins absolus, lettres de lecteur ('C:/…' passait
+        # tel quel via os.path.join sous Windows = lecture arbitraire du disque
+        # depuis le LAN), UNC et '..' → 404.
+        file_path = safe_join(WEB_DIR, path)
+        if file_path and os.path.isfile(file_path):
             ctype = "text/html; charset=utf-8"
             if file_path.endswith(".js"): ctype = "application/javascript"
             elif file_path.endswith(".css"): ctype = "text/css"
@@ -1542,7 +1585,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
         # ── S9 BACKUP RECEPTION (CÂBLAGE / SYNC) ──
         elif path == "/api/s9/backup":
             try:
-                bdir = "/home/turbo/Bureau/SAUVEGARDE_S9"
+                bdir = S9_BACKUP_DIR
                 os.makedirs(bdir, exist_ok=True)
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 fname = f"backup_s9_{ts}.json"
@@ -1642,7 +1685,13 @@ class CockpitHandler(BaseHTTPRequestHandler):
             if not exec_cmd:
                 self.respond_json({"success": False, "error": f"Action inconnue: {action}"}, 400)
                 return
-            p = subprocess.run(["bash", "-lc", exec_cmd], capture_output=True, text=True, timeout=30)
+            if IS_WINDOWS:
+                # Scripts prod-* du rig inexistants ; 'bash' nu = WSL sous Windows.
+                self.respond_json(unavailable("Chantiers prod-*", action=action, run_id=run_id,
+                                              stdout="", stderr="", code=-1), 501)
+                return
+            # bash -lc (inchangé) ; délai dépassé/absence rattrapés (code 124/127).
+            p = run_shell(exec_cmd, timeout=30)
             self.respond_json({
                 "success": (p.returncode == 0),
                 "stdout": p.stdout,
@@ -1834,11 +1883,12 @@ class CockpitHandler(BaseHTTPRequestHandler):
             if not exec_cmd:
                 self.respond_json({"success": False, "error": "Commande vide"}, 400)
                 return
-            try:
-                subprocess.Popen(["bash", "-lc", exec_cmd], start_new_session=True)
+            # Linux : bash -lc détaché (inchangé) ; Windows : os.startfile / Popen
+            # détaché sans fenêtre (chemins .exe/.lnk du registre d'applications).
+            if launch_detached(exec_cmd):
                 self.respond_json({"success": True, "message": f"Lancé: {exec_cmd}"})
-            except Exception as e:
-                self.respond_json({"success": False, "error": str(e)}, 500)
+            else:
+                self.respond_json({"success": False, "error": f"Lancement impossible : {exec_cmd}"}, 500)
             return
 
         # ── STUDIO CRÉATION ──
@@ -1857,7 +1907,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
 
             if res.get("success"):
                 os.makedirs(CONTENT_DIR, exist_ok=True)
-                fn = f"{CONTENT_DIR}/{ctype}_{datetime.now():%Y%m%d_%H%M%S}.md"
+                fn = os.path.join(CONTENT_DIR, f"{ctype}_{datetime.now():%Y%m%d_%H%M%S}.md")
                 try:
                     with open(fn, "w", encoding="utf-8") as f:
                         f.write(f"# Création Cockpit — {ctype.upper()}\n\n{res['content']}")
@@ -1906,9 +1956,10 @@ class CockpitHandler(BaseHTTPRequestHandler):
         elif path == "/api/swan":
             titre = req_data.get("titre", "Signal Cockpit")
             contenu = req_data.get("contenu", "Flux émis depuis le Cockpit Desktop.")
-            script_path = os.path.expanduser("~/jarvis/scripts/swan_stream_engine.py")
+            script_path = os.path.join(JARVIS_DIR, "scripts", "swan_stream_engine.py")
             if os.path.exists(script_path):
-                r = subprocess.run(["python3", script_path, titre, contenu], capture_output=True, text=True)
+                # Interpréteur courant (jamais 'python3' = alias Store sous Windows), délai borné.
+                r = run_cmd([python_exe(), script_path, titre, contenu], timeout=120)
                 self.respond_json({"success": (r.returncode == 0), "output": r.stdout or r.stderr})
             else:
                 self.respond_json({"success": True, "output": f"Signal '{titre}' enregistré."})
@@ -1916,9 +1967,13 @@ class CockpitHandler(BaseHTTPRequestHandler):
 
         # ── REPLAY & GUÉRISON ──
         elif path == "/api/replay":
-            script = os.path.expanduser("~/jarvis/scripts/jarvis_full_session_replay.sh")
+            script = os.path.join(JARVIS_DIR, "scripts", "jarvis_full_session_replay.sh")
             if os.path.exists(script):
-                subprocess.Popen(["bash", script])
+                bash = bash_exe()   # Git bash sous Windows, jamais System32\bash.exe (WSL)
+                if not bash:
+                    self.respond_json(unavailable("Rejeu de session (script bash)"), 501)
+                    return
+                launch_detached([bash, script])
             self.respond_json({"success": True, "message": "Rejeu complet 1-clic initié en arrière-plan."})
             return
 
@@ -1968,8 +2023,11 @@ class CockpitHandler(BaseHTTPRequestHandler):
             if not self.local_seulement():
                 return
             cmd = req_data.get("cmd", "echo OK")
-            res = subprocess.run(["bash", "-lc", cmd], capture_output=True, text=True, timeout=25)
-            self.respond_json({"stdout": res.stdout, "stderr": res.stderr, "code": res.returncode})
+            # Linux : bash -lc (inchangé) ; Windows : cmd.exe (ou PowerShell/Git bash
+            # via JARVIS_WIN_SHELL). Délai dépassé → code 124 au lieu d'un 500.
+            res = run_shell(cmd, timeout=25)
+            self.respond_json({"stdout": res.stdout, "stderr": res.stderr, "code": res.returncode,
+                               "success": res.returncode == 0})
             return
 
         self.send_response(404)
@@ -1987,9 +2045,14 @@ class CockpitServer(ThreadingHTTPServer):
 
 
 def main():
+    # Flux UTF-8 : le print avec emoji tuait le serveur (UnicodeEncodeError cp1252)
+    # dès que stdout était un fichier/pipe sous Windows. No-op sur le rig.
+    ensure_utf8_stdio()
     os.makedirs(WEB_DIR, exist_ok=True)
-    server = CockpitServer(("0.0.0.0", PORT), CockpitHandler)
-    print(f"🚀 JARVIS COCKPIT DESKTOP SERVER démarré sur http://127.0.0.1:{PORT}")
+    server = CockpitServer((BIND, PORT), CockpitHandler)
+    print(f"🚀 JARVIS COCKPIT DESKTOP SERVER démarré sur http://127.0.0.1:{PORT} (bind {BIND})", flush=True)
+    if terminaux is None:
+        print(f"⚠ Terminal PTY/tmux indisponible sur cette plateforme ({_TERMINAUX_ERREUR})", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

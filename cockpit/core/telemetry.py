@@ -14,6 +14,13 @@ import urllib.request
 from .config import (
     M6_HOST, M6_PORT, M6_URL, OLLAMA_URL, ORGANES, MACHINE_NAME
 )
+from .platform_compat import (
+    IS_WINDOWS, run_cmd, which, local_listening_ports, tailscale_via_socks,
+    ram_info as _compat_ram_info, cpu_info as _compat_cpu_info,
+    storage_mount_points, disk_usage as _compat_disk_usage,
+)
+
+_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 _VRAM_CACHE = None
 _VRAM_CACHE_TIME = 0.0
@@ -26,9 +33,16 @@ _M6_TTL = 5.0   # Cache 5s réactif pour LM Studio GPU local / tether
 def is_port_open(host: str, port: int, timeout: float = None) -> bool:
     """Vérifie l'accessibilité d'un port TCP avec un timeout strict et adapté."""
     if timeout is None:
-        timeout = 0.02 if host in ("127.0.0.1", "localhost", "::1") else 0.5
+        timeout = 0.02 if host in _LOOPBACK_HOSTS else 0.5
     try:
-        if host.startswith("100."):
+        if IS_WINDOWS and host in _LOOPBACK_HOSTS:
+            # Windows : un port loopback FERMÉ n'est refusé qu'après ~2 s (le
+            # connect() brûle tout son timeout). On lit la table LISTEN via
+            # psutil (2 ms, cache 1 s) ; repli connect() si psutil est absent.
+            ports = local_listening_ports()
+            if ports:
+                return int(port) in ports
+        if host.startswith("100.") and tailscale_via_socks():
             # Route les sondes Tailscale via le proxy SOCKS5 local (127.0.0.1:1055)
             # RTT Tailscale peut être de 100-300ms, on assure un timeout adapté (min 1.2s)
             timeout = max(timeout or 0, 1.2)
@@ -60,9 +74,12 @@ def get_vram_info(force: bool = False) -> dict:
         return _VRAM_CACHE
 
     try:
-        r = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,memory.used,memory.total,temperature.gpu,utilization.gpu", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=1.5
+        # run_cmd : CREATE_NO_WINDOW sous Windows (pas de flash de console toutes
+        # les 3 s sous pythonw), utf-8, ne lève jamais (127 si nvidia-smi absent).
+        smi = which("nvidia-smi") or "nvidia-smi"
+        r = run_cmd(
+            [smi, "--query-gpu=name,memory.used,memory.total,temperature.gpu,utilization.gpu", "--format=csv,noheader,nounits"],
+            timeout=1.5
         )
         if r.returncode == 0 and r.stdout.strip():
             gpus = []
@@ -114,7 +131,15 @@ def get_vram_info(force: bool = False) -> dict:
     return _VRAM_CACHE
 
 def get_ram_info() -> dict:
-    """Lit /proc/meminfo pour des métriques précises sans spawn de process."""
+    """Lit /proc/meminfo pour des métriques précises sans spawn de process.
+
+    Sous Windows (pas de /proc) : psutil.virtual_memory() via platform_compat,
+    afin d'afficher la RAM réelle et non un 16 Go fictif."""
+    if IS_WINDOWS:
+        info = _compat_ram_info()
+        if not info.get("error"):
+            return {k: info[k] for k in ("total_mb", "used_mb", "avail_mb", "percent", "total_gb", "used_gb")}
+        return {"total_mb": 0, "used_mb": 0, "avail_mb": 0, "percent": 0, "total_gb": 0.0, "used_gb": 0.0}
     try:
         with open("/proc/meminfo") as f:
             lines = f.readlines()
@@ -135,7 +160,13 @@ def get_ram_info() -> dict:
         return {"total_mb": 16384, "used_mb": 0, "avail_mb": 16384, "percent": 0, "total_gb": 16.0, "used_gb": 0.0}
 
 def get_cpu_info() -> dict:
-    """CPU usage, load averages et températures réelles (100% lecture directe, 0 sous-processus)."""
+    """CPU usage, load averages et températures réelles (100% lecture directe, 0 sous-processus).
+
+    Sous Windows : psutil (loadavg émulé, pagefile en guise de zram), temp_c=0.0
+    (aucune sonde thermique standard sans pilote tiers)."""
+    if IS_WINDOWS:
+        info = _compat_cpu_info()
+        return {k: info[k] for k in ("load_1m", "load_5m", "load_15m", "temp_c", "zram_percent", "zram_used_mb")}
     try:
         with open("/proc/loadavg") as f:
             loads = f.read().strip().split()[:3]
@@ -187,12 +218,21 @@ def get_cpu_info() -> dict:
 def get_storage_info() -> dict:
     """Espace disque sur partitions maîtresses (système + SSDs M1 & M6)."""
     partitions = {}
-    for mount_point in ["/", "/home/turbo", "/mnt/jarvis-m1", "/mnt/jarvis-m6", "/media/turbo"]:
+    # Linux : liste fixe du rig (inchangée) ; Windows : racines des lecteurs fixes (C:\ …).
+    for mount_point in storage_mount_points():
         if os.path.exists(mount_point):
             try:
-                st = os.statvfs(mount_point)
-                free_gb = round((st.f_bavail * st.f_frsize) / (1024**3), 1)
-                total_gb = round((st.f_blocks * st.f_frsize) / (1024**3), 1)
+                if IS_WINDOWS:
+                    # os.statvfs n'existe pas sous Windows → shutil.disk_usage
+                    du = _compat_disk_usage(mount_point)
+                    if du is None:
+                        raise OSError(f"disk_usage({mount_point}) indisponible")
+                    total_gb = round(du[0] / (1024**3), 1)
+                    free_gb = round(du[2] / (1024**3), 1)
+                else:
+                    st = os.statvfs(mount_point)
+                    free_gb = round((st.f_bavail * st.f_frsize) / (1024**3), 1)
+                    total_gb = round((st.f_blocks * st.f_frsize) / (1024**3), 1)
                 used_gb = round(total_gb - free_gb, 1)
                 pct = round((used_gb / total_gb) * 100, 1) if total_gb > 0 else 0
                 partitions[mount_point] = {

@@ -17,12 +17,19 @@ from PyQt6.QtWidgets import (
     QTabWidget, QLabel, QProgressBar, QFrame, QStatusBar, QPushButton,
     QListWidget, QStackedWidget, QLineEdit
 )
-from PyQt6.QtCore import Qt, QTimer, QSize
+from PyQt6.QtCore import Qt, QTimer, QSize, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon, QColor, QKeySequence, QShortcut
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
 IPC_SOCKET_NAME = "jarvis_master_cockpit_os_ipc"
 
+# Couche de compatibilité Linux rig ⇄ Windows 11 (polices, icône barre des
+# tâches, flux UTF-8, tmux, dossier du dépôt). Tout le code Linux reste intact.
+from core.platform_compat import (
+    IS_WINDOWS, cockpit_root, ensure_utf8_stdio, install_excepthook,
+    set_windows_app_id, ui_font_family, mono_font_family, tmux_available,
+    LOGS_DIR_DEFAULT,
+)
 from core.config import M6_HOST, M6_PORT, JARVIS_DIR, MACHINE_NAME
 from core.telemetry import get_vram_info, get_ram_info, get_cpu_info, is_port_open
 from core.mcp_registry import get_all_mcp_servers
@@ -47,14 +54,70 @@ from ui.tabs.tab_bureau import TabBureau
 from ui.tabs.tab_settings import TabSettings
 from ui.tabs.tab_omega import TabOmega
 
+# Polices résolues une fois : 'Ubuntu' / 'JetBrains Mono' sur le rig (inchangé),
+# 'Segoe UI' / 'Cascadia Mono' (ou Consolas) sous Windows.
+FONT_UI = ui_font_family()
+FONT_MONO = mono_font_family()
+
+
+def _trouver_icone():
+    """Icône de fenêtre : JARVIS_DIR/icons (rig) puis icons/ du dépôt (Windows :
+    le dépôt n'est pas dans ~/jarvis). None si absente."""
+    for cand in (os.path.join(JARVIS_DIR, "icons", "1_jarvis_cockpit_os.png"),
+                 os.path.join(os.path.dirname(cockpit_root()), "icons", "1_jarvis_cockpit_os.png")):
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
+class _OngletIndisponible(QWidget):
+    """Page de remplacement quand la construction d'un onglet lève : le cockpit
+    reste utilisable et affiche l'erreur au lieu de mourir au démarrage."""
+    def __init__(self, nom, erreur, parent=None):
+        super().__init__(parent)
+        lay = QVBoxLayout(self)
+        lbl = QLabel(f"⚠ Onglet « {nom} » indisponible\n\n{erreur}")
+        lbl.setWordWrap(True)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        lbl.setStyleSheet("color: #fbbf24; font-size: 12px; padding: 12px;")
+        lay.addWidget(lbl)
+        lay.addStretch()
+
+
+class _TelemetrieWorker(QThread):
+    """Collecte VRAM/RAM/CPU/M6 hors du thread GUI : nvidia-smi.exe peut mettre
+    1 à 2 s à froid sous Windows et la sonde M6 bloque jusqu'à son timeout."""
+    resultat = pyqtSignal(dict)
+
+    def run(self):
+        data = {}
+        try:
+            data["vram"] = get_vram_info()
+        except Exception:
+            data["vram"] = {}
+        try:
+            data["ram"] = get_ram_info()
+        except Exception:
+            data["ram"] = {}
+        try:
+            data["cpu"] = get_cpu_info()
+        except Exception:
+            data["cpu"] = {}
+        try:
+            data["m6_up"] = is_port_open(M6_HOST, M6_PORT, timeout=0.25)
+        except Exception:
+            data["m6_up"] = False
+        self.resultat.emit(data)
+
+
 class JarvisMasterCockpitWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"JARVIS MASTER COCKPIT — POSTE DE COMMANDE UNIFIÉ ({MACHINE_NAME})")
         # Icône déplaçable (basée sur JARVIS_DIR), posée seulement si présente :
         # un chemin absolu en dur cassait la fenêtre sur toute autre machine/clé USB.
-        _icone = os.path.join(JARVIS_DIR, "icons", "1_jarvis_cockpit_os.png")
-        if os.path.exists(_icone):
+        _icone = _trouver_icone()
+        if _icone:
             self.setWindowIcon(QIcon(_icone))
         self.resize(1400, 900)
         self.setMinimumSize(1150, 720)
@@ -70,7 +133,9 @@ class JarvisMasterCockpitWindow(QMainWindow):
         self.ipc_server.newConnection.connect(self._handle_ipc_connection)
         self.ipc_server.listen(IPC_SOCKET_NAME)
 
-        # Timer de télémétrie non-bloquante (6.0 s pour préserver le CPU)
+        # Timer de télémétrie non-bloquante (6.0 s pour préserver le CPU) ;
+        # la collecte tourne dans un QThread, seule l'application à l'UI est ici.
+        self._telemetrie_worker = None
         self.telemetry_timer = QTimer(self)
         self.telemetry_timer.timeout.connect(self.update_telemetry)
         self.telemetry_timer.start(6000)
@@ -119,7 +184,7 @@ class JarvisMasterCockpitWindow(QMainWindow):
         brand_box = QHBoxLayout()
         brand_box.setSpacing(8)
         brand_badge = QLabel("🤖")
-        brand_badge.setFont(QFont("Ubuntu", 16))
+        brand_badge.setFont(QFont(FONT_UI, 16))
         brand_badge.setStyleSheet("""
             background: rgba(0, 240, 255, 0.12);
             border: 1px solid rgba(0, 240, 255, 0.45);
@@ -131,12 +196,12 @@ class JarvisMasterCockpitWindow(QMainWindow):
         title_col = QVBoxLayout()
         title_col.setSpacing(0)
         title_lbl = QLabel("JARVIS MASTER COCKPIT")
-        title_lbl.setFont(QFont("Ubuntu", 13, QFont.Weight.Bold))
+        title_lbl.setFont(QFont(FONT_UI, 13, QFont.Weight.Bold))
         title_lbl.setStyleSheet("color: #00f0ff; letter-spacing: 1px; font-weight: 900;")
         title_col.addWidget(title_lbl)
 
         sub_lbl = QLabel(f"{MACHINE_NAME} MAÎTRE • RIG MULTI-GPU • CLAUDE & FLO" if "MINING" in MACHINE_NAME.upper() else f"{MACHINE_NAME} MAÎTRE • DUAL-NODE • CLAUDE & FLO")
-        sub_lbl.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Bold))
+        sub_lbl.setFont(QFont(FONT_MONO, 8, QFont.Weight.Bold))
         sub_lbl.setStyleSheet("color: #38bdf8;")
         title_col.addWidget(sub_lbl)
         brand_box.addLayout(title_col)
@@ -155,7 +220,7 @@ class JarvisMasterCockpitWindow(QMainWindow):
         vram_box.setContentsMargins(2, 2, 2, 2)
         vram_box.setSpacing(2)
         self.lbl_vram = QLabel("🎮 GPU: -- / 4096 MB")
-        self.lbl_vram.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Bold))
+        self.lbl_vram.setFont(QFont(FONT_MONO, 8, QFont.Weight.Bold))
         self.lbl_vram.setStyleSheet("color: #38bdf8;")
         self.bar_vram = QProgressBar()
         self.bar_vram.setRange(0, 4096)
@@ -172,7 +237,7 @@ class JarvisMasterCockpitWindow(QMainWindow):
         ram_box.setContentsMargins(2, 2, 2, 2)
         ram_box.setSpacing(2)
         self.lbl_ram = QLabel("⚡ RAM: -- GB")
-        self.lbl_ram.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Bold))
+        self.lbl_ram.setFont(QFont(FONT_MONO, 8, QFont.Weight.Bold))
         self.lbl_ram.setStyleSheet("color: #c084fc;")
         self.bar_ram = QProgressBar()
         self.bar_ram.setRange(0, 40)
@@ -188,12 +253,12 @@ class JarvisMasterCockpitWindow(QMainWindow):
         badge_box = QVBoxLayout(card_cluster)
         badge_box.setContentsMargins(2, 2, 2, 2)
         badge_box.setSpacing(2)
-        self.badge_m6 = QLabel("🟢 M6 Câble direct : UP (1.4 ms)")
-        self.badge_m6.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Bold))
+        self.badge_m6 = QLabel(f"🟢 {self._libelle_m6()} : UP (1.4 ms)")
+        self.badge_m6.setFont(QFont(FONT_MONO, 8, QFont.Weight.Bold))
         self.badge_m6.setStyleSheet("color: #4ade80;")
         
         self.badge_mcp = QLabel(f"📦 MCPs : {self.mcp_count} CONNECTÉS")
-        self.badge_mcp.setFont(QFont("JetBrains Mono", 8, QFont.Weight.Bold))
+        self.badge_mcp.setFont(QFont(FONT_MONO, 8, QFont.Weight.Bold))
         self.badge_mcp.setStyleSheet("color: #fbbf24;")
         badge_box.addWidget(self.badge_m6)
         badge_box.addWidget(self.badge_mcp)
@@ -308,7 +373,7 @@ class JarvisMasterCockpitWindow(QMainWindow):
         sf_layout.setSpacing(6)
 
         lbl_nav = QLabel("⚡ NAVIGATION COCKPIT")
-        lbl_nav.setFont(QFont("Ubuntu", 10, QFont.Weight.Bold))
+        lbl_nav.setFont(QFont(FONT_UI, 10, QFont.Weight.Bold))
         lbl_nav.setStyleSheet("color: #00f0ff; letter-spacing: 1.2px; padding: 2px 6px; font-weight: 900;")
         sf_layout.addWidget(lbl_nav)
 
@@ -350,24 +415,32 @@ class JarvisMasterCockpitWindow(QMainWindow):
         body_layout.addWidget(self.pages)
         main_layout.addLayout(body_layout)
 
-        # Initialisation des 16 pages modulaires
-        self.tab_hud = TabHud(self)
-        self.tab_avancements = TabAvancements(self)
-        self.tab_claude = TabClaude(self)
-        self.tab_apps = TabApps(self)
-        self.tab_term = TabTerminal(self)
-        self.tab_tr = TabTableRonde(self)
-        self.tab_plan = TabPlan(self)
-        self.tab_sql = TabSql(self)
-        self.tab_studio = TabStudio(self)
-        self.tab_mcps = TabMcps(self)
-        self.tab_swarm = TabSwarm(self)
-        self.tab_cluster = TabCluster(self)
-        self.tab_moisson = TabMoisson(self)
-        self.tab_iaweb = TabIaWeb(self)
-        self.tab_bureau = TabBureau(self)
-        self.tab_settings = TabSettings(self)
-        self.tab_omega = TabOmega(self)
+        # Initialisation des 17 pages modulaires. Chaque onglet est construit
+        # sous garde : une exception dans un onglet donne une page « indisponible »
+        # au lieu de faire mourir tout le cockpit (utile sous Windows où certains
+        # onglets dépendent d'outils du rig).
+        self.tab_hud = self._construire_onglet(TabHud, "Cockpit Exécutif")
+        self.tab_avancements = self._construire_onglet(TabAvancements, "Chantiers & Production")
+        self.tab_claude = self._construire_onglet(TabClaude, "Claude Code Suite")
+        self.tab_apps = self._construire_onglet(TabApps, "Applications Bureau")
+        self.tab_term = self._construire_onglet(TabTerminal, "Terminal & TMUX")
+        self.tab_tr = self._construire_onglet(TabTableRonde, "Table Ronde & Experts")
+        self.tab_plan = self._construire_onglet(TabPlan, "Board Plan & To-Do")
+        self.tab_sql = self._construire_onglet(TabSql, "Bases SQL")
+        self.tab_studio = self._construire_onglet(TabStudio, "Studio Création IA")
+        self.tab_mcps = self._construire_onglet(TabMcps, "Serveurs MCP")
+        self.tab_swarm = self._construire_onglet(TabSwarm, "Swarm & Services")
+        self.tab_cluster = self._construire_onglet(TabCluster, "Cluster & Matériel")
+        self.tab_moisson = self._construire_onglet(TabMoisson, "Moissonnage & Vente")
+        self.tab_iaweb = self._construire_onglet(TabIaWeb, "Hub IA Web & CDP")
+        self.tab_bureau = self._construire_onglet(TabBureau, "Bureau GNOME & Verrous")
+        self.tab_settings = self._construire_onglet(TabSettings, "Paramètres & Moteurs IA")
+        self.tab_omega = self._construire_onglet(TabOmega, "OMEGA Cognitive OS")
+
+        # Libellés dépendants de la plateforme : sur le rig ils sont inchangés ;
+        # sous Windows on annonce que tmux et le bureau GNOME n'existent pas.
+        titre_term = "💻 Terminal & TMUX" if tmux_available() else "💻 Terminal (TMUX indisponible)"
+        titre_bureau = "🖥 Bureau Windows (GNOME indisponible)" if IS_WINDOWS else "🖥 Bureau GNOME & Verrous"
 
         self.tab_list = [
             (self.tab_hud, "🎛 Cockpit Exécutif"),
@@ -375,7 +448,7 @@ class JarvisMasterCockpitWindow(QMainWindow):
             (self.tab_avancements, "🏗️ Chantiers & Production"),
             (self.tab_claude, "👑 Claude Code Suite"),
             (self.tab_apps, "🚀 Applications Bureau"),
-            (self.tab_term, "💻 Terminal & TMUX"),
+            (self.tab_term, titre_term),
             (self.tab_tr, "🧠 Table Ronde & Experts"),
             (self.tab_plan, "📋 Board Plan & To-Do"),
             (self.tab_sql, "🗄 Bases SQL (53)"),
@@ -385,7 +458,7 @@ class JarvisMasterCockpitWindow(QMainWindow):
             (self.tab_cluster, "🖥 Cluster & Matériel"),
             (self.tab_moisson, "🌾 Moissonnage & Vente"),
             (self.tab_iaweb, "🌐 Hub IA Web & CDP"),
-            (self.tab_bureau, "🖥 Bureau GNOME & Verrous"),
+            (self.tab_bureau, titre_bureau),
             (self.tab_settings, "⚙️ Paramètres & Moteurs IA")
         ]
 
@@ -429,6 +502,28 @@ class JarvisMasterCockpitWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("🟢 JARVIS MASTER COCKPIT Prêt • Raccourcis : F5 (Actualiser) • Ctrl+, (Paramètres) • Ctrl+1 à Ctrl+9 (Onglets)")
+
+    def _construire_onglet(self, classe, nom):
+        """Instancie un onglet ; en cas d'exception, journalise et rend une page
+        de remplacement (le reste du cockpit reste opérationnel)."""
+        try:
+            return classe(self)
+        except Exception as e:  # noqa: BLE001 — on veut TOUT rattraper ici
+            import traceback
+            msg = f"{type(e).__name__}: {e}"
+            try:
+                sys.stderr.write(f"[gui_app] onglet {nom} : {msg}\n{traceback.format_exc()}")
+            except Exception:
+                pass
+            return _OngletIndisponible(nom, msg, self)
+
+    @staticmethod
+    def _libelle_m6():
+        """« M6 Câble direct » sur le rig ; « LM Studio local » quand M6 pointe
+        sur le loopback (cas Windows par défaut)."""
+        if M6_HOST in ("127.0.0.1", "localhost", "::1"):
+            return "LM Studio local"
+        return "M6 Câble direct"
 
     def setup_shortcuts(self):
         # F5 = Refresh current tab
@@ -490,37 +585,90 @@ class JarvisMasterCockpitWindow(QMainWindow):
         self.status_bar.showMessage(f"🔄 Actualisation effectuée ({datetime.now():%H:%M:%S})", 3000)
 
     def update_telemetry(self):
-        vram = get_vram_info()
-        ram = get_ram_info()
-        cpu = get_cpu_info()
-        m6_up = is_port_open(M6_HOST, M6_PORT, timeout=0.25)
+        """Lance la collecte dans un QThread (jamais deux en parallèle) ; le
+        résultat arrive dans _appliquer_telemetrie sur le thread GUI."""
+        w = self._telemetrie_worker
+        if w is not None and w.isRunning():
+            return
+        # Pas de deleteLater : la référence Python est remplacée seulement une
+        # fois le thread terminé (isRunning() ci-dessus), jamais d'objet détruit
+        # côté C++ encore référencé ici.
+        w = _TelemetrieWorker(self)
+        w.resultat.connect(self._appliquer_telemetrie)
+        self._telemetrie_worker = w
+        w.start()
+
+    def _appliquer_telemetrie(self, data):
+        vram = data.get("vram") or {}
+        ram = data.get("ram") or {}
+        m6_up = bool(data.get("m6_up"))
 
         tot_vram = max(vram.get("total", 4096), 1)
         self.bar_vram.setRange(0, tot_vram)
         self.bar_vram.setValue(vram.get("used", 0))
+        v_used, v_tot, v_temp = vram.get("used", 0), vram.get("total", 4096), vram.get("temp", 0)
         if vram.get("count", 1) > 1:
-            self.lbl_vram.setText(f"🎮 {vram['count']} GPUs: {vram['used']}/{vram['total']}MB ({vram['temp']}°C)")
+            self.lbl_vram.setText(f"🎮 {vram['count']} GPUs: {v_used}/{v_tot}MB ({v_temp}°C)")
+        elif vram.get("available", True):
+            self.lbl_vram.setText(f"🎮 GPU: {v_used}/{v_tot}MB ({v_temp}°C)")
         else:
-            self.lbl_vram.setText(f"🎮 GPU: {vram['used']}/{vram['total']}MB ({vram['temp']}°C)")
+            self.lbl_vram.setText("🎮 GPU: n/d (nvidia-smi absent)")
 
         if vram.get("gpus"):
             gpu_tt = "GPU Actifs :\n" + "\n".join([f"• {g['name']}: {g['used']}/{g['total']}MB ({g['temp']}°C, util {g['util']}%)" for g in vram["gpus"]])
             self.lbl_vram.setToolTip(gpu_tt)
 
-        tot_ram_tenth = max(int(ram.get("total_gb", 4) * 10), 1)
+        r_used = float(ram.get("used_gb", 0) or 0)
+        r_tot = float(ram.get("total_gb", 4) or 4)
+        tot_ram_tenth = max(int(r_tot * 10), 1)
         self.bar_ram.setRange(0, tot_ram_tenth)
-        self.bar_ram.setValue(int(ram.get("used_gb", 0) * 10))
-        self.lbl_ram.setText(f"⚡ RAM: {ram['used_gb']:.1f}/{ram['total_gb']:.1f}GB ({ram['percent']}%)")
+        self.bar_ram.setValue(int(r_used * 10))
+        self.lbl_ram.setText(f"⚡ RAM: {r_used:.1f}/{r_tot:.1f}GB ({ram.get('percent', 0)}%)")
 
         if m6_up:
-            self.badge_m6.setText("🟢 M6 Direct : UP (1.4 ms)")
+            self.badge_m6.setText(f"🟢 {self._libelle_m6()} : UP (1.4 ms)")
             self.badge_m6.setStyleSheet("color: #4ade80;")
         else:
-            self.badge_m6.setText("🔴 M6 : INJOIGNABLE")
+            self.badge_m6.setText(f"🔴 {'LM Studio' if M6_HOST in ('127.0.0.1', 'localhost', '::1') else 'M6'} : INJOIGNABLE")
             self.badge_m6.setStyleSheet("color: #f87171;")
 
+    def closeEvent(self, event):
+        # Ne pas laisser un QThread de télémétrie survivre à la fenêtre
+        # (QThread détruit en cours d'exécution = avertissement/plantage Qt).
+        w = self._telemetrie_worker
+        if w is not None and w.isRunning():
+            w.wait(3000)
+        super().closeEvent(event)
+
+
+def _rediriger_flux_sans_console():
+    """Sous pythonw.exe (lanceur Windows sans console) sys.stdout/stderr valent
+    None : tout write()/flush() d'un onglet planterait. On les redirige vers
+    JARVIS_DIR/logs/cockpit_gui.log. No-op partout ailleurs."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    try:
+        os.makedirs(LOGS_DIR_DEFAULT, exist_ok=True)
+        fh = open(os.path.join(LOGS_DIR_DEFAULT, "cockpit_gui.log"), "a",
+                  encoding="utf-8", errors="replace", buffering=1)
+        if sys.stdout is None:
+            sys.stdout = fh
+        if sys.stderr is None:
+            sys.stderr = fh
+    except Exception:
+        pass
+
 def main():
-    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+    # Flux UTF-8 (print avec emoji sous stdout cp1252 redirigé), journal des
+    # exceptions non rattrapées (PyQt6 abort sinon), identifiant d'application
+    # Windows (icône propre dans la barre des tâches) — no-op sur le rig.
+    _rediriger_flux_sans_console()
+    ensure_utf8_stdio()
+    install_excepthook()
+    set_windows_app_id("Jarvis.Cockpit.OS")
+    if not IS_WINDOWS:
+        # Qt6 gère le DPI Windows nativement ; cette variable reste propre au rig.
+        os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     

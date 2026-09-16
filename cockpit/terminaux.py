@@ -28,20 +28,45 @@ perdue, et un caractère UTF-8 coupé en deux entre deux lectures ne casse rien.
 """
 
 import os
-import pty
+import sys
+import re
 import signal
 import base64
 import shlex
 import shutil
 import struct
-import fcntl
-import termios
 import threading
 import subprocess
 import time
 import uuid
 
+# Pseudo-terminaux POSIX : absents sous Windows (pty → tty → termios manque).
+# Le moteur PTY/tmux reste Linux-only ; sous Windows le module doit néanmoins
+# S'IMPORTER (serveur.py l'importe au chargement) et répondre proprement.
+try:
+    import pty
+    import fcntl
+    import termios
+except ImportError:  # Windows
+    pty = fcntl = termios = None
+
+try:
+    from core.platform_compat import (
+        IS_WINDOWS, tmux_path, find_executable, python_exe, default_shell,
+        send_signal_group, kill_process_tree, signal_by_name, unavailable_note,
+    )
+except ImportError:  # import direct hors de serveur.py (tests) : racine cockpit/
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from core.platform_compat import (
+        IS_WINDOWS, tmux_path, find_executable, python_exe, default_shell,
+        send_signal_group, kill_process_tree, signal_by_name, unavailable_note,
+    )
+
 HOME = os.path.expanduser("~")
+# Terminal interactif intégré disponible sur toutes les plateformes
+# (PTY réel sous Linux, sous-processus pipe interactif sous Windows/non-PTY).
+PTY_DISPO = True
+NOTE_PTY = ""
 
 # Fenêtre de sortie conservée par session. Au-delà, on rogne le début : c'est
 # un terminal, pas un journal — l'historique long vit dans les logs des apps.
@@ -56,7 +81,9 @@ RETENTION_MORTE_S = 900
 # COUCHE TMUX
 # ---------------------------------------------------------------------------
 
-TMUX = shutil.which("tmux")
+# shutil.which('tmux') sous Linux ; toujours None sous Windows (pas de sondage
+# transparent de WSL/Git-bash : démarrage à froid de plusieurs secondes).
+TMUX = tmux_path()
 # Préfixe des sessions créées par le cockpit : `tmux ls` reste lisible et
 # `tmux attach -t jc-claude` fonctionne depuis n'importe quel terminal.
 PREFIXE_APP = "jc-"
@@ -99,6 +126,10 @@ def tmux_sessions():
 
 def tmux_tout_ouvrir():
     """Rejoue le lanceur de hubs tmux du cockpit (idempotent)."""
+    if IS_WINDOWS:
+        # Surtout pas `bash` nu ici : sous Windows c'est le lanceur WSL
+        # (System32\bash.exe) — il bloquerait le serveur HTTP jusqu'à 90 s.
+        return {"success": False, "sortie": unavailable_note("Hubs tmux"), "sessions": []}
     if not os.path.exists(TOUT_OUVRIR):
         return {"success": False, "sortie": f"script absent : {TOUT_OUVRIR}"}
     r = subprocess.run(["bash", TOUT_OUVRIR], capture_output=True, text=True, timeout=90)
@@ -183,7 +214,7 @@ def purger_vues_orphelines():
 # d'annoncer une app comme disponible. Rien n'est présenté comme utilisable
 # sans cette mesure : « installé » et « lançable » ne sont pas la même chose.
 
-CATALOGUE = [
+CATALOGUE_LINUX = [
     {
         "id": "bash", "nom": "Bash", "groupe": "Système", "icone": "fa-terminal",
         "couleur": "#a78bfa", "sonde": "/bin/bash", "cmd": ["/bin/bash", "-il"],
@@ -200,6 +231,12 @@ CATALOGUE = [
         "couleur": "#10b981", "sonde": f"{HOME}/.local/bin/claude-m6",
         "cmd": [f"{HOME}/.local/bin/claude-m6", "--model", "qwen2.5-coder-14b-instruct"],
         "desc": "Claude Code branché sur les GPU de M6 — 0 token.",
+    },
+    {
+        "id": "claude-doctor", "nom": "Claude Doctor", "groupe": "Agents IA", "icone": "fa-stethoscope",
+        "couleur": "#f59e0b", "sonde": f"{HOME}/.local/bin/claude",
+        "cmd": [f"{HOME}/.local/bin/claude", "doctor"],
+        "desc": "Diagnostic santé et configuration Claude Code.",
     },
     {
         "id": "agy", "nom": "Antigravity (agy)", "groupe": "Agents IA", "icone": "fa-meteor",
@@ -275,11 +312,81 @@ CATALOGUE = [
     },
 ]
 
+# Catalogue Windows : les mêmes identifiants quand l'outil existe (claude,
+# gemini, ollama, lms, python) pour que la PWA garde ses tuiles ; les scripts
+# propres au rig (JMO, Board, qwen-cli, jos, claude-m6, ssh m6, top) n'y
+# figurent pas — leurs chemins ~/jarvis/… n'existeraient pas ici de toute
+# façon et la commande affichée serait trompeuse. `candidats` = emplacements
+# d'installation connus, essayés après le PATH (find_executable).
+# NB : sans pseudo-terminal (voir PTY_DISPO), ces apps sont listées mais
+# l'ouverture répond par NOTE_PTY — le catalogue reste informatif.
+CATALOGUE_WINDOWS = [
+    {
+        "id": "bash", "nom": "PowerShell", "groupe": "Système", "icone": "fa-terminal",
+        "couleur": "#a78bfa", "sonde": "powershell", "cmd": default_shell(),
+        "candidats": (r"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe",),
+        "desc": "Shell Windows PowerShell interactif.",
+    },
+    {
+        "id": "cmd", "nom": "Invite de commandes", "groupe": "Système", "icone": "fa-terminal",
+        "couleur": "#94a3b8", "sonde": "cmd", "cmd": ["cmd.exe"],
+        "candidats": (r"%SystemRoot%\System32\cmd.exe",),
+        "desc": "Console cmd.exe classique.",
+    },
+    {
+        "id": "wsl", "nom": "WSL Ubuntu", "groupe": "Système", "icone": "fa-linux",
+        "couleur": "#f97316", "sonde": "wsl", "cmd": ["wsl.exe"],
+        "candidats": (r"%SystemRoot%\System32\wsl.exe",),
+        "desc": "Shell Linux (WSL2) de cette machine.",
+    },
+    {
+        "id": "claude", "nom": "Claude Code", "groupe": "Agents IA", "icone": "fa-robot",
+        "couleur": "#f59e0b", "sonde": "claude", "cmd": ["claude"],
+        "candidats": (r"%USERPROFILE%\.local\bin\claude.exe", r"%APPDATA%\npm\claude.cmd"),
+        "desc": "Agent Claude Code (cloud Anthropic). Consomme des tokens.",
+    },
+    {
+        "id": "claude-doctor", "nom": "Claude Doctor", "groupe": "Agents IA", "icone": "fa-stethoscope",
+        "couleur": "#f59e0b", "sonde": "claude", "cmd": ["claude", "doctor"],
+        "candidats": (r"%USERPROFILE%\.local\bin\claude.exe", r"%APPDATA%\npm\claude.cmd"),
+        "desc": "Diagnostic santé et configuration Claude Code.",
+    },
+    {
+        "id": "gemini", "nom": "Gemini CLI", "groupe": "Agents IA", "icone": "fa-gem",
+        "couleur": "#818cf8", "sonde": "gemini", "cmd": ["gemini", "--yolo"],
+        "candidats": (r"%APPDATA%\npm\gemini.cmd",),
+        "desc": "Gemini CLI en mode YOLO (auto-approbation).",
+    },
+    {
+        "id": "ollama", "nom": "Ollama · Gemma 3 (4B)", "groupe": "Modèles", "icone": "fa-brain",
+        "couleur": "#34d399", "sonde": "ollama", "cmd": ["ollama", "run", "gemma3:4b"],
+        "candidats": (r"%LOCALAPPDATA%\Programs\Ollama\ollama.exe", r"%ProgramFiles%\Ollama\ollama.exe"),
+        "desc": "Modèle local Gemma 3 (4B) via Ollama, dialogue direct — 0 token.",
+    },
+    {
+        "id": "lms", "nom": "LM Studio CLI", "groupe": "Modèles", "icone": "fa-server",
+        "couleur": "#60a5fa", "sonde": "lms", "cmd": ["lms", "ps"],
+        "candidats": (r"%USERPROFILE%\.lmstudio\bin\lms.exe",
+                      r"%ProgramFiles%\LM Studio\resources\app\.webpack\lms.exe"),
+        "desc": "Pilotage LM Studio (modèles chargés, statut).",
+    },
+    {
+        "id": "python", "nom": "Python 3", "groupe": "Système", "icone": "fa-code",
+        "couleur": "#facc15", "sonde": python_exe(), "cmd": [python_exe(), "-q"],
+        "desc": "REPL Python interactif.",
+    },
+]
+
+CATALOGUE = CATALOGUE_WINDOWS if IS_WINDOWS else CATALOGUE_LINUX
 APPS_PAR_ID = {a["id"]: a for a in CATALOGUE}
 
 
-def _resoudre(sonde):
+def _resoudre(sonde, candidats=()):
     """Chemin absolu de la sonde, ou None si l'app n'est pas installée."""
+    if IS_WINDOWS:
+        # PATHEXT honoré (claude.cmd), emplacements connus, jamais le lanceur
+        # WSL System32\bash.exe pour « bash ».
+        return find_executable(sonde, *candidats)
     if os.path.sep in sonde:
         return sonde if os.path.exists(sonde) else None
     return shutil.which(sonde)
@@ -289,7 +396,7 @@ def catalogue_mesure():
     """Catalogue enrichi de la disponibilité RÉELLE, mesurée à l'instant."""
     out = []
     for a in CATALOGUE:
-        chemin = _resoudre(a["sonde"])
+        chemin = _resoudre(a["sonde"], a.get("candidats", ()))
         out.append({
             "id": a["id"], "nom": a["nom"], "groupe": a["groupe"],
             "icone": a["icone"], "couleur": a["couleur"], "desc": a["desc"],
@@ -306,6 +413,8 @@ def catalogue_mesure():
 
 class Session:
     def __init__(self, app_id, nom, cmd, cols=120, rows=32, cwd=None, tmux_nom=None):
+        if not PTY_DISPO:
+            raise RuntimeError("Terminal indisponible")
         self.id = uuid.uuid4().hex[:12]
         self.app_id = app_id
         self.nom = nom
@@ -339,24 +448,34 @@ class Session:
         # forcément : on le neutralise d'office.
         env.setdefault("PAGER", "cat")
 
-        self.maitre, esclave = pty.openpty()
-        _fixer_taille(self.maitre, cols, rows)
+        if pty is not None and not IS_WINDOWS:
+            self.maitre, esclave = pty.openpty()
+            _fixer_taille(self.maitre, cols, rows)
 
-        def _preexec():
-            # Nouvelle session + PTY comme terminal contrôlant : c'est ce qui
-            # rend Ctrl-C, le redimensionnement et les TUI réellement corrects.
-            os.setsid()
-            fcntl.ioctl(esclave, termios.TIOCSCTTY, 0)
+            def _preexec():
+                # Nouvelle session + PTY comme terminal contrôlant : c'est ce qui
+                # rend Ctrl-C, le redimensionnement et les TUI réellement corrects.
+                os.setsid()
+                fcntl.ioctl(esclave, termios.TIOCSCTTY, 0)
 
-        try:
+            try:
+                self.proc = subprocess.Popen(
+                    self.cmd,
+                    stdin=esclave, stdout=esclave, stderr=esclave,
+                    cwd=cwd or HOME, env=env,
+                    preexec_fn=_preexec, close_fds=True,
+                )
+            finally:
+                os.close(esclave)
+        else:
+            self.maitre = None
+            cflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if IS_WINDOWS else 0
             self.proc = subprocess.Popen(
                 self.cmd,
-                stdin=esclave, stdout=esclave, stderr=esclave,
-                cwd=cwd or HOME, env=env,
-                preexec_fn=_preexec, close_fds=True,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                cwd=cwd or HOME, env=env, bufsize=0,
+                creationflags=cflags
             )
-        finally:
-            os.close(esclave)
 
         self.lecteur = threading.Thread(target=self._boucle_lecture, daemon=True)
         self.lecteur.start()
@@ -364,7 +483,12 @@ class Session:
     def _boucle_lecture(self):
         while True:
             try:
-                bloc = os.read(self.maitre, 65536)
+                if self.maitre is not None:
+                    bloc = os.read(self.maitre, 65536)
+                elif self.proc and self.proc.stdout:
+                    bloc = self.proc.stdout.read(4096)
+                else:
+                    bloc = b""
             except OSError:
                 bloc = b""
             if not bloc:
@@ -380,6 +504,7 @@ class Session:
         with self._cond:
             self.code_sortie = code
             self.fin_a = time.time()
+            self._cond.notify_all()
             self._cond.notify_all()
         try:
             from core.action_memory import ACTION_MEMORY
@@ -425,12 +550,20 @@ class Session:
         if not self.vivante():
             return False
         try:
-            os.write(self.maitre, data)
-            return True
-        except OSError:
+            if self.maitre is not None:
+                os.write(self.maitre, data)
+                return True
+            elif self.proc and self.proc.stdin:
+                self.proc.stdin.write(data)
+                self.proc.stdin.flush()
+                return True
+        except (OSError, BrokenPipeError):
             return False
+        return False
 
     def redimensionner(self, cols, rows):
+        if IS_WINDOWS or self.maitre is None:
+            return False
         try:
             _fixer_taille(self.maitre, cols, rows)
             if self.vivante():
@@ -442,6 +575,8 @@ class Session:
     def signaler(self, sig):
         if not self.vivante():
             return False
+        if IS_WINDOWS or self.maitre is None:
+            return send_signal_group(self.proc, sig)
         try:
             os.killpg(os.getpgid(self.proc.pid), sig)
             return True
@@ -453,17 +588,29 @@ class Session:
 
     def fermer(self):
         if self.vivante():
+            if IS_WINDOWS or self.maitre is None:
+                kill_process_tree(self.proc)
+            else:
+                try:
+                    os.killpg(os.getpgid(self.proc.pid), signal.SIGHUP)
+                    time.sleep(0.15)
+                    if self.vivante():
+                        os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
+                except OSError:
+                    pass
+        if self.maitre is not None:
             try:
-                os.killpg(os.getpgid(self.proc.pid), signal.SIGHUP)
-                time.sleep(0.15)
-                if self.vivante():
-                    os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
+                os.close(self.maitre)
             except OSError:
                 pass
-        try:
-            os.close(self.maitre)
-        except OSError:
-            pass
+            self.maitre = None
+        if self.proc:
+            if self.proc.stdout:
+                try: self.proc.stdout.close()
+                except Exception: pass
+            if self.proc.stdin:
+                try: self.proc.stdin.close()
+                except Exception: pass
         _tuer_vue(self.vue_tmux)
 
     def resume(self):
@@ -479,6 +626,8 @@ class Session:
 
 
 def _fixer_taille(fd, cols, rows):
+    if fcntl is None or termios is None:
+        return
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
 
 
@@ -539,7 +688,11 @@ class Gestionnaire:
         app = APPS_PAR_ID.get(app_id)
         if not app:
             raise ValueError(f"application inconnue : {app_id}")
-        if _resoudre(app["sonde"]) is None:
+        if not PTY_DISPO:
+            # Avant la sonde : la PWA reçoit un JSON 500 clair (serveur.router_terminal)
+            # au lieu d'une trace pty.
+            raise RuntimeError(NOTE_PTY)
+        if _resoudre(app["sonde"], app.get("candidats", ())) is None:
             raise FileNotFoundError(f"{app['nom']} n'est pas installé sur cette machine")
         cmd, tmux_nom = _cmd_app(app, cols, rows)
         with self._verrou:
@@ -559,6 +712,34 @@ class Gestionnaire:
             self._place_libre()
             s = Session("tmux", f"tmux · {cible}", cmd, cols=cols, rows=rows, tmux_nom=cible)
             s.vue_tmux = tmux_nom
+            self.sessions[s.id] = s
+            return s
+
+    def ouvrir_cmd(self, cmd_str, nom=None, cols=120, rows=32):
+        """Ouvre une commande ou script arbitraire dans une session terminal intégrée."""
+        if not nom:
+            parts = (cmd_str or "").strip().split()
+            nom = os.path.basename(parts[0]) if parts else "Terminal"
+            if len(nom) > 24:
+                nom = nom[:22] + "…"
+
+        if IS_WINDOWS:
+            from core.platform_compat import shell_wrap
+            cmd = shell_wrap(cmd_str, keep_open=True)
+            tmux_nom = None
+        else:
+            interne = ["/bin/bash", "-lc", f"{cmd_str}; printf '\n── Terminé (code %s) ──\n' $?; exec /bin/bash -i"]
+            if TMUX:
+                safe_id = re.sub(r'[^a-zA-Z0-9_-]', '_', nom)[:16]
+                tmux_nom = f"{PREFIXE_APP}cmd-{safe_id}-{uuid.uuid4().hex[:4]}"
+                cmd = [TMUX, "new-session", "-s", tmux_nom, "-x", str(cols), "-y", str(rows), "--"] + interne
+            else:
+                cmd = interne
+                tmux_nom = None
+
+        with self._verrou:
+            self._place_libre()
+            s = Session("cmd", nom, cmd, cols=cols, rows=rows, tmux_nom=tmux_nom)
             self.sessions[s.id] = s
             return s
 
@@ -590,15 +771,22 @@ GESTIONNAIRE = Gestionnaire()
 # ---------------------------------------------------------------------------
 
 def api_apps():
-    return {"success": True, "apps": catalogue_mesure(),
-            "max_sessions": MAX_SESSIONS, "sessions": GESTIONNAIRE.lister(),
-            "tmux_dispo": TMUX is not None, "tmux": tmux_sessions()}
+    r = {"success": True, "apps": catalogue_mesure(),
+         "max_sessions": MAX_SESSIONS, "sessions": GESTIONNAIRE.lister(),
+         "tmux_dispo": TMUX is not None, "tmux": tmux_sessions(),
+         "pty_dispo": PTY_DISPO}
+    if not PTY_DISPO:
+        # Laisse la PWA griser le panneau terminal (web/index.html).
+        r["note"] = NOTE_PTY
+    return r
 
 
 def api_ouvrir(d):
     cols, rows = int(d.get("cols", 120)), int(d.get("rows", 32))
     if d.get("tmux"):
         s = GESTIONNAIRE.ouvrir_vue(d["tmux"], cols, rows)
+    elif d.get("cmd"):
+        s = GESTIONNAIRE.ouvrir_cmd(d["cmd"], nom=d.get("nom"), cols=cols, rows=rows)
     else:
         s = GESTIONNAIRE.ouvrir(d.get("app", "bash"), cols, rows)
     r = s.resume()
@@ -636,8 +824,10 @@ def api_redimensionner(d):
     return {"success": s.redimensionner(int(d.get("cols", 120)), int(d.get("rows", 32)))}
 
 
-SIGNAUX = {"INT": signal.SIGINT, "TERM": signal.SIGTERM,
-           "QUIT": signal.SIGQUIT, "KILL": signal.SIGKILL}
+# SIGQUIT/SIGKILL n'existent pas sous Windows : on ne touche jamais
+# signal.SIGxxx à l'import, la table ne garde que les signaux livrables ici.
+SIGNAUX = {nom: sig for nom, sig in ((n, signal_by_name(n)) for n in ("INT", "TERM", "QUIT", "KILL"))
+           if sig is not None}
 
 
 def api_signal(d):

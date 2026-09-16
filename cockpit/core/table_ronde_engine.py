@@ -39,9 +39,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RACINE)
 
-from core.config import MASTER_DB, BOARD_DB, M6_HOST, M6_PORT, OLLAMA_URL
+from core.config import MASTER_DB, BOARD_DB, M6_HOST, M6_PORT, OLLAMA_URL, JARVIS_DIR
 from core.database import search_board_fts
-from core.inference import generate_completion
+from core.inference import generate_completion, _loopback_closed
+from core.platform_compat import IS_WINDOWS, which, chrome_history_path
 
 # Endpoints réseau du Conseil ------------------------------------------------
 REMI_IP = os.environ.get("JARVIS_M1_HOST", "192.168.42.241")  # LM Studio tether 192.168.42.241 (0 token)
@@ -131,6 +132,8 @@ def get_browser_os_context() -> dict:
 
     # 1. Onglets ouverts via Chrome CDP :9222
     try:
+        if _loopback_closed(CDP_URL):
+            raise ConnectionError("CDP 9222 inactif")  # Windows : évite ~1 s de refus
         req = urllib.request.Request(f"{CDP_URL}/json/list")
         with urllib.request.urlopen(req, timeout=1.0) as resp:
             tabs = json.loads(resp.read().decode())
@@ -143,7 +146,10 @@ def get_browser_os_context() -> dict:
         ctx["active_tabs"] = []
 
     # 2. Historique Chrome récent (copie temporaire propre, nettoyée ensuite)
-    history_db = os.path.expanduser("~/.config/google-chrome/Default/History")
+    #    Linux : ~/.config/google-chrome/Default/History ;
+    #    Windows : %LOCALAPPDATA%\Google\Chrome\User Data\Default\History
+    #    (verrouillé quand Chrome tourne → PermissionError interceptée ci-dessous).
+    history_db = chrome_history_path()
     if os.path.exists(history_db):
         tmp_hist = None
         try:
@@ -170,6 +176,8 @@ def get_browser_os_context() -> dict:
 
 # ── État de connectivité des agents ─────────────────────────────────────────
 def _http_ok(url: str, timeout: float = 0.8) -> bool:
+    if _loopback_closed(url):
+        return False  # Windows : port loopback fermé → réponse immédiate (psutil)
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Jarvis-Cockpit"})
         with urllib.request.urlopen(req, timeout=timeout):
@@ -184,6 +192,8 @@ def check_agent_status() -> dict:
 
     # 1. Ollama Qwen (M4 local)
     try:
+        if _loopback_closed(OL_URL):
+            raise ConnectionError("Ollama inactif")
         req = urllib.request.Request(f"{OL_URL}/api/tags")
         with urllib.request.urlopen(req, timeout=0.8) as resp:
             data = json.loads(resp.read().decode())
@@ -202,6 +212,9 @@ def check_agent_status() -> dict:
 
     # 3. Claude Code CLI
     claude_bin = os.path.expanduser("~/.local/bin/claude")
+    if IS_WINDOWS:
+        # Sous Windows le binaire s'appelle claude.exe (ou claude.cmd) → which()
+        claude_bin = which("claude") or claude_bin
     status["claude"] = {"en_ligne": os.path.exists(claude_bin), "detail": "CLI local"}
 
     # 4. OpenClaw / Manus (moteur multi-agents ACP)
@@ -267,6 +280,8 @@ def _infer_m1(prompt: str, sys_prompt: str, timeout: float = 15.0) -> dict:
 
 def _infer_ollama(prompt: str, sys_prompt: str, model: str, timeout: float = 18.0) -> dict:
     """Tente une inférence Ollama sur un modèle précis."""
+    if _loopback_closed(OL_URL):
+        return {"success": False}  # Windows : Ollama non lancé → cascade directe
     try:
         payload = json.dumps({
             "model": model,

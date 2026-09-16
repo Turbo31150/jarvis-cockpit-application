@@ -6,7 +6,6 @@ Pilotage tracé de la barre des tâches, des icônes, des verrous et des écrans
 Même moteur que la façade web :8600 — core/bureau_engine.py.
 """
 
-import subprocess
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSplitter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
@@ -16,6 +15,11 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QColor
 
 from core.bureau_engine import get_bureau_etat, run_bureau_action, lire_traces
+from core.platform_compat import IS_WINDOWS
+
+# Sous Windows le moteur est un stub (constat vide, actions HORS-LOGICIEL) :
+# l'onglet reste constructible mais ses boutons d'action sont désactivés.
+INFO_WINDOWS = "Pilotage du bureau GNOME indisponible sous Windows"
 
 COULEUR_VERDICT = {
     "APPLIQUE": "#4ade80", "CONSTAT": "#38bdf8",
@@ -40,6 +44,7 @@ class TabBureau(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.worker = None          # référence gardée : sinon le GC le ramasse en vol
+        self.boutons_action = []    # boutons désactivés sous Windows (moteur stub)
         self.init_ui()
 
     def init_ui(self):
@@ -48,7 +53,10 @@ class TabBureau(QWidget):
         layout.setSpacing(10)
 
         top_h = QHBoxLayout()
-        lbl = QLabel("🖥 PILOTAGE TRACÉ DU BUREAU GNOME — BARRE · ICÔNES · VERROUS · ÉCRANS")
+        titre = "🖥 PILOTAGE TRACÉ DU BUREAU GNOME — BARRE · ICÔNES · VERROUS · ÉCRANS"
+        if IS_WINDOWS:
+            titre += " — indisponible sur cette plateforme"
+        lbl = QLabel(titre)
         lbl.setFont(QFont("Ubuntu", 13, QFont.Weight.Bold))
         lbl.setStyleSheet("color: #fb7185;")
         top_h.addWidget(lbl)
@@ -62,6 +70,17 @@ class TabBureau(QWidget):
         btn_refresh.clicked.connect(self.refresh_bureau)
         top_h.addWidget(btn_refresh)
         layout.addLayout(top_h)
+
+        # Bandeau visible uniquement sous Windows : pas de GNOME, pas de dconf.
+        self.bandeau = QLabel(
+            f"⚠ {INFO_WINDOWS} — ce poste n'a ni GNOME Shell, ni dconf, ni Mutter. "
+            "L'onglet reste consultable (trace) mais aucune action n'est possible ici ; "
+            "utilisez-le depuis le rig Linux.")
+        self.bandeau.setWordWrap(True)
+        self.bandeau.setStyleSheet("color:#fbbf24; font-size:11px; padding:6px; "
+                                   "background:#1c1917; border:1px solid #44403c; border-radius:6px;")
+        self.bandeau.setVisible(IS_WINDOWS)
+        layout.addWidget(self.bandeau)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -86,6 +105,7 @@ class TabBureau(QWidget):
         b_rel = QPushButton("♻ Recharger le dock")
         b_rel.clicked.connect(lambda: self.lancer_action("barre.recharger"))
         pos_h.addWidget(b_rel)
+        self.boutons_action += [b_pos, b_rel]
         pos_h.addStretch()
         l_barre.addLayout(pos_h)
         self.tbl_barre = self._table(["Réglage", "Valeur"])
@@ -102,6 +122,7 @@ class TabBureau(QWidget):
         b_relico = QPushButton("♻ Recharger les icônes")
         b_relico.clicked.connect(lambda: self.lancer_action("icones.recharger"))
         ico_h.addWidget(b_relico)
+        self.boutons_action += [b_dev, b_relico]
         ico_h.addStretch()
         l_ico.addLayout(ico_h)
         self.lbl_lanceurs = QLabel("…")
@@ -118,6 +139,7 @@ class TabBureau(QWidget):
         b_lever.setProperty("class", "amber")
         b_lever.clicked.connect(lambda: self.lancer_action("verrous.tout-lever"))
         ver_h.addWidget(b_lever)
+        self.boutons_action.append(b_lever)
         ver_h.addStretch()
         l_ver.addLayout(ver_h)
         self.lbl_dconf = QLabel("…")
@@ -137,6 +159,7 @@ class TabBureau(QWidget):
         b_ete = QPushButton("Étendu")
         b_ete.clicked.connect(lambda: self.confirmer("ecrans.etendu", "Basculer les écrans en ÉTENDU ?"))
         ecr_h.addWidget(b_ete)
+        self.boutons_action += [b_mir, b_ete]
         ecr_h.addStretch()
         l_ecr.addLayout(ecr_h)
         self.tbl_ecrans = self._table(["Écran", "Détail"])
@@ -148,6 +171,7 @@ class TabBureau(QWidget):
         note.setWordWrap(True)
         note.setStyleSheet("color:#fbbf24; font-size:11px; padding:6px; "
                            "background:#1c1917; border:1px solid #44403c; border-radius:6px;")
+        note.setVisible(not IS_WINDOWS)   # texte spécifique Wayland
         l_ecr.addWidget(note)
         self.onglets.addTab(w_ecr, "🖵 Écrans")
 
@@ -173,6 +197,11 @@ class TabBureau(QWidget):
         splitter.addWidget(droite)
         splitter.setSizes([620, 480])
         layout.addWidget(splitter)
+
+        if IS_WINDOWS:
+            for b in self.boutons_action:
+                b.setEnabled(False)
+                b.setToolTip(INFO_WINDOWS)
 
         self.refresh_bureau()
 
@@ -208,8 +237,13 @@ class TabBureau(QWidget):
             return
 
         conforme = e.get("conforme")
-        self.lbl_conforme.setText("● CONFORME" if conforme else f"● {len(e['derives'])} DÉRIVE(S)")
-        self.lbl_conforme.setStyleSheet(f"color: {'#4ade80' if conforme else '#fbbf24'};")
+        if e.get("indisponible"):
+            self.lbl_conforme.setText("● INDISPONIBLE (Windows)")
+            self.lbl_conforme.setStyleSheet("color: #fbbf24;")
+            self.lbl_conforme.setToolTip(e.get("note") or INFO_WINDOWS)
+        else:
+            self.lbl_conforme.setText("● CONFORME" if conforme else f"● {len(e['derives'])} DÉRIVE(S)")
+            self.lbl_conforme.setStyleSheet(f"color: {'#4ade80' if conforme else '#fbbf24'};")
 
         self._remplir(self.tbl_barre, [[(c["libelle"], None), (self._fmt(c["valeur"]), "#e2e8f0")]
                                        for c in e["barre"]["cles"]])

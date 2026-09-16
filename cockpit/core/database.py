@@ -10,6 +10,7 @@ import re
 import sqlite3
 import subprocess
 from .config import JARVIS_DIR, MASTER_DB, BOARD_DB, VECTOR_DB, SQL_CACHE
+from .platform_compat import find_sqlite_databases
 
 
 def _fts_query(query: str) -> str:
@@ -200,9 +201,9 @@ def scan_all_sqlite_databases() -> list[dict]:
     """Scanne et référence l'ensemble des bases SQLite vivantes."""
     bases_list = []
     try:
-        cmd = "find " + JARVIS_DIR + " -maxdepth 3 -name '*.db' -size +1k 2>/dev/null | grep -vE '/(backups?|archive|old|corbeille)/' | sort -u"
-        p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
-        paths = [l.strip() for l in p.stdout.splitlines() if l.strip()]
+        # os.walk borné (portable) au lieu de « find … | grep -vE … | sort -u » :
+        # sous Windows 'find' = FIND.EXE (recherche de texte) et 2>/dev/null crée C:\dev\null.
+        paths = find_sqlite_databases(JARVIS_DIR, max_depth=3, min_size=1024)
 
         for db_path in paths:
             try:
@@ -214,7 +215,10 @@ def scan_all_sqlite_databases() -> list[dict]:
                     continue
                 size_kb = round(os.path.getsize(db_path) / 1024, 1)
                 size_str = f"{size_kb} Ko" if size_kb < 1024 else f"{round(size_kb/1024, 2)} Mo"
-                rel = os.path.relpath(db_path, os.path.expanduser("~"))
+                try:
+                    rel = os.path.relpath(db_path, os.path.expanduser("~"))
+                except ValueError:  # Windows : base sur un autre lecteur que ~
+                    rel = db_path
                 bases_list.append({
                     "name": os.path.basename(db_path),
                     "path": db_path,

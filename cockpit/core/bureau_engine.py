@@ -42,6 +42,13 @@ import threading
 import subprocess
 
 from .config import LOGS_DB, ETOILE_DB
+from .platform_compat import (IS_WINDOWS, NO_WINDOW, runtime_dir, desktop_dir,
+                              session_graphique, indisponible)
+
+# Sous Windows il n'existe AUCUN équivalent de dash-to-dock, ding, dconf ou
+# Mutter : le moteur est court-circuité (constat vide conforme, actions refusées
+# en HORS-LOGICIEL sans trace). Le chemin Linux reste inchangé.
+NOTE_WINDOWS = "Pilotage du bureau GNOME indisponible sous Windows"
 
 
 def _assurer_gi_dist_packages():
@@ -137,6 +144,8 @@ def _session_graphique():
     reelle est bien wayland / ubuntu:GNOME. On interroge loginctl en repli :
     il lit la session logind, qui ne depend pas de l'environnement du process.
     """
+    if IS_WINDOWS:
+        return session_graphique()   # aucun sous-processus (pas de logind)
     typ = os.environ.get("XDG_SESSION_TYPE", "")
     bureau = os.environ.get("XDG_CURRENT_DESKTOP", "")
     if not typ or not bureau:
@@ -163,6 +172,12 @@ def _session_graphique():
 def _env_session() -> dict:
     """Environnement garantissant l'accès au bus de session (utile sous systemd --user)."""
     env = dict(os.environ)
+    if IS_WINDOWS:
+        # os.getuid n'existe pas sous Windows (AttributeError mesurée le
+        # 2026-09-15, avalée par _run et faisant échouer TOUTE commande avant
+        # même le spawn). Pas de bus de session D-Bus non plus.
+        env.setdefault("XDG_RUNTIME_DIR", runtime_dir())
+        return env
     if not env.get("XDG_RUNTIME_DIR"):
         env["XDG_RUNTIME_DIR"] = f"/run/user/{os.getuid()}"
     if not env.get("DBUS_SESSION_BUS_ADDRESS"):
@@ -173,8 +188,13 @@ def _env_session() -> dict:
 def _run(cmd: list, timeout: int = 8) -> dict:
     """Exécute une commande bornée. Retourne toujours un dict, ne lève jamais."""
     try:
+        extra = {}
+        if IS_WINDOWS:
+            # Jamais atteint avec le stub, mais si un jour un outil GNOME est
+            # porté : pas de console clignotante, sortie cp850 tolérée.
+            extra = {"creationflags": NO_WINDOW, "encoding": "utf-8", "errors": "replace"}
         p = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=timeout, env=_env_session())
+                           timeout=timeout, env=_env_session(), **extra)
         return {"code": p.returncode, "stdout": p.stdout.strip(),
                 "stderr": p.stderr.strip(), "cmd": " ".join(cmd)}
     except subprocess.TimeoutExpired:
@@ -245,6 +265,8 @@ def _extension_active(ext_id: str) -> bool:
 
 
 def _bureau_dir() -> str:
+    if IS_WINDOWS:
+        return desktop_dir()   # SHGetKnownFolderPath (gère la redirection OneDrive)
     r = _run(["xdg-user-dir", "DESKTOP"], timeout=4)
     if r["code"] == 0 and r["stdout"] and os.path.isdir(r["stdout"]):
         return r["stdout"]
@@ -513,8 +535,39 @@ def get_etat_ecrans() -> dict:
     return _mutter_lire()
 
 
+def _etat_stub_windows() -> dict:
+    """Constat de MÊME FORME que get_bureau_etat() (tab_bureau.refresh_bureau
+    accède aux clés sans .get) : vide, conforme, marqué indisponible. Aucune
+    commande, aucune écriture — l'invariant du constat est conservé."""
+    rep = _bureau_dir()
+    etat = {
+        "success": True,
+        "machine": MACHINE,
+        "session": _session_graphique(),
+        "barre": {"schema": SCHEMA_BARRE, "extension": EXT_BARRE,
+                  "active": None, "cles": []},
+        "icones": {"schema": SCHEMA_ICONES, "extension": EXT_ICONES,
+                   "active": None, "cles": [],
+                   "lanceurs": {"repertoire": rep, "total": 0, "executables": 0,
+                                "trusted": 0, "a_traiter": 0}},
+        "verrous": {"cles": [],
+                    "dconf": {"profils": [], "bases_chargees": [], "locks": [],
+                              "inertes": 0, "profil_user": False}},
+        "ecrans": {"ok": False, "via": "aucune", "mode": "INDISPONIBLE",
+                   "moniteurs": [], "logiques": [],
+                   "erreur": "Mutter/D-Bus inexistants sous Windows"},
+        "conforme": True, "derives": [],
+        "traces": lire_traces(20),
+    }
+    etat.update(indisponible("Pilotage du bureau GNOME"))
+    etat["note"] = NOTE_WINDOWS
+    return etat
+
+
 def get_bureau_etat() -> dict:
     """CONSTAT global. N'écrit rien, nulle part. C'est l'invariant du module."""
+    if IS_WINDOWS:
+        return _etat_stub_windows()
     try:
         barre = get_etat_barre()
         icones = get_etat_icones()
@@ -777,6 +830,13 @@ def run_bureau_action(action: str, params: dict = None) -> dict:
             return get_bureau_etat()
         if action == "trace.recent":
             return {"success": True, "traces": lire_traces(int(params.get("limite", 20)))}
+
+        if IS_WINDOWS:
+            # Refus net, SANS _tracer : le sondage du 2026-09-15 avait créé
+            # jarvis_logs.db avec des lignes ECHEC fictives. Rien à écrire ici.
+            return {"success": False, "verdict": "HORS-LOGICIEL", "action": action,
+                    "indisponible": True, "plateforme": "windows",
+                    "error": f"{action} : {NOTE_WINDOWS}"}
 
         with _VERROU:
             if action in ("barre.set", "icones.set", "verrous.set"):

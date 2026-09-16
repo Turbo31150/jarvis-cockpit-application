@@ -25,8 +25,21 @@ from textual.widgets import (
 from textual.reactive import reactive
 from textual.binding import Binding
 
-MASTER_DB = os.path.expanduser("~/jarvis/jarvis_master.db")
-BOARD_DIR = os.path.expanduser("~/jarvis/board")
+# Couche de compatibilité Linux rig ⇄ Windows 11 : terminaux, nvidia-smi,
+# interpréteur Python (jamais 'python3' nu sous Windows = alias Store), volumes.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from core.platform_compat import (
+    IS_WINDOWS, run_cmd, nvidia_smi_path, python_exe, open_terminal,
+    volume_by_label, unavailable_note, tmux_available, ensure_utf8_stdio,
+)
+try:
+    from core.config import (MASTER_DB, BOARD_DIR, SCRIPTS_DIR,
+                             LMSTUDIO_HOST, LMSTUDIO_PORT)
+except Exception:  # core.config absent (copie autonome de app.py) : valeurs historiques
+    MASTER_DB = os.path.expanduser("~/jarvis/jarvis_master.db")
+    BOARD_DIR = os.path.expanduser("~/jarvis/board")
+    SCRIPTS_DIR = os.path.expanduser("~/jarvis/scripts")
+    LMSTUDIO_HOST, LMSTUDIO_PORT = "192.168.42.241", 1234
 
 def is_port_open(host: str, port: int, timeout: float = 0.15) -> bool:
     try:
@@ -39,17 +52,37 @@ def is_port_open(host: str, port: int, timeout: float = 0.15) -> bool:
         return False
 
 def get_vram_info() -> tuple[int, int, int]:
+    """(utilisé, total, temp max) agrégés sur toutes les cartes NVIDIA.
+    nvidia-smi résolu par la couche compat (System32 sous Windows), délai 2.5 s
+    (1 s était trop court au démarrage à froid de nvidia-smi.exe), jamais
+    d'exception ; (0, 4096, 0) si aucune carte/outil."""
+    smi = nvidia_smi_path()
+    if not smi:
+        return 0, 4096, 0
     try:
-        r = subprocess.run(
-            ["nvidia-smi", "--query-gpu=memory.used,memory.total,temperature.gpu", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=1
+        r = run_cmd(
+            [smi, "--query-gpu=memory.used,memory.total,temperature.gpu", "--format=csv,noheader,nounits"],
+            timeout=2.5,
         )
-        if r.returncode == 0 and r.stdout.strip():
-            parts = [int(p.strip()) for p in r.stdout.strip().split(",")]
-            return parts[0], parts[1], parts[2]
+        if r.returncode == 0 and (r.stdout or "").strip():
+            used = total = temp = 0
+            for line in r.stdout.strip().splitlines():
+                parts = [int(p.strip()) for p in line.split(",") if p.strip().lstrip("-").isdigit()]
+                if len(parts) >= 3:
+                    used += parts[0]
+                    total += parts[1]
+                    temp = max(temp, parts[2])
+            if total:
+                return used, total, temp
     except Exception:
         pass
     return 0, 4096, 0
+
+
+def _python_script(dossier: str, nom: str) -> str | None:
+    """Chemin du script s'il existe, sinon None (message « indisponible »)."""
+    p = os.path.join(dossier, nom)
+    return p if os.path.isfile(p) else None
 
 def get_mcp_servers() -> dict:
     p = os.path.expanduser("~/.claude.json")
@@ -182,7 +215,7 @@ class JarvisCockpit(App):
                     
                     with Vertical(classes="hud-box"):
                         yield Label("⚡ TOPOLOGIE & INFRASTRUCTURE", classes="hud-title")
-                        yield Static("• Machine   : mining • i5-3450 4c • 31 Go RAM\n• GPU 0     : RTX 2060 12Go → LM Studio 127.0.0.1:1234 (qwen3-8b)\n• GPU 1     : RTX 3080 10Go → Ollama 127.0.0.1:11434 (qwen2.5:7b)\n• SSD       : / (systeme) • /mnt/jarvis-m1 • /mnt/jarvis-m6\n• Moteurs   : DOMINO dual-moteur (board boost)\n• Docker    : 29.1.3 (runtime nvidia)")
+                        yield Static(self._topologie_text())
                         yield Button("🔄 Scanner & Régénérer To-Do List M4", id="btn-plan-regen", classes="action-btn")
                         yield Button("🌾 Lancer Moisson Claude Code", id="btn-moisson-run", classes="action-btn")
 
@@ -215,12 +248,35 @@ class JarvisCockpit(App):
 
         yield Footer()
 
+    @staticmethod
+    def _topologie_text() -> str:
+        if IS_WINDOWS:
+            return ("• Machine   : PC Windows 11 • LM Studio 127.0.0.1:1234 • Ollama 127.0.0.1:11434\n"
+                    "• GPU       : NVIDIA (nvidia-smi.exe) — télémétrie ci-contre\n"
+                    "• SSD       : lettres de lecteur (JARVIS-M1 détecté par étiquette de volume)\n"
+                    f"• {unavailable_note('Sessions tmux / TTX / bureau GNOME')}\n"
+                    "• Terminaux : Windows Terminal (wt.exe) ou cmd.exe")
+        return ("• Machine   : mining • i5-3450 4c • 31 Go RAM\n• GPU 0     : RTX 2060 12Go → LM Studio 127.0.0.1:1234 (qwen3-8b)\n"
+                "• GPU 1     : RTX 3080 10Go → Ollama 127.0.0.1:11434 (qwen2.5:7b)\n• SSD       : / (systeme) • /mnt/jarvis-m1 • /mnt/jarvis-m6\n"
+                "• Moteurs   : DOMINO dual-moteur (board boost)\n• Docker    : 29.1.3 (runtime nvidia)")
+
     def on_mount(self) -> None:
         self.title = "JARVIS MASTER COCKPIT — M4 NATIVE"
         self.sub_title = "91 MCPs • Table Ronde • Swarm • TTX Workspace"
         self.setup_tables()
         self.update_telemetry()
         self.set_interval(2.0, self.update_telemetry)
+
+    def _notifier(self, message: str, severity: str = "warning") -> None:
+        """Affiche un message non bloquant (jamais de traceback plein écran)."""
+        try:
+            self.notify(message, severity=severity, timeout=6)
+        except Exception:
+            pass
+        try:
+            self.query_one("#telemetry-display", Static).update(message)
+        except Exception:
+            pass
 
     def setup_tables(self) -> None:
         # Table MCPs
@@ -244,18 +300,41 @@ class JarvisCockpit(App):
         t_swarm.add_columns("Service", "Hôte : Port", "Rôle", "Statut Live")
 
     def update_telemetry(self) -> None:
+        """Collecte (nvidia-smi + 8 sondes TCP) dans un worker thread Textual :
+        sur la boucle d'événements elle gelait la TUI jusqu'à ~1 s quand les
+        hôtes ne répondent pas. L'UI est mise à jour via call_from_thread."""
+        self.run_worker(self._collecter_telemetrie, thread=True, exclusive=True,
+                        group="telemetrie", exit_on_error=False)
+
+    def _collecter_telemetrie(self) -> None:
         v_used, v_tot, temp = get_vram_info()
-        pg_up = is_port_open("127.0.0.1", 5432)
-        rd_up = is_port_open("127.0.0.1", 6379)
-        n8n_up = is_port_open("127.0.0.1", 5678)
-        port_up = is_port_open("127.0.0.1", 9000)
-        lms_up = is_port_open("192.168.42.241", 1234) or is_port_open("127.0.0.1", 1234)
-        ol1_up = is_port_open("127.0.0.1", 11434)
+        d = {
+            "vram": (v_used, v_tot, temp),
+            "pg": is_port_open("127.0.0.1", 5432),
+            "rd": is_port_open("127.0.0.1", 6379),
+            "n8n": is_port_open("127.0.0.1", 5678),
+            "port": is_port_open("127.0.0.1", 9000),
+            "reg": is_port_open("127.0.0.1", 5000),
+            "ol1": is_port_open("127.0.0.1", 11434),
+            # LMSTUDIO_HOST = tether du rig (Linux) ou 127.0.0.1 (Windows), + loopback
+            "lms": is_port_open(LMSTUDIO_HOST, LMSTUDIO_PORT) or is_port_open("127.0.0.1", 1234),
+            # /media/pamerys/JARVIS-M1 (rig) ou lettre de lecteur (Windows)
+            "m1": volume_by_label("JARVIS-M1") is not None,
+        }
+        try:
+            self.call_from_thread(self._appliquer_telemetrie, d)
+        except Exception:
+            pass
+
+    def _appliquer_telemetrie(self, d: dict) -> None:
+        v_used, v_tot, temp = d["vram"]
+        pg_up, rd_up, n8n_up, port_up = d["pg"], d["rd"], d["n8n"], d["port"]
+        lms_up, ol1_up = d["lms"], d["ol1"]
 
         telem = (
             f"⚡ GPU RTX 3050 : {v_used} MB / {v_tot} MB ({temp}°C) | "
             f"LM Studio : {'UP (Dual GPU)' if lms_up else 'DOWN'} | "
-            f"SSD M1 USB : {'MOUNTED' if os.path.exists('/media/pamerys/JARVIS-M1') else 'NON'}\n"
+            f"SSD M1 USB : {'MOUNTED' if d['m1'] else 'NON'}\n"
             f"🐳 Swarm : Postgres={'UP' if pg_up else 'DOWN'} | Redis={'UP' if rd_up else 'DOWN'} | "
             f"n8n={'UP' if n8n_up else 'DOWN'} | Portainer={'UP' if port_up else 'DOWN'}"
         )
@@ -272,41 +351,78 @@ class JarvisCockpit(App):
             t_swarm.add_row("Redis 7 Alpine", "127.0.0.1:6379", "Cache mémoire & Event bus", "🟢 UP" if rd_up else "🔴 DOWN")
             t_swarm.add_row("n8n Automation", "127.0.0.1:5678", "Moteur de workflows & déclencheurs", "🟢 UP" if n8n_up else "🔴 DOWN")
             t_swarm.add_row("Portainer CE", "127.0.0.1:9000", "Console d'administration Swarm", "🟢 UP" if port_up else "🔴 DOWN")
-            t_swarm.add_row("Docker Registry", "127.0.0.1:5000", "Registre d'images local", "🟢 UP" if is_port_open("127.0.0.1", 5000) else "🔴 DOWN")
+            t_swarm.add_row("Docker Registry", "127.0.0.1:5000", "Registre d'images local", "🟢 UP" if d["reg"] else "🔴 DOWN")
             t_swarm.add_row("Ollama Local (OL1)", "127.0.0.1:11434", "Inférence locale gemma3/llama3", "🟢 UP" if ol1_up else "🔴 DOWN")
             t_swarm.add_row("LM Studio GPU", "127.0.0.1:1234", "Dual GPU (RTX 2060+3080)", "🟢 UP" if lms_up else "🔴 DOWN")
         except Exception:
             pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        bid = event.button.id
+        # Tout est enveloppé : un FileNotFoundError (gnome-terminal absent, script
+        # du rig manquant) faisait afficher une traceback par Textual et quittait.
+        try:
+            self._bouton(event.button.id)
+        except Exception as e:  # noqa: BLE001
+            self._notifier(f"Erreur : {type(e).__name__}: {e}", severity="error")
+
+    def _bouton(self, bid: str | None) -> None:
         if bid == "btn-ttx":
-            subprocess.Popen(["gnome-terminal", "--", "bash", "-ic", "ttx"])
+            # ttx = multiplexeur tmux 14 fenêtres : aucun équivalent sans tmux.
+            if not tmux_available():
+                self._notifier(unavailable_note("TTX / sessions tmux"))
+                return
+            if not open_terminal("ttx", title="JARVIS TTX", login_shell=True):
+                self._notifier("Aucun émulateur de terminal disponible", severity="error")
         elif bid == "btn-claude":
-            subprocess.Popen(["gnome-terminal", "--", "bash", "-ic", "claude"])
+            # Linux : gnome-terminal -- bash -ic claude (inchangé) ; Windows : wt.exe / cmd.exe
+            if not open_terminal("claude", title="Claude Code", login_shell=True):
+                self._notifier("Aucun émulateur de terminal disponible", severity="error")
         elif bid == "btn-turbo":
-            subprocess.Popen(["gnome-terminal", "--", "/home/turbo/jarvis/scripts/start-turbo-m1.sh"])
+            script = _python_script(SCRIPTS_DIR, "start-turbo-m1.sh")
+            if not script or IS_WINDOWS:
+                self._notifier(unavailable_note("Terminal Turbo M1 (script bash du rig)"))
+                return
+            if not open_terminal([script], title="Turbo M1", keep_open=False):
+                self._notifier("Aucun émulateur de terminal disponible", severity="error")
         elif bid == "btn-plan-regen":
+            script = _python_script(SCRIPTS_DIR, "planning_mega_m4.py")
+            if not script:
+                self._notifier(f"⚠ Script absent : {os.path.join(SCRIPTS_DIR, 'planning_mega_m4.py')}")
+                return
             def run_plan():
-                subprocess.run(["python3", "/home/turbo/jarvis/scripts/planning_mega_m4.py"])
-                self.setup_tables()
-            threading.Thread(target=run_plan).start()
+                run_cmd([python_exe(), script], timeout=120)
+                try:
+                    self.call_from_thread(self.setup_tables)
+                except Exception:
+                    pass
+            threading.Thread(target=run_plan, daemon=True).start()
         elif bid == "btn-moisson-run":
-            subprocess.Popen(["gnome-terminal", "--", "bash", "-ic", "moisson; read -p 'Terminé'"])
+            # 'moisson' = alias bash du rig (~/.bashrc) : sans bash interactif Linux, indisponible.
+            if IS_WINDOWS:
+                self._notifier(unavailable_note("Moisson (alias bash du rig)"))
+                return
+            if not open_terminal("moisson; read -p 'Terminé'", title="Moisson", login_shell=True):
+                self._notifier("Aucun émulateur de terminal disponible", severity="error")
         elif bid == "btn-board-ask":
             q = self.query_one("#input-board", Input).value.strip()
             if q:
                 out = self.query_one("#board-output", Static)
+                script = _python_script(BOARD_DIR, "dispatch_table_ronde.py")
+                if not script:
+                    out.update(f"⚠ Table Ronde indisponible : {os.path.join(BOARD_DIR, 'dispatch_table_ronde.py')} absent")
+                    return
                 out.update("🏛 Débat des 7 Experts en cours...\n0 token payant • Analyse FTS5 du corpus & arbitrage...")
                 def run_board():
                     try:
-                        cmd = ["python3", "/home/turbo/jarvis/board/dispatch_table_ronde.py", "--task", q]
-                        r = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+                        r = run_cmd([python_exe(), script, "--task", q], timeout=45)
                         res = r.stdout or r.stderr or "Aucune réponse."
-                        out.update(res)
                     except Exception as e:
-                        out.update(f"Erreur d'exécution: {e}")
-                threading.Thread(target=run_board).start()
+                        res = f"Erreur d'exécution: {e}"
+                    try:
+                        self.call_from_thread(out.update, res)
+                    except Exception:
+                        pass
+                threading.Thread(target=run_board, daemon=True).start()
 
     def action_tab_hud(self) -> None:
         self.query_one(TabbedContent).active = "tab-hud"
@@ -320,9 +436,16 @@ class JarvisCockpit(App):
         self.query_one(TabbedContent).active = "tab-swarm"
     def action_tab_moisson(self) -> None:
         self.query_one(TabbedContent).active = "tab-moisson"
+        # Historiquement /home/pamerys/jarvis/scripts/moisson_reelle.py (autre machine) :
+        # on cherche dans SCRIPTS_DIR, sinon message clair au lieu d'un silence.
+        script = _python_script(SCRIPTS_DIR, "moisson_reelle.py")
         try:
-            r = subprocess.run(["python3", "/home/pamerys/jarvis/scripts/moisson_reelle.py", "--rapport"], capture_output=True, text=True, timeout=3)
-            self.query_one("#moisson-output", Static).update(r.stdout)
+            if not script:
+                self.query_one("#moisson-output", Static).update(
+                    f"⚠ Rapport de moisson indisponible : {os.path.join(SCRIPTS_DIR, 'moisson_reelle.py')} absent")
+                return
+            r = run_cmd([python_exe(), script, "--rapport"], timeout=3)
+            self.query_one("#moisson-output", Static).update(r.stdout or r.stderr or "")
         except Exception:
             pass
     def action_refresh_all(self) -> None:
@@ -330,5 +453,6 @@ class JarvisCockpit(App):
         self.setup_tables()
 
 if __name__ == "__main__":
+    ensure_utf8_stdio()
     app = JarvisCockpit()
     app.run()

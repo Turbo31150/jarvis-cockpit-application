@@ -15,10 +15,35 @@ from urllib.parse import urlparse
 from .config import (M6_URL, OLLAMA_URL, CHAT_PROXY_URL,
                      OLLAMA_2060_URL, OLLAMA_EMBED_URL, EMBED_MODEL,
                      CLOUD_PROVIDERS)
+from .platform_compat import IS_WINDOWS, local_listening_ports
+
+_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+
+
+def _loopback_closed(url: str) -> bool:
+    """Windows uniquement : True si l'URL vise la boucle locale ET qu'aucun serveur
+    n'écoute ce port (table LISTEN psutil, 2 ms). Sous Windows un connect() vers
+    un port loopback fermé n'est refusé qu'après ~2 s : sans ce garde-fou, chaque
+    candidat Ollama absent brûlait son timeout. Toujours False sous Linux ou si
+    psutil manque (on retombe sur le connect() classique)."""
+    if not IS_WINDOWS:
+        return False
+    try:
+        p = urlparse(url)
+        if p.hostname not in _LOOPBACK_HOSTS:
+            return False
+        ports = local_listening_ports()
+        if not ports:
+            return False
+        return (p.port or 80) not in ports
+    except Exception:
+        return False
 
 
 def _port_open(url: str, timeout: float = 0.5) -> bool:
     """Sonde TCP rapide : évite d'attendre le timeout HTTP complet sur un nœud absent."""
+    if _loopback_closed(url):
+        return False
     try:
         p = urlparse(url)
         with socket.create_connection((p.hostname, p.port or 80), timeout=timeout):
@@ -91,6 +116,8 @@ def _lmstudio_local_model(base_url: str, timeout: float = 2.0):
 
 def list_ollama_models(timeout: float = 1.5) -> list:
     """Retourne les modèles Ollama réellement installés (vide si service absent)."""
+    if _loopback_closed(OLLAMA_URL):
+        return []
     try:
         req = urllib.request.Request(f"{OLLAMA_URL}/api/tags")
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -102,6 +129,8 @@ def list_ollama_models(timeout: float = 1.5) -> list:
 
 def _ollama_resident_models(timeout: float = 1.5) -> list:
     """Modèles Ollama actuellement CHARGÉS en VRAM (via /api/ps)."""
+    if _loopback_closed(OLLAMA_URL):
+        return []
     try:
         req = urllib.request.Request(f"{OLLAMA_URL}/api/ps")
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -184,6 +213,8 @@ def generate_completion(prompt: str, sys_prompt: str = None, max_tokens: int = 1
     prefer_gemma = any(k in str(cfg_engine).lower() for k in ("gemma", "4b"))
 
     def _call_ollama(cand_list):
+        if _loopback_closed(OLLAMA_URL):
+            return None  # Windows : Ollama non lancé → pas de ~2 s de refus par candidat
         _gpu_prompt = sys_prompt + "\n\n" + prompt
         for model_name in cand_list:
             try:
@@ -312,7 +343,7 @@ def generate_completion(prompt: str, sys_prompt: str = None, max_tokens: int = 1
 
     # 2. Tier 2 : Ollama Local M4 (127.0.0.1:11434) — modèles auto-découverts
     full_prompt = sys_prompt + "\n\n" + prompt
-    for model_name in _ollama_candidates():
+    for model_name in ([] if _loopback_closed(OLLAMA_URL) else _ollama_candidates()):
         try:
             # Ollama (souvent CPU) : on respecte le budget demandé, sans le gonfler
             # à 512 comme pour M6 — sinon un petit modèle dépasse le timeout.
@@ -367,6 +398,8 @@ def generate_completion(prompt: str, sys_prompt: str = None, max_tokens: int = 1
 
     # 3. Tier 3 : Chat Proxy (127.0.0.1:18800)
     try:
+        if _loopback_closed(CHAT_PROXY_URL):
+            raise ConnectionError("Chat Proxy hors-ligne")
         proxy_payload = json.dumps({
             "model": "jarvis-fast",
             "messages": [

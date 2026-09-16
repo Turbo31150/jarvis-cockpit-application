@@ -13,6 +13,43 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 from core.cdp_engine import get_cdp_status, start_cdp, stop_cdp, verify_cdp
 from core.notion_engine import get_notion_stats, run_notion_backup_snapshot
+from core.config import JARVIS_DIR
+from core.platform_compat import (IS_WINDOWS, open_terminal, safe_popen, find_app, which,
+                                  unavailable_message)
+
+
+def _apps_ia_linux():
+    """Lanceurs du rig (inchangés) : argv lancés tels quels, détachés."""
+    return [
+        ("👑 Claude Desktop", "purple", ["/usr/bin/claude-desktop"]),
+        ("⚡ Claude Code CLI", "", ["gnome-terminal", "--title=Claude Code CLI", "--", "claude"]),
+        ("🛰 Antigravity IDE", "purple", ["gnome-terminal", "--title=Google Antigravity", "--", "agy"]),
+        ("🌐 BrowserOS App", "cyan", ["/home/turbo/Téléchargements/BrowserOS.AppImage"]),
+        ("🤖 Chat Local Ollama", "amber", ["gnome-terminal", "--title=Inférence Locale Ollama", "--", "ollama", "run", "qwen2.5:1.5b"]),
+    ]
+
+
+def _apps_ia_windows():
+    """Mêmes lanceurs pour ce poste Windows : un callable (terminal wt.exe/cmd via
+    open_terminal, ou Popen détaché) ; None = cible introuvable → bouton grisé."""
+    claude_desktop, claude, agy = find_app("claude-desktop"), find_app("claude"), find_app("agy")
+    browseros, ollama = which("browseros"), find_app("ollama")
+
+    def _terminal(titre, *argv):
+        if not argv or not argv[0]:
+            return None
+        return lambda: open_terminal(list(argv), title=titre, cwd=JARVIS_DIR, keep_open=True)
+
+    def _detache(exe):
+        return (lambda: safe_popen([exe])) if exe else None
+
+    return [
+        ("👑 Claude Desktop", "purple", _detache(claude_desktop)),
+        ("⚡ Claude Code CLI", "", _terminal("Claude Code CLI", claude)),
+        ("🛰 Antigravity IDE", "purple", _terminal("Google Antigravity", agy)),
+        ("🌐 BrowserOS App", "cyan", _detache(browseros)),
+        ("🤖 Chat Local Ollama", "amber", _terminal("Inférence Locale Ollama", ollama, "run", "qwen2.5:1.5b")),
+    ]
 
 
 class CdpWorker(QThread):
@@ -51,18 +88,15 @@ class TabIaWeb(QWidget):
         # ── APPLICATIONS IA DE BUREAU ──
         row_apps = QHBoxLayout()
         row_apps.setSpacing(8)
-        apps_list = [
-            ("👑 Claude Desktop", "purple", ["/usr/bin/claude-desktop"]),
-            ("⚡ Claude Code CLI", "", ["gnome-terminal", "--title=Claude Code CLI", "--", "claude"]),
-            ("🛰 Antigravity IDE", "purple", ["gnome-terminal", "--title=Google Antigravity", "--", "agy"]),
-            ("🌐 BrowserOS App", "cyan", ["/home/turbo/Téléchargements/BrowserOS.AppImage"]),
-            ("🤖 Chat Local Ollama", "amber", ["gnome-terminal", "--title=Inférence Locale Ollama", "--", "ollama", "run", "qwen2.5:1.5b"]),
-        ]
-        for name, cls, cmd in apps_list:
+        for name, cls, cmd in (_apps_ia_windows() if IS_WINDOWS else _apps_ia_linux()):
             b = QPushButton(name)
             if cls:
                 b.setProperty("class", cls)
-            b.clicked.connect(lambda _, c=cmd: subprocess.Popen(c, start_new_session=True))
+            if cmd is None:
+                b.setEnabled(False)
+                b.setToolTip(unavailable_message(name.split(" ", 1)[-1], "cible introuvable sur ce poste"))
+            else:
+                b.clicked.connect(lambda _, c=cmd, n=name: self._lancer(c, n))
             row_apps.addWidget(b)
         layout.addLayout(row_apps)
 
@@ -154,6 +188,20 @@ class TabIaWeb(QWidget):
             self.notion_table.setItem(row, 0, QTableWidgetItem(f.get("name", "")))
             self.notion_table.setItem(row, 1, QTableWidgetItem(str(f.get("size_kb", ""))))
             self.notion_table.setItem(row, 2, QTableWidgetItem(f.get("mtime", "")))
+
+    def _lancer(self, cmd, name):
+        """Ne lève jamais : PyQt6 abandonne le processus sur une exception dans un slot
+        (gnome-terminal absent, AppImage manquante…). L'erreur va dans le journal CDP."""
+        try:
+            if callable(cmd):
+                if cmd() is None:
+                    self.cdp_log.append(f"❌ {name} : impossible d'ouvrir un terminal (wt.exe / cmd.exe).")
+                    return
+            else:
+                subprocess.Popen(cmd, start_new_session=True)
+            self.cdp_log.append(f"🚀 {name} lancé.")
+        except Exception as e:
+            self.cdp_log.append(f"❌ {name} : {e}")
 
     def run_cdp_action(self, act):
         self.cdp_log.append(f"⏳ Exécution action CDP : {act}…")

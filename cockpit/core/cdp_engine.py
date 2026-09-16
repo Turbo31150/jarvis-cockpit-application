@@ -15,6 +15,10 @@ import time
 import socket
 import urllib.request
 import subprocess
+from .platform_compat import (
+    IS_WINDOWS, HOME, JARVIS_DIR, find_browser, run_cmd, popen_detached_kwargs,
+    kill_processes_matching, local_listening_ports, unavailable,
+)
 
 PORT = 9222
 
@@ -30,19 +34,35 @@ def _premier_binaire(candidats):
 
 # Chemins réels de la machine (rig « mining ») : le binaire browseros vit sous
 # ~/.local/bin, pas /opt. On retombe sur google-chrome si browseros est absent.
-BIN = _premier_binaire([
-    "~/.local/bin/browseros",
-    "/opt/browseros/opt/browseros/browseros",
-    "/usr/bin/google-chrome",
-    "/opt/google/chrome/chrome",
-]) or "/usr/bin/google-chrome"
-PROFIL_SRC = os.path.expanduser("~/chrome-m1")
-PROFIL_CDP = os.path.expanduser("~/chrome-m1-cdp")
-LOG_FILE = os.path.expanduser("~/jarvis/logs/browseros-cdp.log")
+if IS_WINDOWS:
+    # Windows : chrome.exe (Program Files / LOCALAPPDATA) puis msedge.exe en dernier recours.
+    BIN = find_browser() or ""
+else:
+    BIN = _premier_binaire([
+        "~/.local/bin/browseros",
+        "/opt/browseros/opt/browseros/browseros",
+        "/usr/bin/google-chrome",
+        "/opt/google/chrome/chrome",
+    ]) or "/usr/bin/google-chrome"
+PROFIL_SRC = os.path.join(HOME, "chrome-m1")
+PROFIL_CDP = os.path.join(HOME, "chrome-m1-cdp")
+LOG_FILE = os.path.join(JARVIS_DIR, "logs", "browseros-cdp.log")
+# Script bash du rig (absent sous Windows → repli lancement direct du navigateur)
+SCRIPT_CDP = os.path.join(JARVIS_DIR, "bin", "browseros-cdp-authentifie")
+
+
+def _script_utilisable() -> bool:
+    """Le script authentifié du rig n'est exécutable que hors Windows (bash)."""
+    return (not IS_WINDOWS) and os.path.exists(SCRIPT_CDP) and os.access(SCRIPT_CDP, os.X_OK)
 
 
 def is_cdp_alive() -> bool:
     """Vérifie si le port 9222 répond à /json/version."""
+    if IS_WINDOWS:
+        # Port loopback fermé = ~1,2 s brûlées sous Windows → pré-test psutil (2 ms)
+        ports = local_listening_ports()
+        if ports and PORT not in ports:
+            return False
     try:
         req = urllib.request.Request(f"http://127.0.0.1:{PORT}/json/version")
         with urllib.request.urlopen(req, timeout=1.2) as resp:
@@ -97,9 +117,8 @@ def start_cdp() -> dict:
     if is_cdp_alive():
         return {"success": True, "message": f"CDP déjà actif sur le port {PORT}."}
         
-    script = os.path.expanduser("~/jarvis/bin/browseros-cdp-authentifie")
-    if os.path.exists(script) and os.access(script, os.X_OK):
-        r = subprocess.run([script, "demarrer"], capture_output=True, text=True, timeout=25)
+    if _script_utilisable():
+        r = run_cmd([SCRIPT_CDP, "demarrer"], timeout=25)
         return {
             "success": (r.returncode == 0 or is_cdp_alive()),
             "output": r.stdout or r.stderr,
@@ -126,8 +145,9 @@ def start_cdp() -> dict:
         "about:blank",
     ]
     try:
-        with open(LOG_FILE, "a") as log:
-            subprocess.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
+        with open(LOG_FILE, "a", encoding="utf-8", errors="replace") as log:
+            # Linux : start_new_session=True ; Windows : DETACHED_PROCESS|NEW_PROCESS_GROUP
+            subprocess.Popen(cmd, stdout=log, stderr=log, **popen_detached_kwargs())
     except Exception as e:
         return {"success": False, "error": f"Lancement échoué : {e}"}
     for _ in range(20):
@@ -143,10 +163,13 @@ def start_cdp() -> dict:
 
 def stop_cdp() -> dict:
     """Arrête le CDP 9222."""
-    script = os.path.expanduser("~/jarvis/bin/browseros-cdp-authentifie")
-    if os.path.exists(script):
-        r = subprocess.run([script, "arreter"], capture_output=True, text=True, timeout=10)
+    if not IS_WINDOWS and os.path.exists(SCRIPT_CDP):
+        r = run_cmd([SCRIPT_CDP, "arreter"], timeout=10)
         return {"success": True, "output": r.stdout or r.stderr}
+    if IS_WINDOWS:
+        # pkill n'existe pas sous Windows → psutil (terminate puis kill) sur la ligne de commande
+        n = kill_processes_matching(f"remote-debugging-port={PORT}")
+        return {"success": True, "output": f"Arrêt forcé ({n} processus)"}
     subprocess.run(f"pkill -f 'remote-debugging-port={PORT}'", shell=True)
     return {"success": True, "output": "Arrêt forcé"}
 
@@ -155,9 +178,10 @@ def verify_cdp() -> dict:
     """Vérifie l'authentification réelle de la session."""
     if not is_cdp_alive():
         return {"success": False, "error": f"CDP inactif sur :{PORT}. Démarrez-le d'abord."}
-    script = os.path.expanduser("~/jarvis/bin/browseros-cdp-authentifie")
-    if os.path.exists(script):
-        r = subprocess.run([script, "verifier"], capture_output=True, text=True, timeout=35)
+    if IS_WINDOWS:
+        return unavailable("Vérification d'authentification CDP (script du rig)", authenticated=False)
+    if os.path.exists(SCRIPT_CDP):
+        r = run_cmd([SCRIPT_CDP, "verifier"], timeout=35)
         is_auth = ("AUTHENTIFIE" in r.stdout and "NON AUTHENTIFIE" not in r.stdout)
         return {
             "success": is_auth,

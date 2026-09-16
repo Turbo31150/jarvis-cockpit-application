@@ -11,12 +11,26 @@ import json
 import subprocess
 import shutil
 from .config import HOME, JARVIS_DIR, APP_CATEGORIES
+from .platform_compat import (IS_WINDOWS, LAUNCHER_EXTS, desktop_dir, app_launcher_dirs,
+                              bash_exe, exec_head, open_path_msg, open_in_terminal,
+                              popen_detached, which)
 
 PREFS_FILE = os.path.join(JARVIS_DIR, "cockpit", ".cockpit_prefs.json")
 
 
 _SHELLS_NEUTRES = {"env", "sh", "bash", "/bin/bash", "/bin/sh", "xdg-open",
-                   "gio", "flatpak", "snap", "nohup", "exec", "sudo"}
+                   "gio", "flatpak", "snap", "nohup", "exec", "sudo",
+                   # interpréteurs Windows (inoffensif sous Linux)
+                   "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe",
+                   "wt", "wt.exe", "start", "explorer", "explorer.exe", "wsl", "wsl.exe"}
+
+# Scan Windows : le Bureau de ce poste porte des projets entiers (mesuré le
+# 2026-09-15 : 6 605 dossiers / 36 088 fichiers, 2 s de parcours complet).
+# On borne la profondeur et on saute les dossiers de build ; le Menu Démarrer
+# (233 raccourcis) se parcourt en 10 ms.
+_WIN_PROFONDEUR_MAX = 2
+_WIN_DOSSIERS_IGNORES = {".git", "node_modules", "__pycache__", ".venv", "venv",
+                         "dist", "build", ".backup", "_raccourcis_inactifs"}
 
 
 def cible_dispo(exec_cmd: str) -> bool:
@@ -31,8 +45,13 @@ def cible_dispo(exec_cmd: str) -> bool:
     """
     if not exec_cmd:
         return False
-    tete = exec_cmd.strip().strip('"').split()[0].strip('"')
-    if tete in _SHELLS_NEUTRES:
+    if IS_WINDOWS:
+        # shlex posix=False : `"C:\Program Files\X\x.exe" --flag` -> chemin complet,
+        # et non 'C:\Program' (jugé introuvable).
+        tete = exec_head(exec_cmd)
+    else:
+        tete = exec_cmd.strip().strip('"').split()[0].strip('"')
+    if tete.lower() in _SHELLS_NEUTRES:
         return True
     return bool(shutil.which(tete)) or os.path.exists(tete)
 
@@ -95,10 +114,124 @@ def extract_desktop_entry(filepath: str) -> dict:
         "dispo": cible_dispo(exec_cmd),
     }
 
+def extract_win_entry(filepath: str, origine: str = "", base: str = "") -> dict | None:
+    """Entrée Windows (.lnk/.url/.exe/.bat/.cmd/.ps1/.sh) sans résolution COM :
+    os.startfile résout lui-même les .lnk, inutile (et trop lent pour ~300
+    raccourcis) de passer par WScript.Shell. None si l'extension est inconnue.
+    La catégorie est calculée sur le chemin RELATIF à `base` : le chemin absolu
+    du Menu Démarrer contient « Microsoft » et « Windows », ce qui classait
+    184 entrées sur 307 en MULTIMÉDIA (mot-clé « micro », mesuré le 2026-09-15)."""
+    ext = os.path.splitext(filepath)[1].lower()
+    chemin_cat = os.path.relpath(filepath, base) if base else os.path.basename(filepath)
+    nom_fichier = os.path.basename(filepath)
+    name = os.path.splitext(nom_fichier)[0].replace("_", " ").strip() or nom_fichier
+    if ext in (".lnk", ".url"):
+        typ, terminal, icon = "raccourci", False, ("web" if ext == ".url" else "application")
+        exec_cmd, dispo = filepath, True
+        comment = ("Raccourci web" if ext == ".url" else "Raccourci") + (f" — {origine}" if origine else "")
+    elif ext == ".exe":
+        typ, terminal, icon = "exe", False, "application-x-executable"
+        exec_cmd, dispo = f'"{filepath}"', True
+        comment = f"Exécutable : {nom_fichier}"
+    elif ext in (".bat", ".cmd"):
+        typ, terminal, icon = "script", True, "utilities-terminal"
+        exec_cmd, dispo = f'"{filepath}"', True
+        comment = f"Script cmd : {nom_fichier}"
+    elif ext == ".ps1":
+        typ, terminal, icon = "script", True, "utilities-terminal"
+        psh = which("powershell") or "powershell.exe"
+        exec_cmd, dispo = f'"{psh}" -NoProfile -ExecutionPolicy Bypass -File "{filepath}"', True
+        comment = f"Script PowerShell : {nom_fichier}"
+    elif ext == ".sh":
+        typ, terminal, icon = "script", True, "utilities-terminal"
+        bash = bash_exe()   # Git bash uniquement — jamais System32\bash.exe (WSL)
+        exec_cmd = f'"{bash}" -l "{filepath}"' if bash else f'bash "{filepath}"'
+        dispo = bool(bash)
+        comment = f"Script Shell : {nom_fichier}" + ("" if bash else " (Git bash introuvable)")
+    else:
+        return None
+    return {
+        "name": name,
+        "path": filepath,
+        "exec": exec_cmd,
+        "icon": icon,
+        "comment": comment,
+        "terminal": terminal,
+        # exec (chemin absolu / Git bash) volontairement exclu du classement.
+        "category": categorize_app(name, chemin_cat, ""),
+        "type": typ,
+        "dispo": dispo,
+    }
+
+
+def _scan_windows(apps: list, seen_paths: set) -> None:
+    """Bureau (profondeur bornée) + menus Démarrer utilisateur et machine."""
+    bureau = desktop_dir()
+    if os.path.isdir(bureau):
+        for root, dirs, files in os.walk(bureau):
+            profondeur = 0 if root == bureau else os.path.relpath(root, bureau).count(os.sep) + 1
+            if profondeur >= _WIN_PROFONDEUR_MAX:
+                dirs[:] = []
+            else:
+                dirs[:] = [d for d in dirs
+                           if not d.startswith(".") and d.lower() not in _WIN_DOSSIERS_IGNORES]
+            for f in files:
+                if not f.lower().endswith(LAUNCHER_EXTS):
+                    continue
+                full_p = os.path.join(root, f)
+                if full_p in seen_paths:
+                    continue
+                entree = extract_win_entry(full_p, "Bureau", bureau)
+                if entree:
+                    seen_paths.add(full_p)
+                    apps.append(entree)
+
+        # Dossiers du Bureau : ouverts par l'Explorateur (os.startfile).
+        for nom in sorted(os.listdir(bureau)):
+            chemin = os.path.join(bureau, nom)
+            if not os.path.isdir(chemin) or nom.startswith(".") or chemin in seen_paths:
+                continue
+            seen_paths.add(chemin)
+            try:
+                nb = len(os.listdir(chemin))
+            except OSError:
+                nb = 0
+            apps.append({
+                "name": nom, "path": chemin, "exec": chemin, "icon": "folder",
+                "comment": f"Dossier du Bureau — {nb} element(s)", "terminal": False,
+                "category": categorize_app(nom, nom, ""), "type": "dossier",
+                "dispo": True,
+            })
+
+    for base in app_launcher_dirs():
+        libelle = "Menu Démarrer" + (" (machine)" if "programdata" in base.lower() else "")
+        for root, dirs, files in os.walk(base):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for f in files:
+                if not f.lower().endswith((".lnk", ".url")):
+                    continue
+                full_p = os.path.join(root, f)
+                if full_p in seen_paths:
+                    continue
+                sous = os.path.relpath(root, base)
+                entree = extract_win_entry(full_p, libelle + ("" if sous == "." else f" · {sous}"), base)
+                if entree:
+                    seen_paths.add(full_p)
+                    apps.append(entree)
+
+
 def scan_all_applications() -> list[dict]:
     """Scanne le Bureau, .local/share/applications et scripts clés."""
     apps = []
     seen_paths = set()
+    if IS_WINDOWS:
+        try:
+            _scan_windows(apps, seen_paths)
+        except Exception:
+            pass
+        apps.sort(key=lambda x: (x["category"], x["name"].lower()))
+        return apps
+
     bureau_dir = os.path.join(HOME, "Bureau")
     local_apps_dir = os.path.join(HOME, ".local", "share", "applications")
 
@@ -177,6 +310,9 @@ def launch_application(app_entry: dict) -> tuple[bool, str]:
     exec_cmd = app_entry.get("exec", "")
     terminal = app_entry.get("terminal", False)
 
+    if IS_WINDOWS:
+        return _launch_windows(app_entry)
+
     try:
         if path.endswith(".desktop") and shutil.which("gio"):
             subprocess.Popen(["gio", "launch", path], start_new_session=True,
@@ -199,10 +335,71 @@ def launch_application(app_entry: dict) -> tuple[bool, str]:
     except Exception as e:
         return False, f"Erreur lors du lancement : {e}"
 
+def _launch_windows(app_entry: dict) -> tuple[bool, str]:
+    """Lancement Windows : jamais `bash '<chemin>'` en shell=True (sur ce poste
+    `bash` du PATH est le lanceur WSL, mesuré le 2026-09-15). Les scripts
+    console partent dans une NOUVELLE console avec leurs handles standard
+    (rien n'est redirigé : sous pythonw les handles hérités sont invalides)."""
+    path = app_entry.get("path", "")
+    exec_cmd = app_entry.get("exec", "")
+    terminal = app_entry.get("terminal", False)
+    nom = app_entry.get("name", "JARVIS App")
+    typ = app_entry.get("type", "")
+    ext = os.path.splitext(path)[1].lower()
+    dossier = os.path.dirname(path) if os.path.isfile(path) else (path if os.path.isdir(path) else None)
+    console = dict(new_console=True, cwd=dossier, stdin=None, stdout=None, stderr=None)
+    try:
+        if typ == "dossier" or ext in (".lnk", ".url", ".exe"):
+            ok, msg = open_path_msg(path)
+            if ok:
+                record_recent_launch(nom)
+            return ok, (f"Ouvert : {nom}" if ok else f"Erreur lors du lancement : {msg}")
+        if ext in (".bat", ".cmd") and os.path.isfile(path):
+            # argv passé tel quel à CreateProcess : les espaces du chemin sont
+            # préservés (cmd /k "C:\a b\x.bat" garde ses guillemets).
+            popen_detached(["cmd.exe", "/d", "/k", path], **console)
+            record_recent_launch(nom)
+            return True, f"Lancé dans une console : {nom}"
+        if ext == ".ps1" and os.path.isfile(path):
+            psh = which("powershell") or "powershell.exe"
+            popen_detached([psh, "-NoProfile", "-ExecutionPolicy", "Bypass", "-NoExit",
+                            "-File", path], **console)
+            record_recent_launch(nom)
+            return True, f"Lancé dans PowerShell : {nom}"
+        if ext == ".sh":
+            bash = bash_exe()
+            if not bash:
+                return False, "Git bash introuvable : impossible d'exécuter un script .sh sous Windows"
+            if not os.path.isfile(path):
+                return False, f"Erreur lors du lancement : script introuvable ({path})"
+            posix = path.replace("\\", "/")
+            script = (f"'{posix}'; echo; read -rp 'Appuyez sur Entrée pour fermer cette fenêtre'"
+                      if "'" not in posix else f'"{posix}"')
+            popen_detached([bash, "-lc", script], **console)
+            record_recent_launch(nom)
+            return True, f"Lancé dans Git bash : {nom}"
+        if terminal and exec_cmd:
+            ok, msg = open_in_terminal(exec_cmd, title=nom, cwd=dossier)
+            if ok:
+                record_recent_launch(nom)
+            return ok, (f"Lancé dans le terminal : {nom}" if ok else f"Erreur lors du lancement : {msg}")
+        if exec_cmd:
+            popen_detached(exec_cmd, shell=True, cwd=dossier)
+            record_recent_launch(nom)
+            return True, f"Processus détaché lancé : {nom}"
+        ok, msg = open_path_msg(path)
+        if ok:
+            record_recent_launch(nom)
+        return ok, (f"Ouvert : {nom}" if ok else f"Erreur lors du lancement : {msg}")
+    except Exception as e:
+        return False, f"Erreur lors du lancement : {e}"
+
+
 def load_prefs() -> dict:
     if os.path.exists(PREFS_FILE):
         try:
-            with open(PREFS_FILE, "r") as f:
+            # encoding explicite : cp1252 par défaut sous Windows (emoji/accents).
+            with open(PREFS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
@@ -210,7 +407,8 @@ def load_prefs() -> dict:
 
 def save_prefs(prefs: dict):
     try:
-        with open(PREFS_FILE, "w") as f:
+        os.makedirs(os.path.dirname(PREFS_FILE), exist_ok=True)
+        with open(PREFS_FILE, "w", encoding="utf-8") as f:
             json.dump(prefs, f, indent=2)
     except Exception:
         pass

@@ -12,7 +12,40 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 from core.swarm_manager import get_swarm_services_status
+from core.config import JARVIS_DIR
+from core.platform_compat import (IS_WINDOWS, open_terminal, python_executable, jarvis_path,
+                                  find_app, unavailable_message)
 import subprocess
+import sys
+
+
+def _actions_linux():
+    """Actions du rig (inchangées) : (titre, classe, argv gnome-terminal, raison=None)."""
+    return [
+        ("⚡ Journal des Services", "cyan", ["gnome-terminal", "--title=Journal des Services JARVIS", "--", "bash", "-lc", "journalctl --user -u 'jarvis*' -n 50 -f"], None),
+        ("🐳 Conteneurs Docker", "", ["gnome-terminal", "--title=Docker Conteneurs Swarm", "--", "bash", "-lc", "docker ps -a 2>/dev/null || echo 'Docker non démarré'; exec bash"], None),
+        ("🎤 Pilote Vocal Whisper", "green", ["gnome-terminal", "--title=JARVIS Whisper Voice", "--", "bash", "-lc", "python3 /home/turbo/jarvis/scripts/voice_pilot.py 2>/dev/null || bash"], None),
+        ("🔍 Audit Santé Système", "amber", ["gnome-terminal", "--title=Audit Santé Système", "--", "bash", "-lc", "/home/turbo/jarvis/scripts/quick_health.sh 2>/dev/null || echo 'Diagnostic terminé'; read -p 'Entrée pour fermer'"], None),
+    ]
+
+
+def _actions_windows():
+    """Mêmes actions pour ce poste : callable (terminal wt.exe/cmd via open_terminal)
+    ou None + raison → bouton grisé. journalctl et les scripts bash n'existent pas ici."""
+    docker = find_app("docker")
+    voice = jarvis_path("scripts", "voice_pilot.py", must_exist=True)
+
+    def _terminal(titre, cmd):
+        return lambda: open_terminal(cmd, title=titre, cwd=JARVIS_DIR, keep_open=True)
+
+    return [
+        ("⚡ Journal des Services", "cyan", None, "journalctl (systemd) du rig Linux"),
+        ("🐳 Conteneurs Docker", "", _terminal("Docker Conteneurs Swarm", "docker ps -a") if docker else None,
+         "docker.exe introuvable (Docker Desktop)"),
+        ("🎤 Pilote Vocal Whisper", "green", _terminal("JARVIS Whisper Voice", [python_executable(), voice]) if voice else None,
+         f"script scripts/voice_pilot.py absent de {JARVIS_DIR}"),
+        ("🔍 Audit Santé Système", "amber", None, "script bash scripts/quick_health.sh du rig Linux"),
+    ]
 
 class TabSwarm(QWidget):
     def __init__(self, parent=None):
@@ -48,22 +81,30 @@ class TabSwarm(QWidget):
         # Actions Bureau & Outils Système
         bot_h = QHBoxLayout()
         bot_h.setSpacing(8)
-        actions = [
-            ("⚡ Journal des Services", "cyan", ["gnome-terminal", "--title=Journal des Services JARVIS", "--", "bash", "-lc", "journalctl --user -u 'jarvis*' -n 50 -f"]),
-            ("🐳 Conteneurs Docker", "", ["gnome-terminal", "--title=Docker Conteneurs Swarm", "--", "bash", "-lc", "docker ps -a 2>/dev/null || echo 'Docker non démarré'; exec bash"]),
-            ("🎤 Pilote Vocal Whisper", "green", ["gnome-terminal", "--title=JARVIS Whisper Voice", "--", "bash", "-lc", "python3 /home/turbo/jarvis/scripts/voice_pilot.py 2>/dev/null || bash"]),
-            ("🔍 Audit Santé Système", "amber", ["gnome-terminal", "--title=Audit Santé Système", "--", "bash", "-lc", "/home/turbo/jarvis/scripts/quick_health.sh 2>/dev/null || echo 'Diagnostic terminé'; read -p 'Entrée pour fermer'"]),
-        ]
-        for title, cls, cmd in actions:
+        for title, cls, cmd, raison in (_actions_windows() if IS_WINDOWS else _actions_linux()):
             b = QPushButton(title)
             if cls:
                 b.setProperty("class", cls)
-            b.clicked.connect(lambda _, c=cmd: subprocess.Popen(c, start_new_session=True))
+            if cmd is None:
+                b.setEnabled(False)
+                b.setToolTip(unavailable_message(title.split(" ", 1)[-1], raison or ""))
+            else:
+                b.clicked.connect(lambda _, c=cmd, t=title: self._lancer(c, t))
             bot_h.addWidget(b)
         bot_h.addStretch()
         layout.addLayout(bot_h)
 
         self.refresh_services()
+
+    def _lancer(self, cmd, title):
+        """Ne lève jamais (PyQt6 abandonne le processus sur une exception dans un slot)."""
+        try:
+            if callable(cmd):
+                cmd()
+            else:
+                subprocess.Popen(cmd, start_new_session=True)
+        except Exception as e:
+            print(f"[swarm] {title} : {e}", file=sys.stderr)
 
     def refresh_services(self):
         services = get_swarm_services_status()

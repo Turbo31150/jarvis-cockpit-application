@@ -25,7 +25,7 @@ AUTH_CACHE = os.path.join(HOME, ".claude", "mcp-needs-auth-cache.json")
 def _load_json(path: str):
     if os.path.exists(path):
         try:
-            with open(path, "r") as f:
+            with open(path, "r", encoding="utf-8") as f:  # cp1252 par défaut sous Windows
                 return json.load(f)
         except Exception:
             pass

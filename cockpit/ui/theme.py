@@ -6,6 +6,8 @@ High-DPI stylesheet, modern typography, glowing accents, and micro-interactions.
 """
 
 STYLESHEET = """
+/* Polices : Ubuntu / JetBrains Mono sur le rig Linux ; Segoe UI, Cascadia Mono et
+   Consolas servent de repli natif sous Windows (Qt retombe sur la 1re police installée). */
 /* ── FENÊTRE & FOND PRINCIPAL ── */
 QMainWindow {
     background-color: #030712;
@@ -13,7 +15,7 @@ QMainWindow {
 
 QWidget {
     color: #e2e8f0;
-    font-family: 'JetBrains Mono', 'Ubuntu', 'Inter', -apple-system, sans-serif;
+    font-family: 'JetBrains Mono', 'Ubuntu', 'Inter', 'Segoe UI', -apple-system, sans-serif;
     font-size: 13px;
     selection-background-color: #0284c7;
     selection-color: #ffffff;
@@ -234,7 +236,7 @@ QLineEdit, QTextEdit, QComboBox {
     border-radius: 8px;
     padding: 8px 12px;
     color: #f8fafc;
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Mono', 'Consolas', monospace;
     font-size: 12px;
 }
 
@@ -259,7 +261,7 @@ QTableWidget, QTreeWidget {
     border-radius: 10px;
     gridline-color: #0d1b38;
     color: #e2e8f0;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'JetBrains Mono', 'Cascadia Mono', 'Consolas', monospace;
     font-size: 12px;
 }
 
@@ -362,7 +364,7 @@ QSpinBox {
     border-radius: 6px;
     padding: 6px 10px;
     color: #ffffff;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'JetBrains Mono', 'Cascadia Mono', 'Consolas', monospace;
     font-size: 12px;
 }
 

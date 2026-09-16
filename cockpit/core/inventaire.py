@@ -23,12 +23,25 @@ import os
 import shutil
 import subprocess
 
+from .platform_compat import (IS_WINDOWS, run_cmd_ok, tailscale_cmd, tailscale_reason,
+                              list_disks, list_usb, list_net_ifaces, nvidia_smi_exe)
+
 TIMEOUT = 6
 DOCKER = os.path.expanduser("~/jarvis/bin/jarvis-docker")
+# Docker Desktop expose son moteur par ce tube nomme ; absent = moteur arrete.
+# Sans ce test, `docker ps` echoue proprement mais en 1,5 s (mesure 2026-09-15).
+DOCKER_PIPE_WIN = r"\\.\pipe\docker_engine"
+# Le CLI Windows met 1,7 a 3 s a repondre meme pour `version` (mesure) :
+# 3 s etait trop juste et rendait un faux "depassement".
+TAILSCALE_TIMEOUT_WIN = 8
 
 
 def _run(cmd, timeout=TIMEOUT):
     """Execute une commande et rend (ok, sortie). Ne leve jamais."""
+    if IS_WINDOWS:
+        # CREATE_NO_WINDOW (pas de console clignotante depuis pythonw) et
+        # decodage tolerant (sortie console en cp850/cp1252).
+        return run_cmd_ok(cmd, timeout=timeout)
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         return r.returncode == 0, (r.stdout or r.stderr or "").strip()
@@ -52,6 +65,10 @@ def get_postgres() -> dict:
     binaire = DOCKER if os.path.exists(DOCKER) else shutil.which("docker")
     if not binaire:
         return {"disponible": False, "raison": "ni jarvis-docker ni docker",
+                "conteneurs": []}
+    if IS_WINDOWS and not os.path.exists(DOCKER_PIPE_WIN):
+        return {"disponible": False,
+                "raison": "Docker Desktop arrete (tube docker_engine absent)",
                 "conteneurs": []}
 
     ok, out = _run([binaire, "ps", "--format",
@@ -110,22 +127,31 @@ def get_postgres() -> dict:
 
 def get_tailscale() -> dict:
     """Pairs du tailnet, avec en ligne de mire l'accessibilite de M6."""
-    ts_bin = shutil.which("tailscale") or os.path.expanduser("~/.local/bin/tailscale")
-    if not (ts_bin and os.path.exists(ts_bin)):
-        return {"disponible": False, "raison": "tailscale absent", "pairs": []}
+    if IS_WINDOWS:
+        # Le CLI Windows parle au service par tube nomme : JAMAIS --socket
+        # (l'ancienne sonde de socket unix rendait un faux "demon inactif").
+        base = tailscale_cmd()
+        if not base:
+            return {"disponible": False, "raison": tailscale_reason() or "tailscale absent",
+                    "pairs": []}
+        ok, out = _run(base + ["status", "--json"], timeout=TAILSCALE_TIMEOUT_WIN)
+    else:
+        ts_bin = shutil.which("tailscale") or os.path.expanduser("~/.local/bin/tailscale")
+        if not (ts_bin and os.path.exists(ts_bin)):
+            return {"disponible": False, "raison": "tailscale absent", "pairs": []}
 
-    # Socket : système OU userspace custom (rig 'mining' : tailscaled --tun=userspace-networking,
-    # socket ~/.config/tailscale-state/tailscaled.sock). L'ancien test ne voyait que le socket
-    # système → renvoyait toujours "démon inactif" alors que le tailnet marche via SOCKS5 :1055.
-    sock = next((s for s in (
-        "/var/run/tailscale/tailscaled.sock",
-        "/run/tailscale/tailscaled.sock",
-        os.path.expanduser("~/.config/tailscale-state/tailscaled.sock"),
-    ) if os.path.exists(s)), None)
-    if not sock:
-        return {"disponible": False, "raison": "démon tailscaled inactif (socket absent)", "pairs": []}
+        # Socket : système OU userspace custom (rig 'mining' : tailscaled --tun=userspace-networking,
+        # socket ~/.config/tailscale-state/tailscaled.sock). L'ancien test ne voyait que le socket
+        # système → renvoyait toujours "démon inactif" alors que le tailnet marche via SOCKS5 :1055.
+        sock = next((s for s in (
+            "/var/run/tailscale/tailscaled.sock",
+            "/run/tailscale/tailscaled.sock",
+            os.path.expanduser("~/.config/tailscale-state/tailscaled.sock"),
+        ) if os.path.exists(s)), None)
+        if not sock:
+            return {"disponible": False, "raison": "démon tailscaled inactif (socket absent)", "pairs": []}
 
-    ok, out = _run([ts_bin, "--socket", sock, "status", "--json"], timeout=3)
+        ok, out = _run([ts_bin, "--socket", sock, "status", "--json"], timeout=3)
     if not ok:
         return {"disponible": False, "raison": out[:200], "pairs": []}
     try:
@@ -167,8 +193,70 @@ def get_tailscale() -> dict:
 
 # ────────────────────────────── PERIPHERIQUES ─────────────────────────────
 
+def _gpu_nvidia(inv: dict, binaire: str = "nvidia-smi") -> None:
+    ok, out = _run([binaire, "--query-gpu=index,name,temperature.gpu,"
+                    "memory.used,memory.total,utilization.gpu",
+                    "--format=csv,noheader,nounits"], timeout=10)
+    if ok:
+        for l in out.splitlines():
+            c = [x.strip() for x in l.split(",")]
+            if len(c) >= 6:
+                inv["gpu"].append({
+                    "index": c[0], "nom": c[1], "temperature_c": c[2],
+                    "vram_utilisee_mo": c[3], "vram_totale_mo": c[4],
+                    "charge_pct": c[5],
+                })
+
+
+def _peripheriques_windows() -> dict:
+    """Meme schema que sous Linux ; lsblk/lsusb/ip n'existent pas : psutil pour
+    les disques et le reseau, PowerShell Get-PnpDevice pour l'USB (1-4 s,
+    borne — appele depuis un thread de requete, jamais du thread GUI).
+    Une famille vide porte sa raison dans `raisons` plutot qu'un tableau vide
+    qui passerait pour un succes."""
+    inv = {"disques": [], "usb": [], "gpu": [], "reseau": [], "raisons": {}}
+    try:
+        inv["disques"] = list_disks()
+    except Exception as e:
+        inv["raisons"]["disques"] = f"{type(e).__name__}: {e}"
+    if not inv["disques"]:
+        inv["raisons"].setdefault("disques", "psutil indisponible")
+
+    try:
+        usb, raison = list_usb(timeout=8)
+        inv["usb"] = usb
+        if raison:
+            inv["raisons"]["usb"] = raison
+    except Exception as e:
+        inv["raisons"]["usb"] = f"{type(e).__name__}: {e}"
+
+    smi = nvidia_smi_exe()
+    if smi:
+        _gpu_nvidia(inv, smi)
+    else:
+        inv["raisons"]["gpu"] = "nvidia-smi introuvable"
+
+    try:
+        inv["reseau"] = list_net_ifaces()
+    except Exception as e:
+        inv["raisons"]["reseau"] = f"{type(e).__name__}: {e}"
+    if not inv["reseau"]:
+        inv["raisons"].setdefault("reseau", "psutil indisponible")
+    return inv
+
+
 def get_peripheriques() -> dict:
     """Disques, USB, GPU et interfaces reseau reellement presents."""
+    if IS_WINDOWS:
+        inv = _peripheriques_windows()
+        inv["resume"] = {
+            "disques": len(inv["disques"]),
+            "usb": sum(1 for u in inv["usb"] if not u["hub"]),
+            "gpu": len(inv["gpu"]),
+            "reseau": len(inv["reseau"]),
+        }
+        return inv
+
     inv = {"disques": [], "usb": [], "gpu": [], "reseau": []}
 
     ok, out = _run(["lsblk", "-J", "-o",
@@ -207,18 +295,7 @@ def get_peripheriques() -> dict:
                 "hub": "root hub" in l,
             })
 
-    ok, out = _run(["nvidia-smi", "--query-gpu=index,name,temperature.gpu,"
-                    "memory.used,memory.total,utilization.gpu",
-                    "--format=csv,noheader,nounits"], timeout=10)
-    if ok:
-        for l in out.splitlines():
-            c = [x.strip() for x in l.split(",")]
-            if len(c) >= 6:
-                inv["gpu"].append({
-                    "index": c[0], "nom": c[1], "temperature_c": c[2],
-                    "vram_utilisee_mo": c[3], "vram_totale_mo": c[4],
-                    "charge_pct": c[5],
-                })
+    _gpu_nvidia(inv)
 
     ok, out = _run(["ip", "-br", "-j", "addr"])
     if ok:

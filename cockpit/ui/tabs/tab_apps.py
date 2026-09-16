@@ -5,6 +5,7 @@ JARVIS COCKPIT — TAB 2 : APPLICATIONS DU BUREAU
 Comprehensive Hub scanning 100+ desktop applications and scripts with real-time search & filters.
 """
 
+import os
 import subprocess
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -14,6 +15,74 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor, QIcon
 from core.config import APP_CATEGORIES
 from core.apps_registry import scan_all_applications, launch_application
+from core.platform_compat import (IS_WINDOWS, popen_detached, open_path_msg, desktop_dir,
+                                  which, find_app)
+
+
+def _quick_apps_linux():
+    """Accès directs du rig (inchangés) : argv lancés tels quels, détachés."""
+    return [
+        ("👑 Claude Desktop", "purple", ["/usr/bin/claude-desktop"]),
+        ("🛰 Antigravity IDE", "purple", ["gnome-terminal", "--title=Google Antigravity", "--", "agy"]),
+        ("🖥 AnyDesk", "red", ["/home/turbo/.local/bin/anydesk"]),
+        ("🔌 Terminal Rémi", "cyan", ["/home/turbo/jarvis/scripts/terminal_direct_remi.sh"]),
+        ("🖥 Terminal M1", "cyan", ["gnome-terminal", "--title=Terminal M1", "--", "ssh", "turbo@192.168.1.85"]),
+        ("👤 Chrome Franck", "ghost", ["google-chrome", "--profile-directory=Profile 1"]),
+        ("⛏ Chrome Mining", "ghost", ["google-chrome", "--profile-directory=Profile 2"]),
+        ("👩 Chrome Claire", "ghost", ["google-chrome", "--profile-directory=Profile 3"]),
+        ("🎙️ Whisper STT", "green", ["bash", "-c", "notify-send 'Whisper' 'Enregistrement 5s...'; /home/turbo/jarvis/scripts/lumen/lumen-cli.sh record 5"]),
+        ("🌊 WhisperFlow", "purple", ["google-chrome", "--app=file:///home/turbo/jarvis/whisperflow/widget.html", "--window-size=450,600"]),
+        ("💡 Lumen Micro", "cyan", ["/home/turbo/jarvis/scripts/lumen/lumen-toggle-mic.sh"]),
+        ("💾 Sauvegarde Disque", "green", ["/home/turbo/jarvis/scripts/ouvrir_sauvegarde.sh"]),
+    ]
+
+
+def _premier_existant(*chemins):
+    for c in chemins:
+        c = os.path.expandvars(c)
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+def _quick_apps_windows():
+    """Accès directs de ce poste Windows. Chaque entrée porte un argv (lancé
+    détaché), un callable, ou None = cible introuvable : bouton désactivé.
+    Les scripts du rig (Whisper, Lumen, WhisperFlow, sauvegarde) n'ont aucun
+    équivalent ici et ne sont pas proposés."""
+    wt, wsl, psh, ssh = which("wt"), which("wsl"), which("powershell"), which("ssh")
+    chrome = find_app("chrome")
+    claude = find_app("claude-desktop")
+    anydesk = _premier_existant(r"%ProgramFiles(x86)%\AnyDesk\AnyDesk.exe",
+                                r"%ProgramFiles%\AnyDesk\AnyDesk.exe")
+    lmstudio = find_app("lmstudio")
+    ollama_app = _premier_existant(r"%LOCALAPPDATA%\Programs\Ollama\ollama app.exe")
+
+    def _dans_wt(titre, *argv):
+        """wt.exe si présent (onglet titré), sinon le programme dans sa propre console."""
+        if not argv or not argv[0]:
+            return None
+        if wt:
+            return [wt, "new-tab", "--title", titre, *argv]
+        return lambda: popen_detached(list(argv), new_console=True, stdin=None, stdout=None, stderr=None)
+
+    def _chrome(profil):
+        return [chrome, f"--profile-directory={profil}"] if chrome else None
+
+    return [
+        ("👑 Claude Desktop", "purple", [claude] if claude else None),
+        ("🖥 Windows Terminal", "cyan", [wt] if wt else None),
+        ("🐧 Terminal WSL", "cyan", _dans_wt("WSL Ubuntu", wsl) if wsl else None),
+        ("💠 PowerShell", "cyan", _dans_wt("PowerShell", psh) if psh else None),
+        ("🖥 Terminal M1", "cyan", _dans_wt("Terminal M1", ssh, "turbo@192.168.1.85") if ssh else None),
+        ("🖥 AnyDesk", "red", [anydesk] if anydesk else None),
+        ("👤 Chrome Franck", "ghost", _chrome("Profile 1")),
+        ("⛏ Chrome Mining", "ghost", _chrome("Profile 2")),
+        ("👩 Chrome Claire", "ghost", _chrome("Profile 3")),
+        ("🧠 LM Studio", "purple", [lmstudio] if lmstudio else None),
+        ("🦙 Ollama", "green", [ollama_app] if ollama_app else None),
+        ("📁 Bureau", "ghost", lambda: open_path_msg(desktop_dir())),
+    ]
 
 class TabApps(QWidget):
     def __init__(self, parent=None):
@@ -58,26 +127,19 @@ class TabApps(QWidget):
         quick_grid.setContentsMargins(8, 8, 8, 8)
         quick_grid.setSpacing(8)
 
-        quick_apps = [
-            ("👑 Claude Desktop", "purple", ["/usr/bin/claude-desktop"]),
-            ("🛰 Antigravity IDE", "purple", ["gnome-terminal", "--title=Google Antigravity", "--", "agy"]),
-            ("🖥 AnyDesk", "red", ["/home/turbo/.local/bin/anydesk"]),
-            ("🔌 Terminal Rémi", "cyan", ["/home/turbo/jarvis/scripts/terminal_direct_remi.sh"]),
-            ("🖥 Terminal M1", "cyan", ["gnome-terminal", "--title=Terminal M1", "--", "ssh", "turbo@192.168.1.85"]),
-            ("👤 Chrome Franck", "ghost", ["google-chrome", "--profile-directory=Profile 1"]),
-            ("⛏ Chrome Mining", "ghost", ["google-chrome", "--profile-directory=Profile 2"]),
-            ("👩 Chrome Claire", "ghost", ["google-chrome", "--profile-directory=Profile 3"]),
-            ("🎙️ Whisper STT", "green", ["bash", "-c", "notify-send 'Whisper' 'Enregistrement 5s...'; /home/turbo/jarvis/scripts/lumen/lumen-cli.sh record 5"]),
-            ("🌊 WhisperFlow", "purple", ["google-chrome", "--app=file:///home/turbo/jarvis/whisperflow/widget.html", "--window-size=450,600"]),
-            ("💡 Lumen Micro", "cyan", ["/home/turbo/jarvis/scripts/lumen/lumen-toggle-mic.sh"]),
-            ("💾 Sauvegarde Disque", "green", ["/home/turbo/jarvis/scripts/ouvrir_sauvegarde.sh"]),
-        ]
+        quick_apps = _quick_apps_windows() if IS_WINDOWS else _quick_apps_linux()
 
         for idx, (name, cls, cmd) in enumerate(quick_apps):
             btn = QPushButton(name)
             if cls:
                 btn.setProperty("class", cls)
-            btn.clicked.connect(lambda _, c=cmd: subprocess.Popen(c, start_new_session=True))
+            if cmd is None:
+                btn.setEnabled(False)
+                btn.setToolTip("Introuvable sur cette machine")
+            else:
+                # Slot protégé : une exception non rattrapée dans un slot PyQt6
+                # = abort du processus entier (aucun sys.excepthook garanti).
+                btn.clicked.connect(lambda _, c=cmd, n=name: self._quick(c, n))
             r, c = divmod(idx, 6)
             quick_grid.addWidget(btn, r, c)
 
@@ -152,6 +214,31 @@ class TabApps(QWidget):
 
         self.recharger_apps()
 
+    def _quick(self, cmd, name=""):
+        """Lance un accès direct sans jamais lever. Linux : Popen historique
+        (start_new_session) ; Windows : détaché ou callable (open_path…)."""
+        try:
+            if callable(cmd):
+                res = cmd()
+                ok = res[0] if isinstance(res, tuple) else res is not None
+                msg = res[1] if isinstance(res, tuple) and len(res) > 1 else ""
+            elif IS_WINDOWS:
+                popen_detached(list(cmd))
+                ok, msg = True, ""
+            else:
+                subprocess.Popen(cmd, start_new_session=True)
+                ok, msg = True, ""
+        except Exception as e:
+            ok, msg = False, f"{type(e).__name__}: {e}"
+        self._statut(ok, f"▶ {name} lancé" + (f" — {msg}" if ok and msg else "")
+                     if ok else f"❌ {name} : {msg or 'échec du lancement'}")
+
+    def _statut(self, ok, texte):
+        lbl = getattr(self, "lbl_status", None)
+        if lbl is not None:
+            lbl.setText(texte)
+            lbl.setStyleSheet("color: #4ade80;" if ok else "color: #f87171;")
+
     def select_category(self, cat):
         self.selected_category = cat
         for c, b in self.cat_buttons.items():
@@ -221,6 +308,8 @@ class TabApps(QWidget):
         row = self.table.currentRow()
         if 0 <= row < len(self.apps_visibles):
             app = self.apps_visibles[row]
-            ok, msg = launch_application(app)
-            self.lbl_status.setText(f"▶ {msg}")
-            self.lbl_status.setStyleSheet("color: #4ade80;" if ok else "color: #f87171;")
+            try:
+                ok, msg = launch_application(app)
+            except Exception as e:      # ceinture : jamais d'exception dans un slot
+                ok, msg = False, f"{type(e).__name__}: {e}"
+            self._statut(ok, f"▶ {msg}")

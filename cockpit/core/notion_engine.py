@@ -14,8 +14,13 @@ import glob
 import time
 import subprocess
 from datetime import datetime
+from .platform_compat import IS_WINDOWS, desktop_dir, sqlite_schema_dump, sqlite_export_csv
 
-NOTION_DIR = os.path.expanduser("~/Bureau/NOTION_JARVIS_BACKUP")
+# Linux : ~/Bureau (inchangé) ; Windows : le vrai dossier Bureau (~\Desktop, affiché « Bureau »)
+if IS_WINDOWS:
+    NOTION_DIR = os.path.join(desktop_dir(), "NOTION_JARVIS_BACKUP")
+else:
+    NOTION_DIR = os.path.expanduser("~/Bureau/NOTION_JARVIS_BACKUP")
 MARKDOWN_DIR = os.path.join(NOTION_DIR, "notion_pages_markdown")
 CSV_DIR = os.path.join(NOTION_DIR, "csv_tables")
 SCHEMAS_DIR = os.path.join(NOTION_DIR, "sql_schemas")
@@ -114,8 +119,9 @@ def run_notion_backup_snapshot() -> dict:
         master_db = os.path.expanduser("~/jarvis/jarvis_master.db")
         if os.path.exists(master_db):
             schema_out = os.path.join(SCHEMAS_DIR, "jarvis_master_schema.sql")
-            subprocess.run(f"sqlite3 '{master_db}' .schema > '{schema_out}'", shell=True, timeout=10)
-            actions.append("Schéma jarvis_master_schema.sql actualisé")
+            # Python pur (sqlite_master) : plus de dépendance au binaire sqlite3 ni au shell
+            n_obj = sqlite_schema_dump(master_db, schema_out)
+            actions.append(f"Schéma jarvis_master_schema.sql actualisé ({n_obj} objets)")
     except Exception as e:
         actions.append(f"Erreur export schéma: {e}")
 
@@ -124,8 +130,9 @@ def run_notion_backup_snapshot() -> dict:
         prod_db = os.path.expanduser("~/jarvis/data/production.db")
         if os.path.exists(prod_db):
             csv_out = os.path.join(CSV_DIR, "production_runs.csv")
-            subprocess.run(f"sqlite3 -header -csv '{prod_db}' 'SELECT * FROM runs;' > '{csv_out}'", shell=True, timeout=10)
-            actions.append("Export CSV production_runs.csv créé")
+            # Python pur (module csv, UTF-8) au lieu de « sqlite3 -header -csv … > »
+            n_rows = sqlite_export_csv(prod_db, "SELECT * FROM runs", csv_out)
+            actions.append(f"Export CSV production_runs.csv créé ({n_rows} lignes)")
     except Exception as e:
         actions.append(f"Erreur export CSV: {e}")
 

@@ -24,6 +24,7 @@ import urllib.request
 from datetime import datetime
 
 from .config import DATA_DIR, OLLAMA_EMBED_URL, EMBED_MODEL
+from .inference import _loopback_closed
 
 DB_PATH = os.path.join(DATA_DIR, "jarvis_action_memory.db")
 MAX_OUTPUT_STORE = 8192
@@ -170,6 +171,9 @@ class ActionMemoryEngine:
 
     def _call_gpu_embed(self, texts: list) -> list:
         """Appel direct vers l'instance Ollama GPU dédiée (:11436 nomic-embed-text)."""
+        if _loopback_closed(OLLAMA_EMBED_URL):
+            # Windows : Ollama non lancé → refus immédiat (sinon ~2 s de refus toutes les 2 s)
+            raise ConnectionError("instance embeddings Ollama hors-ligne")
         payload = json.dumps({"model": EMBED_MODEL, "input": texts}).encode("utf-8")
         req = urllib.request.Request(
             f"{OLLAMA_EMBED_URL}/api/embed",

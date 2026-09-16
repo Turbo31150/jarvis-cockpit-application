@@ -14,8 +14,13 @@ import shutil
 import urllib.request
 import subprocess
 from .config import HOME, JARVIS_DIR, M6_URL, OLLAMA_URL
+from .platform_compat import IS_WINDOWS, which, run_cmd, open_terminal
 
-CLAUDE_BIN = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude") or "/usr/local/bin/claude"
+if IS_WINDOWS:
+    # claude.exe / claude.cmd (npm) : which() connaît %USERPROFILE%\.local\bin et npm
+    CLAUDE_BIN = which("claude") or os.path.join(HOME, ".local", "bin", "claude.exe")
+else:
+    CLAUDE_BIN = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude") or "/usr/local/bin/claude"
 
 CLAUDE_PRESETS = [
     {
@@ -88,7 +93,8 @@ def get_claude_info() -> dict:
     version = "Inconnue"
     if installed:
         try:
-            r = subprocess.run([CLAUDE_BIN, "--version"], capture_output=True, text=True, timeout=3)
+            # run_cmd : sans fenêtre console sous Windows (pythonw), utf-8, ne lève jamais
+            r = run_cmd([CLAUDE_BIN, "--version"], timeout=3)
             version = r.stdout.strip() or r.stderr.strip() or "Installé"
         except Exception:
             version = "Installé"
@@ -97,7 +103,7 @@ def get_claude_info() -> dict:
     mcp_count = 0
     if os.path.exists(config_path):
         try:
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 raw_cfg = json.load(f)
                 mcp_count = len(raw_cfg.get("mcpServers", {}))
         except Exception:
@@ -121,13 +127,12 @@ def run_claude_prompt(prompt: str, cwd: str = None, timeout: int = 12, force_loc
 
     work_dir = cwd or JARVIS_DIR
     try:
-        r = subprocess.run(
-            [CLAUDE_BIN, "-p", prompt],
-            cwd=work_dir,
-            capture_output=True,
-            text=True,
-            timeout=timeout
-        )
+        r = run_cmd([CLAUDE_BIN, "-p", prompt], cwd=work_dir, timeout=timeout)
+        if r.returncode == 124:
+            # run_cmd ne lève jamais : 124 = délai dépassé (équivalent TimeoutExpired)
+            return fallback_local_llm(prompt, reason="Timeout Claude Cloud (12s) -> Bascule Souveraine")
+        if r.returncode == 127:
+            return fallback_local_llm(prompt, reason=f"Exception Claude: {r.stderr}")
         out = (r.stdout or r.stderr or "").strip()
         
         is_529 = ("529" in out or "Overloaded" in out or "status.claude.com" in out or "rate limit" in out.lower() or r.returncode != 0)
@@ -149,10 +154,27 @@ def run_claude_prompt(prompt: str, cwd: str = None, timeout: int = 12, force_loc
 
 
 def launch_claude_interactive(mode: str = "default", cwd: str = None) -> bool:
-    """Lance une session Claude Code dans un terminal dédié."""
-    term = shutil.which("gnome-terminal") or shutil.which("x-terminal-emulator") or "xterm"
+    """Lance une session Claude Code dans un terminal dédié.
+
+    Windows : Windows Terminal (wt.exe) ou cmd.exe via platform_compat.open_terminal ;
+    le mode « tmux » (script du rig) n'existe pas → session simple à la place."""
     work_dir = cwd or JARVIS_DIR
-    
+
+    if IS_WINDOWS:
+        if not CLAUDE_BIN or not os.path.exists(CLAUDE_BIN):
+            return False
+        if mode == "resume":
+            argv = [CLAUDE_BIN, "-r"]
+        elif mode == "doctor":
+            argv = [CLAUDE_BIN, "doctor"]
+        else:
+            # « tmux » inclus : pas de tmux sous Windows, on ouvre une session Claude simple
+            argv = [CLAUDE_BIN]
+        proc = open_terminal(argv, title="Claude Code", cwd=work_dir, keep_open=True)
+        return proc is not None
+
+    term = shutil.which("gnome-terminal") or shutil.which("x-terminal-emulator") or "xterm"
+
     if mode == "tmux":
         cmd = "/home/turbo/jarvis/bin/ouvrir-claude-code-tmux.sh"
     elif mode == "resume":

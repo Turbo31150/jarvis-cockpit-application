@@ -17,6 +17,7 @@ import json
 import sqlite3
 import subprocess
 from datetime import datetime
+from .platform_compat import IS_WINDOWS, which, run_cmd, list_scheduled_timers
 
 HOME = os.path.expanduser("~")
 JARVIS_DIR = os.path.join(HOME, "jarvis")
@@ -37,16 +38,24 @@ def get_git_status() -> list:
         {"name": "pamerys-m4-cockpit", "path": os.path.join(HOME, "cockpit-app")}
     ]
     results = []
+    # Sous-processus git SANS shell : sous cmd.exe les quotes simples cassent -C
+    # et « 2>/dev/null » écrit réellement dans C:\dev\null. Bénéfique sur Linux
+    # aussi (chemins avec apostrophe). stderr capturé = équivalent de 2>/dev/null.
+    git = which("git") or "git"
+
+    def _git(path, *args):
+        return (run_cmd([git, "-C", path, *args], timeout=10).stdout or "")
+
     for r in repos:
         p = r["path"]
         if not os.path.exists(os.path.join(p, ".git")):
             continue
         try:
-            branch = subprocess.getoutput(f"git -C '{p}' rev-parse --abbrev-ref HEAD 2>/dev/null").strip()
-            status_lines = subprocess.getoutput(f"git -C '{p}' status --porcelain 2>/dev/null").splitlines()
+            branch = _git(p, "rev-parse", "--abbrev-ref", "HEAD").strip()
+            status_lines = _git(p, "status", "--porcelain").splitlines()
             modified = len([l for l in status_lines if l.strip()])
-            last_commit = subprocess.getoutput(f"git -C '{p}' log -1 --format='%h - %s (%cr)' 2>/dev/null").strip()
-            ahead_behind = subprocess.getoutput(f"git -C '{p}' rev-list --left-right --count HEAD...origin/{branch} 2>/dev/null").strip()
+            last_commit = _git(p, "log", "-1", "--format=%h - %s (%cr)").strip()
+            ahead_behind = _git(p, "rev-list", "--left-right", "--count", f"HEAD...origin/{branch}").strip()
             ahead, behind = 0, 0
             if "\t" in ahead_behind or " " in ahead_behind:
                 parts = ahead_behind.split()
@@ -78,8 +87,16 @@ def get_git_status() -> list:
 
 
 def get_systemd_timers() -> list:
-    """Lit les timers systemd actifs avec leurs cadences et prochaines exécutions."""
+    """Lit les timers systemd actifs avec leurs cadences et prochaines exécutions.
+
+    Windows : pas de systemd → tâches planifiées (Get-ScheduledTask, ~3 s, à
+    appeler hors thread GUI) filtrées sur jarvis/locomotive/board ; [] si aucune."""
     timers = []
+    if IS_WINDOWS:
+        try:
+            return list_scheduled_timers(("jarvis", "locomotive", "board"))
+        except Exception:
+            return []
     try:
         cmd = "systemctl --user list-timers --no-pager --no-legend 2>/dev/null"
         out = subprocess.getoutput(cmd)
@@ -296,8 +313,10 @@ def trigger_synchronisation(auto_git_commit: bool = False, message_commit: str =
     if auto_git_commit:
         msg = message_commit or f"feat(sync): checkpoint avancements {now_str}"
         try:
-            cmd_git = f"git -C '{JARVIS_DIR}' add -A && git -C '{JARVIS_DIR}' commit -m '{msg}' 2>/dev/null || true"
-            subprocess.run(cmd_git, shell=True, capture_output=True, text=True, timeout=15)
+            # Deux appels list-args (pas de shell : quotes/redirections Unix cassent sous cmd.exe)
+            git = which("git") or "git"
+            run_cmd([git, "-C", JARVIS_DIR, "add", "-A"], timeout=15)
+            run_cmd([git, "-C", JARVIS_DIR, "commit", "-m", msg], timeout=15)  # rc≠0 ignoré (|| true)
             actions_done.append(f"Git commit effectué: {msg}")
         except Exception as e:
             actions_done.append(f"Erreur Git commit: {e}")

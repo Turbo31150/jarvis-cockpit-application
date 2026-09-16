@@ -8,6 +8,10 @@ Centralized configuration, paths, ports, cluster topology, and organ registries.
 import os
 import socket
 
+# Couche de compatibilité plateforme (stdlib uniquement, n'importe JAMAIS ce
+# module : pas de cycle). Toute adaptation Windows de la config passe par elle.
+from .platform_compat import IS_WINDOWS, default_lmstudio_host
+
 HOSTNAME = socket.gethostname()
 MACHINE_NAME = os.environ.get("JARVIS_MACHINE", HOSTNAME.upper())
 
@@ -18,9 +22,14 @@ def _load_jarvis_env():
     Rend disponibles au cockpit les clés déjà configurées (MISTRAL_API_KEY, etc.)
     sans les exposer ni écraser une valeur déjà présente dans l'environnement.
     """
-    for _p in (os.path.expanduser("~/jarvis/.env"),
-               os.path.expanduser("~/.config/jarvis/.env.jarvis"),
-               os.path.expanduser("~/.env")):
+    _candidats = [os.path.expanduser("~/jarvis/.env"),
+                  os.path.expanduser("~/.config/jarvis/.env.jarvis"),
+                  os.path.expanduser("~/.env")]
+    if IS_WINDOWS and os.environ.get("APPDATA"):
+        # Sous Windows : %APPDATA%\jarvis\.env.jarvis en candidat supplémentaire
+        # (les trois chemins ci-dessus restent valides : ~ = %USERPROFILE%).
+        _candidats.append(os.path.join(os.environ["APPDATA"], "jarvis", ".env.jarvis"))
+    for _p in _candidats:
         try:
             if not os.path.isfile(_p):
                 continue
@@ -65,7 +74,10 @@ SCRIPTS_DIR = os.path.join(JARVIS_DIR, "scripts")
 DATA_DIR = os.path.join(JARVIS_DIR, "data")
 BOARD_DIR = os.path.join(JARVIS_DIR, "board")
 LOGS_DIR = os.path.join(JARVIS_DIR, "logs")
-CONTENT_DIR = "/storage/content" if os.path.exists("/storage") else os.path.join(HOME, "content")
+# /storage n'a de sens que sur le rig Linux : sous Windows on ne teste pas
+# (un dossier C:\storage fortuit ne doit jamais capturer le contenu).
+CONTENT_DIR = ("/storage/content" if (not IS_WINDOWS and os.path.exists("/storage"))
+               else os.path.join(HOME, "content"))
 
 # Databases
 MASTER_DB = os.path.join(JARVIS_DIR, "jarvis_master.db")
@@ -76,7 +88,10 @@ ETOILE_DB = os.path.join(DATA_DIR, "etoile.db")
 SQL_CACHE = os.path.join(COCKPIT_DIR, ".sql-cache.tsv")
 
 # Cluster Network Endpoints & LM Studio GPU (rebranché sur tether 192.168.42.241:1234 et loopback)
-LMSTUDIO_HOST = os.environ.get("JARVIS_LMSTUDIO_HOST", "192.168.42.241")
+# default_lmstudio_host() : JARVIS_LMSTUDIO_HOST si posée, sinon 192.168.42.241
+# sur le rig (inchangé) et 127.0.0.1 sous Windows (LM Studio 0.4 installé en
+# local sur le PC : évite une sonde LAN vers une IP inexistante toutes les 6 s).
+LMSTUDIO_HOST = default_lmstudio_host()
 LMSTUDIO_PORT = int(os.environ.get("JARVIS_LMSTUDIO_PORT", "1234"))
 LMSTUDIO_URL = os.environ.get("JARVIS_LMSTUDIO_URL", f"http://{LMSTUDIO_HOST}:{LMSTUDIO_PORT}")
 
@@ -102,6 +117,12 @@ REMI_OLLAMA_URL = f"http://{REMI_ASUS_HOST}:11434"
 #
 # DUO 2 PC (optionnel) : pose JARVIS_GPU_NODE_HOST=<ip du 2e PC "turbo2"> pour
 # ajouter ses cartes à la cascade (Ollama y écoute en OLLAMA_HOST=0.0.0.0).
+#
+# Sous Windows (PC 'clair' : GTX 1660 SUPER 4 Go + Intel HD 4600, 8 Go RAM) :
+# Ollama Windows écoute aussi sur 127.0.0.1:11434 et LM Studio sur 127.0.0.1:1234
+# → mêmes URL, seul LMSTUDIO_HOST change (loopback). Les organes du rig
+# (PostgreSQL, Redis, n8n, Portainer, OpenClaw, CDP…) sont listés dans
+# ORGANES_LINUX_ONLY pour que l'UI affiche « indisponible sous Windows ».
 LOCAL_GPU_URL = f"http://{M4_HOST}:11434"            # Ollama local 100 % GPU (2060+3080)
 CPU_LOCAL_URL = LOCAL_GPU_URL                        # alias rétro-compat (n'est PLUS du CPU)
 GPU_NODE_HOST = os.environ.get("JARVIS_GPU_NODE_HOST", "").strip()
@@ -167,6 +188,22 @@ ORGANES = [
     ("S8 Hardware Voice Node",      "127.0.0.1", 8799,  "Bouton matériel micro distant S8"),
     ("LM Studio GPU",               LMSTUDIO_HOST, LMSTUDIO_PORT, "Serveur LM Studio Dual GPU · qwen3:8b / qwen2.5:7b"),
 ]
+
+# Organes qui n'existent que sur le rig Linux (services systemd/Docker du
+# « mining ») : sous Windows l'UI les marque « indisponible sous Windows » au
+# lieu d'un 🔴 trompeur. Vide hors Windows → comportement du rig inchangé.
+ORGANES_LINUX_ONLY = frozenset({
+    "Passerelle LLM (chat_proxy)", "Antigravity (agy)", "CDP BrowserOS",
+    "CDP authentifié", "BrowserOS serve", "OpenClaw daemon", "Board OS Serveur",
+    "PostgreSQL 15 Swarm", "Redis 7 Alpine", "n8n Workflows", "Portainer CE",
+    "Whisper Voice Bridge", "S8 Hardware Voice Node",
+}) if IS_WINDOWS else frozenset()
+
+
+def organe_disponible(nom):
+    """False si l'organe est propre au rig Linux et qu'on tourne sous Windows."""
+    return nom not in ORGANES_LINUX_ONLY
+
 
 # ── Nœud GPU distant (2e PC du duo) — ajouté aux sondes si JARVIS_GPU_NODE_HOST est posé ──
 if GPU_NODE_HOST:

@@ -8,3 +8,9 @@ __pycache__/
 logs/
 data/
 _backups_*/
+.venv/
+
+# Secrets et caches de config (portage Windows)
+config/auth_token.secret
+*.secret
+config/__pycache__/
