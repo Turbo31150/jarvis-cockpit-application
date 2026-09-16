@@ -54,6 +54,13 @@ One-shot commands (`-c`, repeatable, run in order):
   --out /tmp/jarvis-cockpit-driver-linux -c "go apps" -c "click Réinventorier" -c "text 200" -c "ss apps.png"
 ```
 
+From WSL towards the Windows Python, `-c "go hud"` loses its quotes inside
+`cmd.exe /c '…'` (`invalid choice: 'hud"'`): pipe the commands into `repl` instead —
+
+```bash
+printf 'go hud\nbuttons\nss hud-run.png\nquit\n' | cmd.exe /c 'C:\Users\clair\jarvis-cockpit-application\.claude\skills\run-jarvis-cockpit-application\driver.cmd repl'
+```
+
 REPL under tmux (Windows Python shown; for Linux replace the command with the venv python + `driver.py repl`):
 
 ```bash
@@ -80,6 +87,26 @@ Verified flows this session: `go apps` → `click Réinventorier` → `text` sho
 `désactivé`, tooltip `Introuvable sur cette machine`; `go terminal` → `click Exécuter`;
 `eval …QMessageBox.information(win,'Test modal','coucou')` → closed by the watchdog
 and listed by `dialogs`.
+
+## Run: the real window on the Windows desktop (`real.ps1`)
+
+When the change must be seen in the user's own instance (non-admin, WT as default
+terminal, real launchers), drive the real window instead of offscreen:
+
+```bash
+# restart non-admin (explorer → .cmd → .venv pythonw), PrintWindow capture, UIA click on a button by name
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\clair\jarvis-cockpit-application\.claude\skills\run-jarvis-cockpit-application\real.ps1' -Restart -Click 'Terminal JARVIS'
+# capture only (instance already running)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\clair\jarvis-cockpit-application\.claude\skills\run-jarvis-cockpit-application\real.ps1' -Out 'C:\Users\clair\AppData\Local\Temp\jarvis-cockpit-driver\real-2.png'
+```
+
+Verified: `-Restart -Click 'Terminal JARVIS'` → window `JARVIS MASTER COCKPIT — POSTE DE
+COMMANDE UNIFIÉ (M4-PAMERYS)`, 1562×1035 PNG, then `pwsh.exe -NoLogo -NoExit -Command
+"$Host.UI.RawUI.WindowTitle = 'Terminal JARVIS'"` appears as a child of the cockpit
+with its console handed to Windows Terminal (`OpenConsole.exe -Embedding`) — no
+0x80070002. `Start-Process explorer.exe file.pyw` does **not** launch the app (nothing
+happens); the `.cmd` indirection is what works. The script carries a UTF-8 BOM on
+purpose (PowerShell 5.1 parses a BOM-less UTF-8 file as ANSI and chokes on « »).
 
 ## Run: web server (`--web`)
 
