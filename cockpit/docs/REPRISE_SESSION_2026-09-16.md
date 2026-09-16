@@ -4,14 +4,15 @@
 > (`jarvis_master.db.cockpit_settings`, `jarvis_logs.db.bureau_actions`,
 > `jarvis_action_memory.db.action_memory`), Postgres rig `mining`
 > (`jarvis.session_artifacts`, clé `session::2026-09-16::cockpit-windows-reprise`),
-> mémoire Claude Code (`jarvis-cockpit-windows-port`).
+> mémoire Claude Code (`jarvis-cockpit-windows-port`), et **page de reprise** :
+> https://claude.ai/artifact/AX6i51uh6FdPGzaoZpbdLr (privée ; `/artifacts` dans Claude Code).
 
 ## ⚠ 0. DEUX AGENTS SUR LE MÊME DÉPÔT — à trancher au redémarrage
 
 Pendant cette session, **`agy` (Antigravity CLI, Gemini, mode YOLO auto-approuvé, session brain `a0b74978-1d6d-486e-8405-1235d69987cd`, PID 1376 dans WSL)** a reçu à 17:54 la **même mission** (« répare le cockpit, les terminaux doivent être intégrés dedans, erreur à chaque ouverture, teste backend/frontend ») et a édité en parallèle :
 
 - `cockpit/terminaux.py` (7 écritures, PTY Windows via `pywinpty` — terminal **embarqué** de l'onglet Terminal) → déjà inclus dans `d4975b4`
-- `cockpit/core/platform_compat.py` (2 écritures : repli WSL `wt.exe`/`cmd.exe` via `wsl.exe` dans `_linux_terminal`/`terminal_argv`/`open_terminal`) → 1ʳᵉ version dans `d4975b4`, 2ᵉ version (19:08:47) dans le commit suivant. La 2ᵉ laisse un **bloc dupliqué mort** dans `open_terminal()` (second `if hold is not None … try:` après un `return`) — à nettoyer.
+- `cockpit/core/platform_compat.py` (2 écritures : repli WSL `wt.exe`/`cmd.exe` via `wsl.exe` dans `_linux_terminal`/`terminal_argv`/`open_terminal`) → 1ʳᵉ version dans `d4975b4`, 2ᵉ (19:08:47) dans `6865733` avec un bloc dupliqué mort, **3ᵉ (19:20:49) qui le nettoie** et consolide le repli WSL dans `_linux_terminal()`/`terminal_argv()` → commit suivant. Tests 54/54 re-passés sur cette 3ᵉ version.
 
 Son journal : `~/.gemini/antigravity-cli/brain/a0b74978-…/.system_generated/logs/transcript.jsonl`.
 Les 54 tests `tests_platform_compat` passent avec ses modifications (vérifié 19:15). **Règle au redémarrage : un seul agent sur le dépôt à la fois** (arrêter `agy` ou ne pas relancer Claude Code dessus), puis relire `git diff` avant toute nouvelle correction.
