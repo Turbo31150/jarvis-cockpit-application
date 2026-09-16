@@ -18,7 +18,11 @@
 | Validation | `tests_platform_compat` 54 OK (Python Windows) ; smoke PyQt6 offscreen des 3 onglets OK |
 | Déjà porté avant | `tab_hud`, `tab_apps`, `tab_terminal`, `terminal_manager`, `claude_engine`, `apps_registry`, `platform_compat` |
 
-## 2. Audit exhaustif en cours (workflow Claude Code, ultracode)
+## 2. Audit exhaustif — ARRÊTÉ à 30/48 fichiers (sur demande, pour reprise au démarrage)
+
+- Résultats bruts figés dans **`cockpit/docs/audit_windows_2026-09-16_brut.json`** (36 trouvailles, 5 bloquantes, 0 vérifiée).
+- **18 fichiers restent à auditer** : core/table_ronde_engine.py, core/notion_engine.py, core/mcp_registry.py, core/prospection_engine.py, core/settings_engine.py, core/telemetry.py, core/config.py, core/database.py, core/content_engine.py, core/inference.py, core/action_memory.py, core/twilio_orchestrator.py, gui_app.py, app.py, terminaux.py, serveur.py, ui/theme.py, ../jarvis_cockpit_launcher.pyw
+- Le journal JSONL d'origine reste lisible tant que la session Claude Code existe (chemins ci-dessous), mais le JSON ci-dessus suffit.
 
 - Run ID `wf_c9ae017a-791` — script
   `~/.claude/projects/-home-turbo/64b2fd79-cb2b-46c8-a9cc-381755cc32ae/workflows/scripts/audit-cockpit-windows-wf_c9ae017a-791.js`
@@ -27,7 +31,7 @@
 - Structure : 48 auditeurs (1/fichier) → 3 vérificateurs adversariaux par trouvaille (échec réel / atteignable / déjà protégé, confirmé si ≥ 2 votes) → critique de complétude par grep global → re-vérification.
 - ⚠ Le workflow **ne survit pas à la fin de la session Claude Code** (resume = même session). Si perdu : relire `journal.jsonl` (entrées `type=result` avec `findings`) et relancer le script.
 
-### Trouvailles brutes à 29/48 fichiers (non encore vérifiées)
+### Trouvailles brutes à 30/48 fichiers (non encore vérifiées)
 
 Bloquantes probables :
 - `ui/tabs/tab_plan.py:22` — `subprocess.run(["python3", f"{JARVIS_DIR}/scripts/planning_mega_m4.py"…` → `python3` = alias Store + script absent sous Windows
@@ -42,7 +46,7 @@ Fichiers audités propres : `tab_apps`, `tab_bureau`, `tab_cluster`, `tab_hud`, 
 
 ## 3. Prochaines étapes (dans l'ordre)
 
-1. Attendre la fin du workflow (ou relire `journal.jsonl`) → liste `confirmees`.
+1. Au redémarrage : relancer l'audit sur les fichiers restants, puis **vérifier** les 36 trouvailles du JSON (3 lentilles : échec réel / atteignable / déjà protégé) → liste confirmée.
 2. Corriger chaque site confirmé **sans toucher au chemin Linux** : branche `IS_WINDOWS` ou routage via `platform_compat` (`open_terminal`, `safe_popen`, `python_executable()`, `jarvis_path(..., must_exist=True)`, `no_window_kwargs()`, `unavailable_message()`), bouton grisé + infobulle si cible absente.
 3. Re-valider : `tests_platform_compat` (54) + smoke offscreen de **tous** les onglets + lancement réel `JARVIS-Cockpit.cmd`.
 4. Commit sur `portage-windows`, puis PR vers `main` quand le rig Linux a été re-testé (`bin/*`, `install.sh` inchangés).

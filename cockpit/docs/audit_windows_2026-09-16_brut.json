@@ -1,0 +1,385 @@
+{
+  "date": "2026-09-16",
+  "run_id": "wf_c9ae017a-791",
+  "etat": "ARRETE par l'utilisateur avant la phase de verification",
+  "fichiers_audites": 30,
+  "fichiers_prevus": 48,
+  "fichiers_propres": [
+    "cockpit/core/bureau_engine.py",
+    "cockpit/core/cdp_engine.py",
+    "cockpit/core/claude_engine.py",
+    "cockpit/core/jarvis_task_runner.py",
+    "cockpit/core/swarm_manager.py",
+    "cockpit/core/tool_calling.py",
+    "cockpit/core/voice_flow_engine.py",
+    "cockpit/ui/tabs/tab_apps.py",
+    "cockpit/ui/tabs/tab_bureau.py",
+    "cockpit/ui/tabs/tab_cluster.py",
+    "cockpit/ui/tabs/tab_hud.py",
+    "cockpit/ui/tabs/tab_mcps.py",
+    "cockpit/ui/tabs/tab_settings.py",
+    "cockpit/ui/tabs/tab_sql.py",
+    "cockpit/ui/tabs/tab_studio.py",
+    "cockpit/ui/tabs/tab_swarm.py",
+    "cockpit/ui/tabs/tab_terminal.py"
+  ],
+  "trouvailles_total": 36,
+  "bloquantes": 5,
+  "verifications_effectuees": 0,
+  "a_faire_au_redemarrage": "verifier chaque trouvaille (echec reel ? atteignable sous Windows ? deja protege ?) puis corriger sans toucher au chemin Linux",
+  "trouvailles_par_fichier": {
+    "cockpit/ui/tabs/tab_avancements.py": {
+      "lignes_lues": 190,
+      "findings": [
+        {
+          "line": 132,
+          "snippet": "            data = get_avancements_data()",
+          "categorie": "degrade",
+          "atteignable_depuis": "QTimer self.refresh_timer (10 s, lignes 31-33) + appel synchrone dans __init__ (ligne 34) + bouton « 🔄 Actualiser » (ligne 61) + on_sync_done (ligne 179) -> TabAvancements.refresh_data -> sync_engine.get_avancements_data -> get_git_status (jusqu'a 4 x git par depot) + get_systemd_timers -> platform_compat.list_scheduled_timers (PowerShell Get-ScheduledTask)",
+          "pourquoi_casse_windows": "Appel bloquant execute sur le THREAD GUI. Sous Windows get_systemd_timers() route vers list_scheduled_timers() dont la docstring dit elle-meme « ~3 s, a appeler HORS thread GUI » (timeout 20 s, aucun cache). Mesure sur ce poste : PowerShell Get-ScheduledTask = 2,0 s ; C:\\Users\\clair\\cockpit-app\\.git existe donc 4 git.exe (rev-parse/status/log/rev-list) = +0,8 s. Soit ~3 s de gel de TOUTE la fenetre cockpit (tous onglets) toutes les 10 s des que l'onglet est instancie (le QTimer tourne meme onglet non visible), et ~3 s de plus au demarrage via __init__. Les clics faits pendant le gel sont mis en file : c'est exactement le ressenti « les boutons ne font rien ». Le try/except ligne 131 protege contre le crash, pas contre le gel. Sous Linux le meme code coute ~0,1 s (systemctl local), d'ou l'absence de symptome sur le rig.",
+          "correction_proposee": "Deporter la collecte dans un QThread (meme patron que SyncWorker, valable Linux et Windows, comportement Linux inchange) et allonger la cadence sous Windows :\n\nfrom core.platform_compat import IS_WINDOWS\n\nclass DataWorker(QThread):\n    data_ready = pyqtSignal(dict)\n    def run(self):\n        try:\n            self.data_ready.emit(get_avancements_data())\n        except Exception as e:\n            self.data_ready.emit({\"success\": False, \"error\": str(e)})\n\n# __init__ : self._data_worker = None ; self.refresh_timer.start(30000 if IS_WINDOWS else 10000)\n\ndef refresh_data(self):\n    if self._data_worker is not None and self._data_worker.isRunning():\n        return  # anti-chevauchement (PowerShell 2-3 s > cadence)\n    self._data_worker = DataWorker()\n    self._data_worker.data_ready.connect(self._apply_data)\n    self._data_worker.start()\n\ndef _apply_data(self, data):\n    try:\n        if not data.get(\"success\"): return\n        ...corps actuel des lignes 135-165 inchange...\n    except Exception:\n        pass\n\nComplement optionnel cote sync_engine.get_systemd_timers (branche IS_WINDOWS uniquement) : memoriser le resultat de list_scheduled_timers() 60 s dans un cache module (_TIMERS_CACHE = (time.monotonic(), liste)) — les taches planifiees ne changent pas toutes les 10 s."
+        },
+        {
+          "line": 24,
+          "snippet": "        res = trigger_synchronisation(auto_git_commit=self.auto_git)\n        self.finished_signal.emit(res)",
+          "categorie": "degrade",
+          "atteignable_depuis": "bouton « ⚡ Synchroniser Tout (1-Clic) » (ligne 52) -> run_sync (lignes 169-174 : bouton passe a « ⏳ Synchronisation… » + setEnabled(False)) -> SyncWorker.run (QThread)",
+          "pourquoi_casse_windows": "SyncWorker.run n'a aucun try/except : si trigger_synchronisation leve (os.makedirs LOGS_DIR/TASK_RESULTS_DIR lignes 272-273 de sync_engine non proteges -> OSError/PermissionError possible si C:\\Users\\clair\\jarvis est verrouille/synchronise OneDrive ; ou toute exception imprevue), sous pythonw la trace est perdue, finished_signal n'est jamais emis, on_sync_done ne s'execute pas et le bouton reste « ⏳ Synchronisation… » desactive jusqu'au redemarrage = bouton mort silencieux. Durcissement : aujourd'hui trigger_synchronisation est protege en interne (chaque etape en try/except, git via run_cmd qui ne leve jamais) et logs/ + data/task_results existent sur ce poste, donc le cas est peu probable mais le filet est gratuit et le symptome correspond a celui rapporte.",
+          "correction_proposee": "def run(self):\n    try:\n        res = trigger_synchronisation(auto_git_commit=self.auto_git)\n    except Exception as e:\n        res = {\"success\": False, \"summary\": f\"Synchronisation échouée : {type(e).__name__}: {e}\"}\n    self.finished_signal.emit(res)\n\n(identique Linux/Windows, aucun changement du chemin Linux ; on_sync_done affiche deja res['summary'] et reactive le bouton)"
+        }
+      ]
+    },
+    "cockpit/ui/tabs/tab_claude.py": {
+      "lignes_lues": 210,
+      "findings": [
+        {
+          "line": 58,
+          "snippet": "btn_interact.clicked.connect(lambda: launch_claude_interactive(\"default\"))",
+          "categorie": "degrade",
+          "atteignable_depuis": "boutons « Session Interactive » / « Session Tmux H24 » / « Reprendre (-r) » / « Claude Doctor » / « MCP List » (lignes 58, 62, 66, 71, 76) -> core.claude_engine.launch_claude_interactive",
+          "pourquoi_casse_windows": "Le fichier ne contient aucun appel direct a subprocess/chemin Linux : tout est delegue a claude_engine.launch_claude_interactive qui a bien une branche IS_WINDOWS (open_terminal wt.exe/cmd.exe, ne leve jamais). MAIS les 5 lambdas jettent la valeur de retour : sous Windows la fonction renvoie False silencieusement si CLAUDE_BIN est introuvable (which('claude') puis %USERPROFILE%\\.local\\bin\\claude.exe) ou si open_terminal renvoie None (wt.exe et cmd.exe en echec). L'utilisateur clique et rien ne se passe, sans aucun message dans l'onglet ni dans lbl_exec_status -> exactement le symptome « les boutons ne font rien ». Par ailleurs sous Windows le mode « tmux » retombe volontairement sur une session simple (pas de tmux) et le mode « mcp_list » n'est traite nulle part (tombe dans le else = session simple), donc deux boutons affichent un libelle qui ne correspond pas a ce qui s'ouvre. Sur CE poste claude.exe et wt.exe sont presents, donc ca fonctionne, mais le silence en cas d'echec reste un defaut de portage.",
+          "correction_proposee": "Ne rien changer dans claude_engine cote Linux. Dans tab_claude.py, remplacer les 5 lambdas par une methode qui exploite le booleen et informe l'utilisateur :\n\n    from core.platform_compat import IS_WINDOWS, unavailable_message, unavailable_note\n    ...\n    btn_interact.clicked.connect(lambda: self._launch(\"default\", \"Session interactive\"))\n    btn_tmux.clicked.connect(lambda: self._launch(\"tmux\", \"Session tmux\"))\n    ... (idem resume/doctor/mcp_list)\n\n    def _launch(self, mode, label):\n        try:\n            ok = launch_claude_interactive(mode)\n        except Exception as e:  # ceinture : jamais d'exception non geree dans un slot (pythonw)\n            ok, e_txt = False, str(e)\n        else:\n            e_txt = \"\"\n        if ok:\n            self.lbl_exec_status.setText(f\"👑 {label} ouverte dans un terminal.\")\n            self.lbl_exec_status.setStyleSheet(\"color: #4ade80;\")\n        else:\n            info = get_claude_info()\n            detail = e_txt or (\"claude introuvable (\" + str(info.get(\"bin_path\")) + \")\" if not info.get(\"installed\") else \"aucun terminal disponible (wt.exe / cmd.exe)\")\n            self.lbl_exec_status.setText(unavailable_message(label, detail) if IS_WINDOWS else f\"❌ {label} : echec ({detail})\")\n            self.lbl_exec_status.setStyleSheet(\"color: #f87171;\")\n\nOptionnel cosmetique : sous Windows renommer/tooltip le bouton tmux (if IS_WINDOWS: btn_tmux.setToolTip(unavailable_note(\"Sessions tmux\")); btn_tmux.setText(\"🪟 Session simple (tmux indisponible)\")). Le mode « mcp_list » non traite est un bug independant de la plateforme : a corriger dans claude_engine (argv = [CLAUDE_BIN, \"mcp\", \"list\"] cote Windows, cmd = f\"{CLAUDE_BIN} mcp list; read -p ...\" cote Linux) si souhaite."
+        }
+      ]
+    },
+    "cockpit/ui/tabs/tab_iaweb.py": {
+      "lignes_lues": 221,
+      "findings": [
+        {
+          "line": 219,
+          "snippet": "        res = run_notion_backup_snapshot()",
+          "categorie": "degrade",
+          "atteignable_depuis": "bouton « ⚡ Snapshot Notion Immédiat » -> TabIaWeb.trigger_notion_snap (slot Qt, thread GUI)",
+          "pourquoi_casse_windows": "Le slot n'a aucun try/except et run_notion_backup_snapshot() fait os.makedirs() HORS de ses try internes sur NOTION_DIR = desktop_dir()\\NOTION_JARVIS_BACKUP (Bureau Windows, souvent redirigé OneDrive ou protégé par « Contrôle d'accès aux dossiers » de Defender qui bloque pythonw.exe -> PermissionError [WinError 5]). Sous pythonw l'exception dans le slot part dans sys.excepthook (install_excepthook) : pas d'abort, mais le journal CDP reste sur « ⏳ Snapshot Notion en cours… » sans suite = bouton mort pour l'utilisateur. L'export SQLite (SELECT * FROM runs) tourne aussi synchrone dans le thread GUI.",
+          "correction_proposee": "Envelopper le slot : try: res = run_notion_backup_snapshot() except Exception as e: self.cdp_log.append(f\"❌ Snapshot Notion : {e}\"); return — puis self.cdp_log.append(f\"✅ {res.get('summary')}\\n\"). Optionnel : déporter l'appel dans un QThread sur le modèle de CdpWorker pour ne pas geler la GUI pendant l'export CSV. Chemin Linux inchangé (même code, juste protégé)."
+        },
+        {
+          "line": 213,
+          "snippet": "        out = res.get(\"output\") or res.get(\"message\") or str(res)",
+          "categorie": "degrade",
+          "atteignable_depuis": "boutons « 🔍 Tester Session » / « 🚀 Démarrer :9222 » -> CdpWorker.finished_signal -> TabIaWeb.on_cdp_finished",
+          "pourquoi_casse_windows": "Sous Windows verify_cdp() renvoie unavailable(...) dont 'output' vaut \"\" (falsy) et qui n'a pas de clé 'message' ; start_cdp() en échec renvoie {'success': False, 'error': 'Aucun navigateur…'} ou 'Lancement échoué : …'. Dans les deux cas on retombe sur str(res) : le journal affiche le repr brut du dict ({'success': False, 'unavailable': True, 'unsupported': True, 'error': …, 'plateforme': 'windows'}) au lieu du message. Fonctionne mais illisible.",
+          "correction_proposee": "out = res.get(\"output\") or res.get(\"message\") or res.get(\"error\") or res.get(\"note\") or str(res) — et éventuellement préfixer « ⛔ » quand res.get('success') est False. Aucun impact sur le rig (les réponses Linux ont déjà 'output')."
+        },
+        {
+          "line": 198,
+          "snippet": "                if cmd() is None:\n                    self.cdp_log.append(f\"❌ {name} : impossible d'ouvrir un terminal (wt.exe / cmd.exe).\")",
+          "categorie": "degrade",
+          "atteignable_depuis": "boutons « 👑 Claude Desktop » et « 🌐 BrowserOS App » (callables _detache -> safe_popen) -> TabIaWeb._lancer",
+          "pourquoi_casse_windows": "Le message est calibré pour les callables _terminal (open_terminal). Pour _detache(exe) (safe_popen([exe]) qui rend None sur OSError/PermissionError, ex. exe bloqué par SmartScreen/antivirus ou chemin obsolète après désinstallation car which() est mémoïsé) l'utilisateur lit « impossible d'ouvrir un terminal » alors qu'aucun terminal n'est en jeu ; la vraie cause n'est que dans cockpit_gui.log via _log_err (stderr redirigé). Diagnostic faux, sans console pour corriger. Sur CE poste les deux cibles sont absentes (boutons grisés), donc faible portée aujourd'hui.",
+          "correction_proposee": "Faire porter le message par le callable : dans _apps_ia_windows, _detache(exe) -> lambda: safe_popen([exe]) reste, mais _lancer distingue : si cmd() is None -> self.cdp_log.append(f\"❌ {name} : lancement impossible (voir logs/cockpit_gui.log)\") ; ou attacher un attribut (ex. fn.echec = \"impossible d'ouvrir un terminal (wt.exe / cmd.exe)\" / \"exécutable introuvable ou refusé : {exe}\") lu par _lancer : getattr(cmd, 'echec', 'lancement impossible'). Branche Linux (liste argv + Popen start_new_session) inchangée."
+        }
+      ]
+    },
+    "cockpit/ui/tabs/tab_moisson.py": {
+      "lignes_lues": 83,
+      "findings": [
+        {
+          "line": 80,
+          "snippet": "r = subprocess.run([python_executable(), os.path.join(JARVIS_DIR, \"scripts\", \"moisson_reelle.py\"), \"--rapport\"],\n                   capture_output=True, text=True, timeout=5, **no_window_kwargs())",
+          "categorie": "degrade",
+          "atteignable_depuis": "__init__ -> init_ui() ligne 64 (construction de l'onglet, gui_app.py:434) ; bouton « 🔄 Actualiser Rapport » (ligne 54) ; bouton global d'actualisation gui_app.py:579-580 refresh_current_tab() -> refresh_report()",
+          "pourquoi_casse_windows": "text=True sans encoding : sous Windows/Python 3.13 (pas de PYTHONUTF8) le parent decode stdout/stderr en cp1252 strict -> mojibake sur les accents (« é » -> « Ã© ») et UnicodeDecodeError des que la sortie UTF-8 contient un octet 0x81/0x8D/0x8F/0x90/0x9D (ex. « ❌ » = E2 9D 8C, « 🔍 » = F0 9F 94 8D) ; l'exception est avalee par le except -> le rapport est remplace par « prêt à être généré. (UnicodeDecodeError…) ». De plus l'enfant python.exe ecrit dans un tube avec sys.stdout en cp1252 : le premier emoji/accent du rapport leve UnicodeEncodeError dans l'enfant (traceback dans stderr, stdout tronque). L'env n'est pas force en UTF-8 (PYTHONUTF8/PYTHONIOENCODING absents).",
+          "correction_proposee": "Remplacer l'appel par le helper qui gere tout ca : `from core.platform_compat import run_cmd` puis `r = run_cmd([python_executable(), script, \"--rapport\"], timeout=5, cwd=JARVIS_DIR)` — run_cmd force PYTHONUTF8=1/PYTHONIOENCODING=utf-8 dans l'env de l'enfant (via _child_env), decode par decode_output() (UTF-8 puis repli OEM errors='replace', ne leve jamais), applique CREATE_NO_WINDOW, ferme stdin et tue l'arbre au timeout ; sous Linux l'env n'est pas touche donc comportement identique. Si l'on veut garder la ligne Linux strictement inchangee : `if IS_WINDOWS: r = run_cmd(...) else: r = subprocess.run(... ligne actuelle ...)`. Variante encore plus simple : `run_python_script(\"scripts/moisson_reelle.py\", [\"--rapport\"], timeout=5, cwd=JARVIS_DIR)` (retourne None si script absent/timeout/introuvable)."
+        },
+        {
+          "line": 79,
+          "snippet": "r = subprocess.run([python_executable(), os.path.join(JARVIS_DIR, \"scripts\", \"moisson_reelle.py\"), \"--rapport\"],",
+          "categorie": "degrade",
+          "atteignable_depuis": "__init__ -> init_ui() ligne 64 (au demarrage du cockpit) ; bouton « 🔄 Actualiser Rapport » ; gui_app.py:580 refresh_current_tab()",
+          "pourquoi_casse_windows": "Aucune verification d'existence du script (contrairement au bouton de lancement ligne 42 qui utilise jarvis_path(..., must_exist=True)). Sur ce poste C:\\Users\\clair\\jarvis ne contient pas scripts/ : a chaque construction de l'onglet et a chaque actualisation on lance python.exe sur un fichier inexistant ; r.stdout est vide donc le QTextEdit affiche le stderr brut de l'interpreteur : « C:\\...\\.venv\\Scripts\\python.exe: can't open file 'C:\\\\Users\\\\clair\\\\jarvis\\\\scripts\\\\moisson_reelle.py': [Errno 2] No such file or directory ». Pas de plantage, mais message incomprehensible pour l'utilisateur, et un sous-processus inutile (bloquant jusqu'a 5 s dans le thread GUI) au demarrage.",
+          "correction_proposee": "Dans init_ui, memoriser le chemin calcule une seule fois : `self._script = jarvis_path(\"scripts\", \"moisson_reelle.py\", must_exist=True)` (deja calcule ligne 42 sous Windows ; le calculer aussi hors branche). Dans refresh_report, en tete : `if self._script is None: self.report_text.setText(unavailable_message(\"Rapport de prospection\", f\"scripts/moisson_reelle.py absent de {JARVIS_DIR}\")); return` puis utiliser self._script dans l'argv. Alternativement `r = run_python_script(\"scripts/moisson_reelle.py\", [\"--rapport\"], timeout=5, cwd=JARVIS_DIR)` et `if r is None: setText(unavailable_message(...))`. Sous Linux le script existe sur le rig donc le rendu est inchange ; si l'on veut etre strict, ne faire ce test que sous `if IS_WINDOWS:`."
+        }
+      ]
+    },
+    "cockpit/ui/tabs/tab_plan.py": {
+      "lignes_lues": 143,
+      "findings": [
+        {
+          "line": 22,
+          "snippet": "subprocess.run([\"python3\", f\"{JARVIS_DIR}/scripts/planning_mega_m4.py\"], timeout=45)",
+          "categorie": "bloquant",
+          "atteignable_depuis": "bouton « 🔄 Scanner & Régénérer Tâches » -> TabPlan.run_plan_regen -> QThread PlanRegenWorker.run",
+          "pourquoi_casse_windows": "\"python3\" en dur : sous Windows le PATH résout %LOCALAPPDATA%\\Microsoft\\WindowsApps\\python3.exe = alias d'exécution du Microsoft Store -> un clic sur le bouton ouvre le Store (ou, alias désactivé, FileNotFoundError avalée par le except Exception: pass). Dans les deux cas le script n'est jamais exécuté, le bouton se réactive ~immédiatement et l'utilisateur ne voit rien : bouton mort. Aucun IS_WINDOWS ni python_executable() ; app.py (btn-plan-regen, l.388-398) a déjà le bon motif (_python_script + python_exe + run_cmd), tab_plan.py ne l'a pas suivi.",
+          "correction_proposee": "Importer depuis core.platform_compat : python_executable, jarvis_path, no_window_kwargs (ou run_python_script). Remplacer par :\n\nscript = jarvis_path(\"scripts\", \"planning_mega_m4.py\", must_exist=True)\nif script:\n    subprocess.run([python_executable(), script], timeout=45,\n                   capture_output=True, encoding=\"utf-8\", errors=\"replace\",\n                   **no_window_kwargs())\n\nou plus simplement r = run_python_script(\"scripts/planning_mega_m4.py\", timeout=45) (retourne None si script absent/introuvable/délai, jamais d'exception, CREATE_NO_WINDOW + décodage UTF-8 intégrés). Chemin Linux inchangé : python_executable() = sys.executable (le venv Linux), jarvis_path = os.path.join(JARVIS_DIR, ...) identique à l'ancien f-string, no_window_kwargs() = {} hors Windows."
+        },
+        {
+          "line": 21,
+          "snippet": "try:\n    subprocess.run([\"python3\", f\"{JARVIS_DIR}/scripts/planning_mega_m4.py\"], timeout=45)\nexcept Exception:\n    pass",
+          "categorie": "degrade",
+          "atteignable_depuis": "bouton « 🔄 Scanner & Régénérer Tâches » -> run_plan_regen -> PlanRegenWorker.run ; résultat consommé par la lambda de done_signal (l.142)",
+          "pourquoi_casse_windows": "Sur ce poste C:\\Users\\clair\\jarvis ne contient PAS scripts\\ (vérifié : planning_mega_m4.py absent). Même une fois l'interprète corrigé, l'appel échoue (FileNotFoundError / code 2) et l'except Exception: pass + done_signal sans argument avalent tout : le bouton se réactive, refresh_tasks() relance la même liste, lbl_info reste « Double-clic sur une ligne = Changer le statut. » -> aucun message d'indisponibilité. En plus, sans no_window_kwargs() une console noire clignoterait sous pythonw.exe si python.exe est trouvé, et sans encoding UTF-8 une sortie capturée avec accents/emoji casserait en cp1252 (ici non capturée, donc seul le flash console s'applique).",
+          "correction_proposee": "Faire remonter un statut : done_signal = pyqtSignal(str). Dans run() :\n\nscript = jarvis_path(\"scripts\", \"planning_mega_m4.py\", must_exist=True)\nif not script:\n    self.done_signal.emit(unavailable_message(\"Régénération du planning\", \"scripts/planning_mega_m4.py absent de \" + JARVIS_DIR)); return\nr = run_python_script(script, timeout=45)   # None = introuvable/délai, jamais d'exception\nmsg = \"✅ Planning régénéré\" if (r and r.returncode == 0) else (\"⚠ planning_mega_m4.py : \" + (r.stderr.strip()[-200:] if r else \"échec/délai\"))\nself.done_signal.emit(msg)\n\nCôté onglet, remplacer la lambda l.142 par un slot _on_regen_done(msg) qui fait self.btn_regen.setEnabled(True); self.lbl_info.setText(msg); self.refresh_tasks(). Sur Linux le script existe et le comportement reste identique, avec un retour visuel en prime."
+        }
+      ]
+    },
+    "cockpit/ui/tabs/tab_omega.py": {
+      "lignes_lues": 840,
+      "findings": [
+        {
+          "line": 39,
+          "snippet": "            res = subprocess.run(\n                [\"python3\", script_path],\n                capture_output=True, text=True, timeout=60",
+          "categorie": "bloquant",
+          "atteignable_depuis": "bouton « 🌾 Re-Moissonner Dual-Disque » -> TabOmega.run_harvest_prompts -> PromptHarvestWorker.run (QThread)",
+          "pourquoi_casse_windows": "\"python3\" en dur. Sur ce poste, %LOCALAPPDATA%\\Microsoft\\WindowsApps\\python3.exe existe (stub App Execution Alias de 2 octets, vérifié) : CreateProcess le trouve, il OUVRE le Microsoft Store et rend 9009 -> le moissonnage ne tourne jamais, success=False, la QMessageBox affiche « Résultat du moissonnage : » vide. Si l'alias est désactivé : FileNotFoundError [WinError 2] attrapé par le try/except mais message cryptique. Le venv (sys.executable) n'est jamais utilisé.",
+          "correction_proposee": "Router par platform_compat (jamais d'exception, UTF-8 + repli OEM, CREATE_NO_WINDOW, arbre tué au timeout) :\n\nfrom core.platform_compat import run_cmd, python_executable, jarvis_path\n\ndef run(self):\n    script_path = jarvis_path(\"omega\", \"engine\", \"harvest_prompts_dual_disk.py\", must_exist=True)\n    if not script_path:\n        self.finished_signal.emit({\"success\": False, \"stdout\": \"\", \"stderr\": f\"Script de moissonnage introuvable : {os.path.join(JARVIS_DIR, 'omega', 'engine', 'harvest_prompts_dual_disk.py')}\"})\n        return\n    res = run_cmd([python_executable(), script_path], timeout=60)\n    self.finished_signal.emit({\"success\": res.returncode == 0, \"stdout\": res.stdout, \"stderr\": res.stderr})\n\n(python_executable() = sys.executable, et python.exe voisin sous pythonw.exe pour que la capture fonctionne.) Si on veut garder « python3 » strictement côté Linux : argv = [\"python3\", script_path] if not IS_WINDOWS else [python_executable(), script_path], puis run_cmd(argv, timeout=60). Alternative minimale : run_python_script(script_path, timeout=60) (rend None si script absent/timeout/introuvable -> émettre un message explicite dans ce cas)."
+        },
+        {
+          "line": 40,
+          "snippet": "                capture_output=True, text=True, timeout=60",
+          "categorie": "degrade",
+          "atteignable_depuis": "bouton « 🌾 Re-Moissonner Dual-Disque » -> PromptHarvestWorker.run (QThread)",
+          "pourquoi_casse_windows": "text=True sans encoding : sous Windows le décodage se fait en cp1252 ; le script de moissonnage (prompts FR, emojis 🌾/✅ dans les logs) provoque UnicodeDecodeError dans le thread -> attrapé par le try/except mais le moissonnage est signalé comme ÉCHOUÉ même s'il a réussi (refresh_data non appelé). De plus, aucun CREATE_NO_WINDOW : sous pythonw.exe une console noire clignote pendant jusqu'à 60 s.",
+          "correction_proposee": "Couvert par la correction de la ligne 39 (run_cmd décode via decode_output et ajoute NO_WINDOW). Si subprocess.run est conservé : subprocess.run([...], capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\", timeout=60, **no_window_kwargs()) — no_window_kwargs() rend {} sous Linux, chemin Linux inchangé."
+        },
+        {
+          "line": 37,
+          "snippet": "            script_path = os.path.join(JARVIS_DIR, \"omega\", \"engine\", \"harvest_prompts_dual_disk.py\")",
+          "categorie": "degrade",
+          "atteignable_depuis": "bouton « 🌾 Re-Moissonner Dual-Disque » -> PromptHarvestWorker.run (QThread)",
+          "pourquoi_casse_windows": "Sur ce poste C:\\Users\\clair\\jarvis\\omega\\ n'existe pas (vérifié : jarvis/ contient bin, board, cockpit, data, databases, logs, jarvis_master.db). Aucune vérification d'existence : même avec le bon interpréteur l'utilisateur obtient « python: can't open file '...': [Errno 2] » ou une boîte vide, sans dire que le moteur OMEGA n'est pas installé ici.",
+          "correction_proposee": "jarvis_path(\"omega\", \"engine\", \"harvest_prompts_dual_disk.py\", must_exist=True) et, si None, émettre {\"success\": False, \"stderr\": f\"Script de moissonnage introuvable sur ce poste : {chemin}\"} (voir correction ligne 39). Optionnel : désactiver/annoter self.btn_harvest dans init_ui avec setToolTip(unavailable_note(\"Moteur OMEGA\")) quand jarvis_path(\"omega\", \"engine\", must_exist=True) est None."
+        },
+        {
+          "line": 73,
+          "snippet": "            if self.router_py_dir not in sys.path:\n                sys.path.insert(0, self.router_py_dir)\n            from router import OmegaCognitiveRouter",
+          "categorie": "degrade",
+          "atteignable_depuis": "TabOmega.__init__ (construit au démarrage par gui_app._construire_onglet) ; bouton « ⚡ Analyser & Décomposer (DOMINO) » / Entrée dans txt_intent -> exec_route -> _init_router ; bouton « 🧭 Router vers BOARD-B » -> send_prompt_to_board_b -> exec_route",
+          "pourquoi_casse_windows": "router.py n'est ni dans le dépôt ni dans C:\\Users\\clair\\jarvis\\omega\\engine (absent). L'ImportError est avalée (except Exception: self.router = None) et exec_route affiche seulement « ❌ Erreur : Routeur cognitif indisponible. » sans la cause ni le chemin attendu -> l'utilisateur pense que le bouton est mort. Note : router.py (hors dépôt) ne peut pas être audité ici ; les libellés lignes 285-286 (/media/turbo/JARVIS-M1, /home/turbo) laissent penser qu'il code en dur des chemins Linux, à auditer séparément s'il est porté.",
+          "correction_proposee": "Garder la logique, ajouter la raison :\n\ndef _init_router(self):\n    self.router_reason = \"\"\n    try:\n        if not jarvis_path(\"omega\", \"engine\", \"router.py\", must_exist=True):\n            self.router_reason = f\"{os.path.join(self.router_py_dir, 'router.py')} introuvable sur ce poste ({MACHINE_NAME})\"\n            self.router = None\n            return\n        if self.router_py_dir not in sys.path:\n            sys.path.insert(0, self.router_py_dir)\n        from router import OmegaCognitiveRouter\n        self.router = OmegaCognitiveRouter()\n    except Exception as e:\n        self.router_reason = f\"{type(e).__name__}: {e}\"\n        self.router = None\n\net dans exec_route (l. 763) : self.router_output.setText(f\"❌ Routeur cognitif indisponible — {self.router_reason}\"). Chemin Linux inchangé (router.py présent -> import identique)."
+        },
+        {
+          "line": 825,
+          "snippet": "            from improve_cycle import OmegaImprovementCycle\n            engine = OmegaImprovementCycle(dry_run=False)\n            rep = engine.run()",
+          "categorie": "degrade",
+          "atteignable_depuis": "bouton « ⚡ Auto-Amélioration » -> TabOmega.trigger_improve_cycle (slot Qt, thread GUI)",
+          "pourquoi_casse_windows": "Même dossier omega/engine absent sur ce poste : ModuleNotFoundError attrapée et affichée telle quelle dans QMessageBox.critical (« Échec du cycle d'amélioration : No module named 'improve_cycle' »), sans indiquer que le moteur OMEGA n'est pas installé ni le chemin attendu. Accessoirement engine.run() s'exécute de façon synchrone dans le thread GUI sans délai (gel de la fenêtre) — comportement préexistant sous Linux aussi, pas une régression Windows.",
+          "correction_proposee": "Avant l'import :\n\nif not jarvis_path(\"omega\", \"engine\", \"improve_cycle.py\", must_exist=True):\n    QMessageBox.warning(self, \"Cycle d'Auto-Amélioration OMEGA\", f\"Moteur introuvable sur ce poste :\\n{os.path.join(rdir, 'improve_cycle.py')}\")\n    return\n\nLe reste (sys.path.insert + import + run) reste identique pour Linux. Optionnel (les deux OS) : déplacer engine.run() dans un QThread comme PromptHarvestWorker pour ne pas geler la GUI."
+        }
+      ]
+    },
+    "cockpit/ui/tabs/tab_table_ronde.py": {
+      "lignes_lues": 495,
+      "findings": [
+        {
+          "line": 452,
+          "snippet": "            if rdir not in sys.path:\n                sys.path.insert(0, rdir)\n            from router import OmegaCognitiveRouter",
+          "categorie": "degrade",
+          "atteignable_depuis": "bouton « 🧭 Matérialiser la Décision sur BOARD-B (Chaîne DOMINO) » -> TabTableRonde.materialiser_sur_board_b (visible après une délibération réussie)",
+          "pourquoi_casse_windows": "rdir = os.path.join(JARVIS_DIR, \"omega\", \"engine\") = C:\\Users\\clair\\jarvis\\omega\\engine : ce dossier n'existe pas sur ce poste (JARVIS_DIR ne contient que logs/, data/, databases/, board/, cockpit/, bin/) et router.py n'est nulle part dans le dépôt cloné. Vérifié avec .venv\\Scripts\\python.exe : importlib.util.find_spec('router') -> None, `import router` -> ModuleNotFoundError. Le try/except (l.486) attrape l'erreur, donc pas de crash pythonw, mais l'utilisateur ne voit qu'un QMessageBox.critical « Échec de création sur BOARD-B : No module named 'router' » qui n'explique pas que le moteur OMEGA n'est pas déployé sur ce poste. Effet secondaire : sys.path.insert(0, <dossier inexistant>) est exécuté AVANT l'import et n'est jamais retiré -> sys.path[0] du process entier reste pollué à chaque clic.",
+          "correction_proposee": "Ajouter une garde d'existence AVANT de toucher sys.path (chemin Linux inchangé car ~/jarvis/omega/engine/router.py y existe) :\n\n    from core.platform_compat import jarvis_path, unavailable_message\n    ...\n    router_py = jarvis_path(\"omega\", \"engine\", \"router.py\", must_exist=True)\n    if router_py is None:\n        QMessageBox.warning(self, \"BOARD-B / OMEGA\",\n            unavailable_message(\"Matérialisation BOARD-B (OmegaCognitiveRouter)\",\n                detail=f\"{os.path.join(JARVIS_DIR, 'omega', 'engine', 'router.py')} introuvable — copier ~/jarvis/omega/engine depuis le rig Linux\"))\n        return\n    rdir = os.path.dirname(router_py)\n    if rdir not in sys.path:\n        sys.path.insert(0, rdir)\n    from router import OmegaCognitiveRouter\n\nOptionnel : dans afficher_resultat(), si jarvis_path(\"omega\",\"engine\",\"router.py\", must_exist=True) est None -> self.btn_materialiser_bb.setEnabled(False) + setToolTip(unavailable_note(\"Moteur OMEGA (omega/engine/router.py)\")) au lieu de laisser un bouton qui n'aboutit jamais."
+        }
+      ]
+    },
+    "cockpit/core/apps_registry.py": {
+      "lignes_lues": 423,
+      "findings": [
+        {
+          "line": 376,
+          "snippet": "script = (f\"'{posix}'; echo; read -rp 'Appuyez sur Entrée pour fermer cette fenêtre'\"\n          if \"'\" not in posix else f'\"{posix}\"')\npopen_detached([bash, \"-lc\", script], **console)",
+          "categorie": "degrade",
+          "atteignable_depuis": "bouton Lancer de tab_apps (lancer_selection -> launch_application -> _launch_windows, branche ext == '.sh')",
+          "pourquoi_casse_windows": "Le script est invoqué DIRECTEMENT ('/c/.../x.sh') dans Git bash, ce qui exige que MSYS le juge exécutable : sur les montages cygdrive (noacl) c'est le cas seulement si le fichier commence par un shebang '#!' (ou MZ). Un .sh du Bureau sans shebang donne « bash: /c/.../x.sh: Permission denied » dans la nouvelle console. Le chemin Linux, lui, ne dépend jamais du bit x pour l'exécution (exec = \"bash '<path>'\" l.255, lancement l.325/330) ET filtre sur os.X_OK l.248 ; _scan_windows liste tous les .sh sans filtre, donc l'exposition est plus grande côté Windows. Accessoirement la branche else (chemin contenant une apostrophe) supprime la pause 'read', la console se referme aussitôt sans que l'utilisateur voie la sortie.",
+          "correction_proposee": "Ne modifier que la branche Windows (déjà sous _launch_windows) : exécuter le script via bash au lieu de l'invoquer directement, comme le fait le chemin Linux. Ex. :\n    q = posix.replace(\"'\", \"'\\\\''\")   # quoting POSIX sûr, même avec apostrophe\n    script = f\"\\\"$BASH\\\" '{q}'; echo; read -rp 'Appuyez sur Entrée pour fermer cette fenêtre'\"\n    popen_detached([bash, \"-lc\", script], **console)\n($BASH = le Git bash courant, pas le lanceur WSL du PATH). On peut aussi simplement réutiliser app_entry['exec'] construit l.148 (\"<git-bash>\" -l \"<file>\") en le passant à open_in_terminal(exec_cmd, title=nom, cwd=dossier), qui gère wt.exe/cmd.exe et keep_open."
+        },
+        {
+          "line": 360,
+          "snippet": "popen_detached([\"cmd.exe\", \"/d\", \"/k\", path], **console)",
+          "categorie": "degrade",
+          "atteignable_depuis": "bouton Lancer de tab_apps (lancer_selection -> launch_application -> _launch_windows, branche ext in ('.bat', '.cmd'))",
+          "pourquoi_casse_windows": "Règle de cmd.exe pour le texte après /K : les guillemets ne sont conservés que s'il y a exactement deux guillemets, des espaces entre eux et AUCUN caractère spécial &<>()@^| ; sinon, si le premier caractère est un guillemet, cmd retire le premier et le dernier guillemet. Un .bat sous un dossier du Bureau nommé « Nouveau dossier (2) » ou « A & B » (parenthèses/esperluette fréquentes sous Windows) devient donc `C:\\Users\\clair\\Desktop\\Nouveau dossier (2)\\x.bat` sans guillemets -> « 'C:\\Users\\clair\\Desktop\\Nouveau' n'est pas reconnu... » dans la console. Le commentaire l.358-359 (« les espaces du chemin sont préservés ») n'est vrai qu'en l'absence de ces caractères spéciaux. Pas de crash (try/except), mais le bouton ne lance rien.",
+          "correction_proposee": "Insérer `call` devant le chemin : popen_detached([\"cmd.exe\", \"/d\", \"/k\", \"call\", path], **console). Le texte après /K commence alors par 'call' et non par un guillemet, cmd ne retire plus rien et list2cmdline() continue de citer correctement le chemin ; /k garde la console ouverte comme avant. Branche Windows uniquement, chemin Linux inchangé."
+        }
+      ]
+    },
+    "cockpit/core/escouade_engine.py": {
+      "lignes_lues": 275,
+      "findings": [
+        {
+          "line": 17,
+          "snippet": "MASTER_DB = \"/home/turbo/jarvis/jarvis_master.db\"",
+          "categorie": "bloquant",
+          "atteignable_depuis": "serveur HTTP : GET /api/escouade/agents -> get_agents_escouade() (serveur.py:360, connect ro l.51) et POST /api/escouade/lancer -> lancer_agent() (serveur.py:1467, connect rw l.79)",
+          "pourquoi_casse_windows": "Chemin Linux en dur, sans garde IS_WINDOWS. Sous Windows sqlite interprete /home/turbo/... comme C:\\home\\turbo\\... (inexistant). Verifie avec .venv\\Scripts\\python.exe sur ce poste : les deux connect (l.51 ro-uri et l.79 rw) levent sqlite3.OperationalError 'unable to open database file'. Consequence : la liste d'agents est toujours [] (except silencieux + print) et TOUT lancement d'agent repond {success:False, error:'unable to open database file'} -> fonction Escouade entierement morte. La vraie base existe pourtant : C:\\Users\\clair\\jarvis\\jarvis_master.db (28 Ko). Tous les autres modules (database.py, sync_engine.py, table_ronde_engine.py, serveur.py) utilisent deja core.config.MASTER_DB = os.path.join(JARVIS_DIR, 'jarvis_master.db'), qui vaut exactement /home/turbo/jarvis/jarvis_master.db sur le rig Linux.",
+          "correction_proposee": "Remplacer la ligne 17 par (meme pattern que app.py:36-39) :\n\ntry:\n    from core.config import MASTER_DB          # portable : JARVIS_DIR/jarvis_master.db (= /home/turbo/jarvis/... sur Linux, inchange)\nexcept ImportError:\n    from core.platform_compat import jarvis_path\n    MASTER_DB = jarvis_path(\"jarvis_master.db\")\n\nRien a changer aux lignes 51/79 : la forme f\"file:{MASTER_DB}?mode=ro\" avec backslashes fonctionne sous Windows (teste : tables lues OK). ATTENTION donnees : la jarvis_master.db Windows ne contient que cockpit_settings/traces_table_ronde/sqlite_sequence, PAS agents_escouade -> apres correction get_agents_escouade rendra encore [] ('no such table'). Ajouter dans les deux except un message clair au lieu du print/str(e) brut, ex. dans lancer_agent : `except sqlite3.OperationalError as e: return {\"success\": False, \"error\": unavailable_message(\"escouade\", f\"{e} — base {MASTER_DB} : table agents_escouade absente, copier la base du rig Linux\")}` ; et copier la base Linux (ou creer la table) dans C:\\Users\\clair\\jarvis."
+        },
+        {
+          "line": 196,
+          "snippet": "            (\"SSD 1 (Système)\", \"/home/turbo/jarvis\"),\n            (\"SSD 2 (Archives)\", \"/mnt/jarvis-m1\"),\n            (\"SSD 3 (Mémoires)\", \"/mnt/jarvis-m6\"),",
+          "categorie": "degrade",
+          "atteignable_depuis": "serveur HTTP : GET /api/stockage/sql?filtre=... -> scanner_bases_sql() (serveur.py:367) ; memes chemins repetes l.201, 203, 205",
+          "pourquoi_casse_windows": "Les 3 racines (et leurs variantes ssd1/ssd2/ssd3 l.200-205) sont des chemins Linux en dur ; sous Windows os.path.exists() est False pour chacune (verifie : /home/turbo/jarvis -> False) donc `continue` l.209-210 a chaque fois et la fonction rend TOUJOURS []. La route repond {success:True, bases:[]} : le scan SQL est inerte sans aucun message d'erreur alors que JARVIS_DIR (C:\\Users\\clair\\jarvis, avec jarvis_master.db et databases/) existe. Pas de crash.",
+          "correction_proposee": "Brancher les racines par plateforme en gardant le bloc Linux tel quel :\n\nfrom core.platform_compat import IS_WINDOWS, JARVIS_DIR\n...\n    if IS_WINDOWS:\n        # Pas de montage M1/M6 sur ce poste : seule la racine JARVIS est scannee\n        # (ne PAS mettre C:\\ entier : os.walk non borne gelerait la requete HTTP).\n        if f in (\"tous\", \"all\", \"ssd1\", \"systeme\", \"/\"):\n            racines = [(\"JARVIS (%USERPROFILE%\\\\jarvis)\", JARVIS_DIR)]\n        else:\n            racines = []   # ssd2/ssd3/m1/m6 : indisponibles sous Windows\n    else:\n        <bloc if/elif existant l.194-205 inchange>\n\nOption : utiliser platform_compat.find_sqlite_databases(JARVIS_DIR, max_depth=4) (walk borne en profondeur) au lieu du os.walk maison. Le skip '.local/share/Trash' (l.213, slash POSIX) est sans effet sous Windows mais inoffensif."
+        },
+        {
+          "line": 163,
+          "snippet": "    for info in POINTS_SSD:\n        pt = info[\"point_montage\"]",
+          "categorie": "degrade",
+          "atteignable_depuis": "serveur HTTP : GET /api/stockage/ssd -> get_cartographie_ssd() (serveur.py:363) ; POINTS_SSD defini l.19-44 avec point_montage '/', '/mnt/jarvis-m1', '/mnt/jarvis-m6'",
+          "pourquoi_casse_windows": "Sous Windows os.path.exists('/') est True et shutil.disk_usage('/') renvoie la racine du lecteur courant (verifie : total=486 Go = C:). Resultat : 'SSD 1 — Système & Core OS / /dev/sdb2 / WD Blue SA510 / Système Linux & Jarvis Core' est affiche avec les chiffres du C: de ce PC, et SSD 2/SSD 3 sortent 'Point de montage absent'. Pas de crash mais telemetrie trompeuse (faux disque, faux modele) et aucun autre lecteur Windows n'est montre.",
+          "correction_proposee": "Ajouter une branche Windows en tete de get_cartographie_ssd(), la boucle POINTS_SSD Linux restant intacte :\n\nfrom core.platform_compat import IS_WINDOWS, disk_usage_all\n\ndef get_cartographie_ssd():\n    if IS_WINDOWS:\n        out = []\n        for i, d in enumerate(disk_usage_all(), 1):   # psutil.disk_partitions + disk_usage, repli C:\\\n            pct = d[\"percent\"]\n            out.append({\"id\": f\"disk{i}\", \"nom\": f\"Lecteur {d['mountpoint']}\",\n                        \"disque\": d[\"device\"], \"point_montage\": d[\"mountpoint\"],\n                        \"type\": d.get(\"fstype\") or \"NTFS\", \"modele\": \"\", \"accessible\": True,\n                        \"total_gb\": d[\"total_gb\"], \"used_gb\": d[\"used_gb\"], \"free_gb\": d[\"free_gb\"],\n                        \"percent_used\": pct,\n                        \"statut_alerte\": \"CRITIQUE\" if pct > 90 else (\"VIGILANCE\" if pct > 80 else \"OPTIMAL\")})\n        return out\n    resultats = []\n    for info in POINTS_SSD:   # chemin Linux inchange\n        ...\n\n(memes cles JSON que le chemin Linux, donc le front n'a rien a changer)."
+        }
+      ]
+    },
+    "cockpit/core/inventaire.py": {
+      "lignes_lues": 330,
+      "findings": [
+        {
+          "line": 65,
+          "snippet": "    binaire = DOCKER if os.path.exists(DOCKER) else shutil.which(\"docker\")",
+          "categorie": "degrade",
+          "atteignable_depuis": "serveur HTTP (ThreadingHTTPServer) : GET /api/postgres et /api/inventaire -> get_postgres() ; jamais depuis le thread GUI",
+          "pourquoi_casse_windows": "DOCKER = expanduser('~/jarvis/bin/jarvis-docker') est un WRAPPER BASH du rig Linux. Sous Windows il n'est pas exclu : aujourd'hui C:\\Users\\clair\\jarvis\\bin existe (lms-writer.py, mount-wd-wsl.ps1) mais sans jarvis-docker, donc le repli shutil.which('docker') fonctionne. Le jour ou le dossier jarvis du rig est synchronise (jarvis-docker present), os.path.exists est vrai, _run([DOCKER, 'ps', ...]) -> CreateProcess sur un script sans extension -> OSError [WinError 193] '%1 n'est pas une application Win32 valide', capture par run_cmd -> get_postgres rend {disponible: False, raison: 'OSError: [WinError 193]...'} alors que docker.exe et Docker Desktop tournent : PostgreSQL disparait de l'inventaire avec une raison cryptique. Accessoirement shutil.which('docker') depend du PATH herite par pythonw ; platform_compat.which('docker') connait en plus %ProgramFiles%\\Docker\\Docker\\resources\\bin\\docker.exe (table _WIN_CANDIDATES) et honore PATHEXT avec cache.",
+          "correction_proposee": "Ne jamais retenir le wrapper bash sous Windows et resoudre docker.exe via platform_compat.which, en gardant le chemin Linux tel quel :\n\nfrom .platform_compat import (IS_WINDOWS, run_cmd_ok, which, tailscale_cmd, tailscale_reason,\n                              list_disks, list_usb, list_net_ifaces, nvidia_smi_exe)\n...\n    if IS_WINDOWS:\n        # jarvis-docker est un script bash du rig : inutilisable ici, Docker Desktop est la seule pile.\n        binaire = which(\"docker\")\n    else:\n        binaire = DOCKER if os.path.exists(DOCKER) else shutil.which(\"docker\")\n    if not binaire:\n        return {\"disponible\": False,\n                \"raison\": \"docker.exe introuvable (Docker Desktop non installe ?)\" if IS_WINDOWS else \"ni jarvis-docker ni docker\",\n                \"conteneurs\": []}\n\nOptionnel : DOCKER = jarvis_path(\"bin\", \"jarvis-docker\") pour des separateurs natifs (aucun impact fonctionnel, os.path.exists tolere le melange)."
+        }
+      ]
+    },
+    "cockpit/core/jarvis_core_loop.py": {
+      "lignes_lues": 437,
+      "findings": [
+        {
+          "line": 64,
+          "snippet": "r = subprocess.run([\"bash\", \"-lc\", cmd], capture_output=True, text=True,\n                   timeout=60)",
+          "categorie": "bloquant",
+          "atteignable_depuis": "CLI uniquement : `python cockpit\\core\\jarvis_core_loop.py \"...\"` ou `python cockpit\\core\\jarvis_task_runner.py --run|--serve` (import nu L27 de task_runner). Chaîne : run() L354/L372 -> TOOLS['run_bash'] -> tool_run_bash. Aucun bouton/QTimer/QThread/onglet/serveur HTTP de la GUI n'importe ni ne lance ce module (grep du dépôt : 0 référence hors ces deux fichiers). L'import du module lui-même est sain sous Windows (pas de fcntl/pty ; expanduser OK).",
+          "pourquoi_casse_windows": "« bash » nu du PATH sous Windows = C:\\Windows\\System32\\bash.exe (lanceur WSL, vérifié présent sur ce poste) : la commande s'exécute dans la distro WSL (Linux) et non sur le poste Windows, avec un démarrage à froid de plusieurs secondes (voire blocage jusqu'au timeout 60 s si WSL n'est pas démarré). C'est l'outil PRINCIPAL du LLM : toute la boucle « exécute réellement » devient fausse. En plus : text=True sans encoding -> décodage cp1252 strict -> UnicodeDecodeError sur accents/emoji (attrapé par except -> le LLM reçoit « ERREUR: 'charmap' codec... » au lieu de la sortie) ; pas de CREATE_NO_WINDOW (flash console si jamais lancé sous pythonw).",
+          "correction_proposee": "En tête de module (le fichier tourne en script et en import nu, donc pas d'import relatif possible seul) :\n```python\ntry:\n    from .platform_compat import (IS_WINDOWS, run_shell, run_shell_script, tmux_available,\n                                  local_session_create, tmp_dir, jarvis_path,\n                                  unavailable_message, ensure_utf8_stdio)\nexcept ImportError:\n    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\n    from platform_compat import (IS_WINDOWS, run_shell, run_shell_script, tmux_available,\n                                 local_session_create, tmp_dir, jarvis_path,\n                                 unavailable_message, ensure_utf8_stdio)\n```\nPuis remplacer le bloc L63-73 par :\n```python\nr = run_shell(cmd, timeout=60)   # Linux -> bash -lc INCHANGÉ ; Windows -> cmd.exe /c (ou Git bash/PowerShell via JARVIS_WIN_SHELL), UTF-8 errors=replace, NO_WINDOW, ne lève jamais, arbre tué au timeout\nif r.returncode == 124:\n    return (\"TIMEOUT 60s : ...\")   # message existant\nif r.returncode == 127:\n    return f\"ERREUR: {r.stderr}\"\nout = (r.stdout or \"\") + ((\"\\n[stderr] \" + r.stderr) if r.stderr else \"\")\nreturn f\"rc={r.returncode}\\n{out.strip()[:2000]}\"\n```\n(platform_compat n'a aucun import relatif : importable en standalone.)"
+        },
+        {
+          "line": 56,
+          "snippet": "subprocess.run([DISPATCHER, \"bash\", cmd], capture_output=True,\n               text=True, timeout=15)",
+          "categorie": "degrade",
+          "atteignable_depuis": "CLI uniquement (idem) : run() -> tool_run_bash(background=True). Le prompt LOOP_SYSTEM L154 et le message TIMEOUT L69-71 poussent explicitement le modèle vers ce mode pour les commandes longues.",
+          "pourquoi_casse_windows": "DISPATCHER = C:\\Users\\clair\\jarvis\\bin\\jarvis-dispatch-tmux.sh : absent sur ce poste (bin/ ne contient que lms-writer.py et mount-wd-wsl.ps1) et, même présent, un .sh n'est pas exécutable directement par CreateProcess -> FileNotFoundError [WinError 2] / OSError [WinError 193]. Attrapé par `except Exception` -> pas de crash, mais le LLM reçoit « ERREUR dispatch tmux: [WinError 2] ... » : le mode background (et donc toute commande > 60 s) est mort sans message clair, et il n'y a de toute façon pas de tmux sous Windows (tmux_path() rend None).",
+          "correction_proposee": "Ajouter une branche Windows AVANT le subprocess.run, chemin Linux inchangé :\n```python\nif background:\n    if IS_WINDOWS or not tmux_available():\n        s = local_session_create(name=\"jc-dispatch-bash\", command=cmd, title=\"JARVIS dispatch\")  # fenêtre wt.exe/cmd.exe via open_terminal, ne lève jamais\n        if s.get(\"error\"):\n            return unavailable_message(\"Dispatch tmux en arrière-plan\", s[\"error\"] + \" — relance avec background=false\")\n        return (f\"lancée dans une fenêtre de terminal locale (session {s['name']}) ; \"\n                \"tmux_capture indisponible ici : relis le résultat via un fichier de sortie.\")\n    try:\n        subprocess.run([DISPATCHER, \"bash\", cmd], ...)   # Linux inchangé\n```\nAccessoirement remplacer text=True par run_cmd([...]) (UTF-8, NO_WINDOW) pour la branche Linux si souhaité."
+        },
+        {
+          "line": 81,
+          "snippet": "r = subprocess.run([DISPATCHER, \"capture\", window], capture_output=True,\n                   text=True, timeout=15)",
+          "categorie": "degrade",
+          "atteignable_depuis": "CLI uniquement (idem) : run() -> TOOLS['tmux_capture'] -> tool_tmux_capture, appelé par le modèle après un run_bash background=true.",
+          "pourquoi_casse_windows": "Même script .sh absent / non exécutable sous Windows -> FileNotFoundError attrapé -> renvoie « ERREUR: [WinError 2] ... » ; pas de tmux sous Windows de toute façon. Le modèle reboucle (jusqu'au circuit breaker L350) sur un outil qui ne peut jamais réussir.",
+          "correction_proposee": "Garde en tête de fonction, chemin Linux inchangé :\n```python\nif IS_WINDOWS or not tmux_available():\n    return unavailable_message(\"tmux_capture\", \"pas de cockpit tmux ; relance la commande avec background=false\")\n```\nEt retirer « tmux_capture » de TOOL_SPECS/LOOP_SYSTEM sous Windows (voir finding L153) pour que le modèle ne l'appelle plus."
+        },
+        {
+          "line": 97,
+          "snippet": "out = f\"/tmp/jarvis-core-speak-{os.getpid()}.wav\"",
+          "categorie": "degrade",
+          "atteignable_depuis": "CLI uniquement (idem) : run() L401/L418 appelle tool_speak(final) automatiquement (speak_final=True par défaut) + TOOLS['speak'] à la demande du modèle.",
+          "pourquoi_casse_windows": "/tmp n'existe pas sous Windows : le chemin de sortie WAV est invalide (C:\\tmp\\... inexistant), donc os.path.exists(out) est toujours faux -> « audio=ÉCHEC » même si un TTS Windows était branché.",
+          "correction_proposee": "`out = os.path.join(tmp_dir(), f\"jarvis-core-speak-{os.getpid()}.wav\")` (tmp_dir() = tempfile.gettempdir() : /tmp sous Linux, %TEMP% sous Windows — comportement Linux identique)."
+        },
+        {
+          "line": 99,
+          "snippet": "r = subprocess.run([TTS_WRAPPER, text, out], capture_output=True, timeout=60)",
+          "categorie": "degrade",
+          "atteignable_depuis": "CLI uniquement (idem) : run() L401/L418 (systématique en fin de boucle) et TOOLS['speak'].",
+          "pourquoi_casse_windows": "TTS_WRAPPER = C:\\Users\\clair\\jarvis\\bin\\jarvis-tts-souverain.sh : absent sur ce poste, et un .sh n'est pas exécutable par CreateProcess -> FileNotFoundError [WinError 2] attrapé -> « ERREUR: ... » silencieux : chaque run() se termine sans voix ni explication, et le modèle reçoit une erreur opaque s'il appelle speak. Pas de CREATE_NO_WINDOW non plus.",
+          "correction_proposee": "Garde + branche Windows, Linux inchangé :\n```python\nif not os.path.isfile(TTS_WRAPPER):\n    return unavailable_message(\"TTS souverain (Kokoro)\", f\"{TTS_WRAPPER} absent\")\nif IS_WINDOWS:\n    r = run_shell_script(TTS_WRAPPER, [text, out], timeout=60)   # Git bash uniquement, None si aucun bash POSIX\n    if r is None:\n        return unavailable_message(\"TTS souverain (Kokoro)\", \"aucun Git bash pour exécuter le wrapper .sh\")\nelse:\n    r = subprocess.run([TTS_WRAPPER, text, out], capture_output=True, timeout=60)   # inchangé\n```"
+        },
+        {
+          "line": 35,
+          "snippet": "TTS_WRAPPER = os.path.expanduser(\"~/jarvis/bin/jarvis-tts-souverain.sh\")\nDISPATCHER = os.path.expanduser(\"~/jarvis/bin/jarvis-dispatch-tmux.sh\")  # dispatch tmux cockpit",
+          "categorie": "degrade",
+          "atteignable_depuis": "Import du module (constantes évaluées à l'import ; import lui-même sans erreur).",
+          "pourquoi_casse_windows": "Chemins « ~/jarvis/... » figés : ignorent JARVIS_COCKPIT_ROOT / JARVIS_HOME que le reste du cockpit respecte via platform_compat.JARVIS_DIR. Sous Windows expanduser donne bien C:\\Users\\clair\\jarvis\\bin\\... mais si l'utilisateur a déplacé JARVIS_DIR (variable d'env), ces deux scripts sont cherchés au mauvais endroit sans aucun message (les erreurs sont avalées aux L61/L102).",
+          "correction_proposee": "`TTS_WRAPPER = jarvis_path(\"bin\", \"jarvis-tts-souverain.sh\")` et `DISPATCHER = jarvis_path(\"bin\", \"jarvis-dispatch-tmux.sh\")` (séparateurs natifs, même valeur qu'aujourd'hui sous Linux quand aucune variable n'est définie). CORE_PROMPT L34 est une constante morte (jamais lue) : à laisser ou supprimer."
+        },
+        {
+          "line": 356,
+          "snippet": "print(f\"  🔧 {name}({args}) -> {result[:120].strip()}\")",
+          "categorie": "degrade",
+          "atteignable_depuis": "CLI uniquement (idem) : run() en mode verbose=True (défaut) — idem L308, L312, L374, L386, L399, et L436-437 dans __main__. Hors de tout try/except.",
+          "pourquoi_casse_windows": "Console Windows interactive : OK (WindowsConsoleIO UTF-8) ; pythonw (stdout None) : OK. MAIS si stdout est redirigé vers un fichier/pipe (task_runner --serve > log, lancement depuis un .bat ou via Popen(capture)), l'encodage devient cp1252 -> UnicodeEncodeError 'charmap' sur l'emoji -> run() plante en plein milieu de la boucle d'outils (tâche laissée RUNNING dans jarvis_master.db par task_runner).",
+          "correction_proposee": "Appeler `ensure_utf8_stdio()` (platform_compat : reconfigure stdout/stderr en UTF-8 errors=replace, no-op si None) une fois en tête de module après les imports (couvre l'import par task_runner) et au début de `__main__`. Sous Linux c'est un no-op sans effet visible."
+        },
+        {
+          "line": 153,
+          "snippet": "\"Services JARVIS = services UTILISATEUR : toujours « systemctl --user … ». \"\n\"Commande longue/bloquante : run_bash background=true, puis tmux_capture. \"",
+          "categorie": "degrade",
+          "atteignable_depuis": "CLI uniquement (idem) : _system_prompt() -> run() L319, à chaque instruction.",
+          "pourquoi_casse_windows": "Le prompt impose systemctl et tmux au modèle : sous Windows chaque vérification de service produit « commande introuvable » (ou part dans WSL avec le bash nu actuel), VERIFY conclut « vérification impossible » et le modèle reboucle sur tmux_capture inexistant. Aucun crash, mais l'exécuteur est fonctionnellement inutile pour les services/commandes longues sur ce poste.",
+          "correction_proposee": "Construire le prompt selon la plateforme, chaîne Linux inchangée :\n```python\n_SVC = (\"Services JARVIS = services UTILISATEUR : toujours « systemctl --user … ». \"\n        \"Commande longue/bloquante : run_bash background=true, puis tmux_capture. \") if not IS_WINDOWS else (\n        \"Système Windows 11 : run_bash exécute cmd.exe (pas de systemctl, pas de tmux). \"\n        \"Services : « sc query <nom> » ou PowerShell « Get-Service ». Pas de background=true. \")\nLOOP_SYSTEM = (\"Tu es JARVIS CORE, MODE EXECUTION. ... \" + _SVC + \"Terminé : UNE phrase ...\")\n```\nEt filtrer TOOL_SPECS sous Windows : `TOOL_SPECS = [s for s in TOOL_SPECS if not IS_WINDOWS or s['function']['name'] != 'tmux_capture']`."
+        },
+        {
+          "line": 42,
+          "snippet": "BASH_DENY = (\"rm -rf /\", \"mkfs\", \"dd if=\", \":(){\", \"shutdown\", \"reboot\", \"> /dev/sd\")",
+          "categorie": "degrade",
+          "atteignable_depuis": "CLI uniquement (idem) : tool_run_bash L51-53, avant chaque commande émise par le LLM.",
+          "pourquoi_casse_windows": "Dès que run_bash est routé vers cmd.exe/PowerShell (correction L64), le garde-fou ActionPolicy ne bloque aucune commande destructrice Windows : `format C:`, `diskpart`, `rd /s /q`, `rmdir /s`, `del /s /q`, `Remove-Item -Recurse -Force`, `Clear-Disk` passent. Pas un crash, mais perte de la protection « DELETE/IRREVERSIBLE » côté Windows.",
+          "correction_proposee": "Étendre la liste sans toucher aux entrées Linux :\n```python\nBASH_DENY = (\"rm -rf /\", \"mkfs\", \"dd if=\", \":(){\", \"shutdown\", \"reboot\", \"> /dev/sd\")\nif IS_WINDOWS:\n    BASH_DENY += (\"format \", \"diskpart\", \"rd /s\", \"rmdir /s\", \"del /s\", \"remove-item -recurse\", \"clear-disk\", \"stop-computer\", \"restart-computer\")\n```"
+        }
+      ]
+    },
+    "cockpit/core/terminal_manager.py": {
+      "lignes_lues": 91,
+      "findings": [
+        {
+          "line": 80,
+          "snippet": "    if IS_WINDOWS:\n        return find_executable(tete) is not None",
+          "categorie": "degrade",
+          "atteignable_depuis": "__init__ de TabTerminal (tab_terminal.py:85, boucle QUICK_LAUNCHERS_WINDOWS) -> command_available() ; puis bouton lanceur rapide -> launch_quick -> launch_terminal_command (l.56)",
+          "pourquoi_casse_windows": "find_executable(name) sans candidats ne fait que shutil.which (PATH du processus pythonw), alors que which() de platform_compat consulte en plus _WIN_CANDIDATES et _WIN_EXTRA_DIRS (%USERPROFILE%\\.lmstudio\\bin, %LOCALAPPDATA%\\Programs\\Ollama, %APPDATA%\\npm, %USERPROFILE%\\.local\\bin...). Si lms.exe / ollama.exe / claude.cmd existent dans un de ces dossiers mais pas dans le PATH herite par pythonw (PATH utilisateur modifie apres le lancement, raccourci avec environnement fige), le bouton « LM Studio (lms ps) » ou « Ollama (modeles) » est grise avec le tooltip « lms (non installe) » alors que l'outil est installe. Et meme si on l'activait, launch_terminal_command passe la commande brute au shell (shell_wrap -> powershell -Command 'lms ps') qui ne la trouverait pas non plus. Pas de crash, mais un bouton mort/menteur. (Detail secondaire : tete = command.split(' ')[0] tronque un futur lanceur dont l'executable est un chemin quote avec espaces, ex. \"C:\\Program Files\\...\\x.exe\" args -> tete = '\"C:\\Program' -> grise a tort.)",
+          "correction_proposee": "1) Dans command_available, branche IS_WINDOWS uniquement : importer which depuis .platform_compat et faire `return which(tete) is not None` (which honore PATHEXT, _WIN_CANDIDATES, _WIN_EXTRA_DIRS et rend None pour LINUX_ONLY_TOOLS). Pour le decoupage de la tete, utiliser `shlex.split(command, posix=False)[0].strip('\"')` sous try/except au lieu de split(' ').\n2) Dans launch_terminal_command, branche IS_WINDOWS uniquement : resoudre la tete avant d'ouvrir le terminal pour que le shell la trouve meme hors PATH :\n    if IS_WINDOWS:\n        tete, _, reste = command.strip().partition(' ')\n        exe = which(tete) if tete and os.sep not in tete else None\n        if exe and exe.lower() != tete.lower():\n            command = subprocess.list2cmdline([exe]) + ((' ' + reste) if reste else '')\n        return open_terminal(command, title=title, keep_open=True) is not None\n(sous PowerShell, prefixer par '& ' si le chemin est quote : `command = '& ' + ...` quand win_shell_kind() in ('powershell','pwsh')). Chemin Linux (l.57-62) inchange."
+        }
+      ]
+    },
+    "cockpit/core/sync_engine.py": {
+      "lignes_lues": 404,
+      "findings": [
+        {
+          "line": 318,
+          "snippet": "run_cmd([git, \"-C\", JARVIS_DIR, \"add\", \"-A\"], timeout=15)\nrun_cmd([git, \"-C\", JARVIS_DIR, \"commit\", \"-m\", msg], timeout=15)  # rc≠0 ignoré (|| true)",
+          "categorie": "bloquant",
+          "atteignable_depuis": "serveur HTTP : POST /api/sync/run avec auto_git:true (cockpit/serveur.py:1386, déclenché par cockpit/web/index.html:5173) -> trigger_synchronisation(auto_git_commit=True). Le SyncWorker de tab_avancements passe auto_git=False (non concerné).",
+          "pourquoi_casse_windows": "Sur ce poste C:\\Users\\clair\\jarvis n'a PAS de .git (vérifié) mais C:\\Users\\clair\\.git existe (index 1,7 Mo, branche master). git remonte donc au dépôt parent : `git -C C:\\Users\\clair\\jarvis rev-parse --show-toplevel` = C:/Users/clair (vérifié). Or `git add -A` SANS pathspec stage tout l'arbre de travail du dépôt trouvé, soit le profil utilisateur Windows entier (Documents, AppData accessibles, .venv, etc.), puis `git commit -m` l'inscrit dans ce dépôt étranger ; avec 15 s de timeout l'add est tué à mi-chemin par kill_process_tree, laissant un index.lock. Aujourd'hui un index.lock périmé (17/07) fait échouer l'add en rc 128 (« Unable to create C:/Users/clair/.git/index.lock »), mais le rc n'est pas testé et actions_done annonce quand même « Git commit effectué: … » -> faux succès affiché à l'utilisateur. Sous Linux /home/turbo/jarvis est un vrai dépôt (jarvis-core) : le problème n'existe pas.",
+          "correction_proposee": "Garder le chemin Linux, ajouter une garde Windows sur la racine exacte du dépôt et rendre compte du rc :\n```python\n    if auto_git_commit:\n        msg = message_commit or f\"feat(sync): checkpoint avancements {now_str}\"\n        git = which(\"git\")\n        if IS_WINDOWS and (not git or not os.path.isdir(os.path.join(JARVIS_DIR, \".git\"))):\n            actions_done.append(\"Git commit ignoré : \" + (\"git introuvable\" if not git\n                                else f\"{JARVIS_DIR} n'est pas un dépôt git (pas de .git à sa racine)\"))\n        else:\n            git = git or \"git\"\n            try:\n                run_cmd([git, \"-C\", JARVIS_DIR, \"add\", \"-A\"], timeout=15)\n                r = run_cmd([git, \"-C\", JARVIS_DIR, \"commit\", \"-m\", msg], timeout=15)\n                if r.returncode == 0:\n                    actions_done.append(f\"Git commit effectué: {msg}\")\n                else:\n                    err = (r.stderr or r.stdout or \"\").strip().splitlines()\n                    actions_done.append(f\"Git commit non effectué (rc={r.returncode}): {err[0][:160] if err else 'rien à committer'}\")\n            except Exception as e:\n                actions_done.append(f\"Erreur Git commit: {e}\")\n```\nVariante plus stricte (toutes plateformes) : comparer `os.path.normcase(os.path.realpath(run_cmd([git,'-C',JARVIS_DIR,'rev-parse','--show-toplevel']).stdout.strip()))` à `os.path.normcase(os.path.realpath(JARVIS_DIR))` et refuser si différent (empêche définitivement de committer dans un dépôt parent)."
+        },
+        {
+          "line": 97,
+          "snippet": "return list_scheduled_timers((\"jarvis\", \"locomotive\", \"board\"))",
+          "categorie": "degrade",
+          "atteignable_depuis": "QTimer 10 s tab_avancements.refresh_data (THREAD GUI) + TabAvancements.__init__ (refresh_data() synchrone au démarrage de l'app) + on_sync_done + nouveau_chantier_dialog -> get_avancements_data() -> get_systemd_timers(). Aussi serveur GET /api/avancements (serveur.py:927) et SyncWorker.run -> trigger_synchronisation -> get_avancements_data.",
+          "pourquoi_casse_windows": "Sous Windows la branche IS_WINDOWS lance PowerShell Get-ScheduledTask : mesuré 2,26 s sur ce poste (get_avancements_data complet = 2,82 s), timeout interne 20 s. Le docstring (l.92-93) dit « à appeler hors thread GUI » mais l'appelant réel est le QTimer de 10 s de tab_avancements dans le thread GUI : la fenêtre gèle ~3 s toutes les 10 s (≈30 % du temps, boutons/onglets non réactifs, « Ne répond pas » possible sous pythonw), et l'ouverture de l'onglet bloque le démarrage de l'app de 3 s. Sous Linux systemctl répond en ~50 ms, d'où l'absence de symptôme là-bas. Aucune exception, mais fait partie du ressenti « je ne peux rien ouvrir ».",
+          "correction_proposee": "Dans sync_engine, branche IS_WINDOWS uniquement (chemin Linux inchangé) : mémoïser avec TTL et rafraîchir hors du thread appelant, en renvoyant immédiatement la valeur en cache :\n```python\nimport threading\n_TIMERS_CACHE = {\"ts\": 0.0, \"data\": [], \"busy\": False}\n_TIMERS_TTL = 120.0  # Get-ScheduledTask ~2-3 s : 1 fois / 2 min suffit\n\ndef _refresh_timers_bg():\n    try:\n        data = list_scheduled_timers((\"jarvis\", \"locomotive\", \"board\"))\n    except Exception:\n        data = []\n    _TIMERS_CACHE.update(ts=time.time(), data=data, busy=False)\n\ndef get_systemd_timers() -> list:\n    timers = []\n    if IS_WINDOWS:\n        if time.time() - _TIMERS_CACHE[\"ts\"] > _TIMERS_TTL and not _TIMERS_CACHE[\"busy\"]:\n            _TIMERS_CACHE[\"busy\"] = True\n            threading.Thread(target=_refresh_timers_bg, daemon=True).start()\n        return list(_TIMERS_CACHE[\"data\"])   # [] au 1er passage, rempli au tick suivant\n    ...  # branche Linux telle quelle\n```\nComplément (autre fichier, tab_avancements.py) : déplacer l'appel get_avancements_data() de refresh_data dans un QThread (même patron que SyncWorker) et ne toucher les widgets que dans le slot du signal ; c'est la correction de fond, le cache ci-dessus la rend supportable même sans."
+        },
+        {
+          "line": 47,
+          "snippet": "return (run_cmd([git, \"-C\", path, *args], timeout=10).stdout or \"\")",
+          "categorie": "degrade",
+          "atteignable_depuis": "Même chaîne : QTimer 10 s tab_avancements.refresh_data (thread GUI) -> get_avancements_data -> get_git_status ; 4 appels _git par dépôt existant (rev-parse, status --porcelain, log -1, rev-list).",
+          "pourquoi_casse_windows": "Secondaire par rapport au finding précédent mais il subsiste après. Sur ce poste C:\\Users\\clair\\cockpit-app est un dépôt git : 4 CreateProcess git.exe par tick de 10 s dans le thread GUI ; `git status --porcelain` seul mesuré à 0,75 s (636 lignes modifiées/non suivies, stat NTFS lent), soit ~1 s de gel supplémentaire toutes les 10 s, pire si le dépôt est sur OneDrive/antivirus ; timeout 10 s × 4 = jusqu'à 40 s de gel par dépôt si git bloque. Aucune exception (run_cmd ne lève jamais), c'est purement de la réactivité GUI.",
+          "correction_proposee": "Branche IS_WINDOWS uniquement : (a) mémoïser get_git_status avec un TTL de 60 s selon le même patron cache+thread daemon que pour les timers ; (b) réduire les spawns en fusionnant branche + ahead/behind + fichiers en UN appel : `_git(p, \"status\", \"--porcelain=v1\", \"--branch\")` dont la 1re ligne `## main...origin/main [ahead 1, behind 2]` se parse par regex `r\"^## (\\S+?)(?:\\.\\.\\.\\S+)?(?: \\[(?:ahead (\\d+))?(?:, )?(?:behind (\\d+))?\\])?\"`, les lignes suivantes = fichiers modifiés ; garder `log -1` -> 2 appels au lieu de 4. Le chemin Linux peut rester tel quel derrière `else:`."
+        },
+        {
+          "line": 37,
+          "snippet": "{\"name\": \"jarvis-cockpit-app\", \"path\": os.path.join(HOME, \"MOISSON\", \"github-repos\", \"jarvis-cockpit-application\")},",
+          "categorie": "degrade",
+          "atteignable_depuis": "QTimer 10 s tab_avancements.refresh_data et GET /api/avancements -> get_git_status ; carte « dépôts à jour » et table Git de l'onglet Avancements.",
+          "pourquoi_casse_windows": "Chemin rig Linux (~/MOISSON/github-repos/...) ; sur ce poste C:\\Users\\clair\\MOISSON n'existe pas (vérifié) alors que le clone est C:\\Users\\clair\\jarvis-cockpit-application. Le test `.git` de la l.51 saute silencieusement le dépôt : la carte affiche « 0/1 dépôts » en ne comptant que cockpit-app, le dépôt du cockpit en cours de portage n'apparaît jamais et rien n'indique pourquoi. Pas de crash, mais information fausse sans message.",
+          "correction_proposee": "Ajouter un repli Windows sans changer le 1er candidat Linux, avec le helper repo_root() de platform_compat (racine du checkout qui s'exécute) :\n```python\nfrom .platform_compat import IS_WINDOWS, which, run_cmd, list_scheduled_timers, repo_root\n\ndef _cockpit_repo_path() -> str:\n    cands = [os.path.join(HOME, \"MOISSON\", \"github-repos\", \"jarvis-cockpit-application\")]\n    if IS_WINDOWS:\n        cands += [repo_root(), os.path.join(HOME, \"jarvis-cockpit-application\")]\n    return next((c for c in cands if os.path.isdir(os.path.join(c, \".git\"))), cands[0])\n\n    repos = [\n        {\"name\": \"jarvis-core\", \"path\": JARVIS_DIR},\n        {\"name\": \"jarvis-cockpit-app\", \"path\": _cockpit_repo_path()},\n        {\"name\": \"pamerys-m4-cockpit\", \"path\": os.path.join(HOME, \"cockpit-app\")},\n    ]\n```\nOptionnel : au lieu de `continue` l.52, ajouter une entrée `{\"branch\": \"absent\", \"last_commit\": \"dépôt introuvable sur ce poste\", \"synced\": False}` pour que l'onglet explique le manque."
+        }
+      ]
+    }
+  }
+}
