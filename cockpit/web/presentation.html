@@ -5,283 +5,283 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>JARVIS OS — Dossier système</title>
 <style>
-  :root{
-    --ink:#0c0f13; --ink-2:#11151b; --panel:#151a21; --panel-2:#1a2129;
-    --line:rgba(224,201,150,.13); --line-2:rgba(230,228,220,.08);
-    --text:#e6e3da; --muted:#9b988e; --dim:#6b6a62;
-    --gold:#e2ab55; --gold-soft:#c9974a;
-    --ok:#5fb98a; --warn:#e0a94a; --crit:#d76a5f; --info:#7fa9c4;
-    --serif:Georgia,"Times New Roman",serif;
-    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    --mono:ui-monospace,"SF Mono",Menlo,"DejaVu Sans Mono",monospace;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);
-    line-height:1.6;-webkit-font-smoothing:antialiased;font-size:16px}
-  .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
-  section{padding:64px 0;border-top:1px solid var(--line-2)}
-  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
-    color:var(--gold-soft);margin:0 0 18px}
-  h1,h2,h3{text-wrap:balance;font-family:var(--serif);font-weight:600;letter-spacing:-.01em}
-  h2{font-size:clamp(26px,4vw,38px);margin:0 0 8px;line-height:1.12}
-  h3{font-size:19px;margin:0 0 6px}
-  p{max-width:64ch}
-  .lead{color:var(--muted);font-size:18px;max-width:60ch}
-  .mono{font-family:var(--mono)}
-  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
-  a{color:var(--gold)}
+ :root{
+ --ink:#0c0f13; --ink-2:#11151b; --panel:#151a21; --panel-2:#1a2129;
+ --line:rgba(224,201,150,.13); --line-2:rgba(230,228,220,.08);
+ --text:#e6e3da; --muted:#9b988e; --dim:#6b6a62;
+ --gold:#e2ab55; --gold-soft:#c9974a;
+ --ok:#5fb98a; --warn:#e0a94a; --crit:#d76a5f; --info:#7fa9c4;
+ --serif:Georgia,"Times New Roman",serif;
+ --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+ --mono:ui-monospace,"SF Mono",Menlo,"DejaVu Sans Mono",monospace;
+ }
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);
+ line-height:1.6;-webkit-font-smoothing:antialiased;font-size:16px}
+ .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+ section{padding:64px 0;border-top:1px solid var(--line-2)}
+ .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+ color:var(--gold-soft);margin:0 0 18px}
+ h1,h2,h3{text-wrap:balance;font-family:var(--serif);font-weight:600;letter-spacing:-.01em}
+ h2{font-size:clamp(26px,4vw,38px);margin:0 0 8px;line-height:1.12}
+ h3{font-size:19px;margin:0 0 6px}
+ p{max-width:64ch}
+ .lead{color:var(--muted);font-size:18px;max-width:60ch}
+ .mono{font-family:var(--mono)}
+ .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+ a{color:var(--gold)}
 
-  /* HERO */
-  .hero{padding:100px 0 76px;position:relative;overflow:hidden}
-  .hero::before{content:"";position:absolute;inset:0;
-    background:radial-gradient(120% 90% at 78% 8%,rgba(226,171,85,.16),transparent 55%);
-    pointer-events:none}
-  .hero .eyebrow{color:var(--gold-soft)}
-  .hero h1{font-size:clamp(44px,9vw,88px);line-height:.98;margin:0 0 22px;letter-spacing:-.03em}
-  .hero h1 .amp{color:var(--gold);font-style:italic;font-weight:500}
-  .thesis{font-family:var(--serif);font-size:clamp(19px,2.6vw,25px);color:var(--text);
-    max-width:24ch;line-height:1.35;margin:0 0 28px}
-  .doctrine{display:inline-flex;gap:14px;align-items:center;font-family:var(--mono);font-size:12.5px;
-    letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
-    border:1px solid var(--line);border-radius:2px;padding:9px 15px}
-  .doctrine b{color:var(--gold);font-weight:500}
-  .glow{width:7px;height:7px;border-radius:50%;background:var(--gold);
-    box-shadow:0 0 14px 2px rgba(226,171,85,.7)}
+ /* HERO */
+ .hero{padding:100px 0 76px;position:relative;overflow:hidden}
+ .hero::before{content:"";position:absolute;inset:0;
+ background:radial-gradient(120% 90% at 78% 8%,rgba(226,171,85,.16),transparent 55%);
+ pointer-events:none}
+ .hero .eyebrow{color:var(--gold-soft)}
+ .hero h1{font-size:clamp(44px,9vw,88px);line-height:.98;margin:0 0 22px;letter-spacing:-.03em}
+ .hero h1 .amp{color:var(--gold);font-style:italic;font-weight:500}
+ .thesis{font-family:var(--serif);font-size:clamp(19px,2.6vw,25px);color:var(--text);
+ max-width:24ch;line-height:1.35;margin:0 0 28px}
+ .doctrine{display:inline-flex;gap:14px;align-items:center;font-family:var(--mono);font-size:12.5px;
+ letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+ border:1px solid var(--line);border-radius:2px;padding:9px 15px}
+ .doctrine b{color:var(--gold);font-weight:500}
+ .glow{width:7px;height:7px;border-radius:50%;background:var(--gold);
+ box-shadow:0 0 14px 2px rgba(226,171,85,.7)}
 
-  /* PILLARS */
-  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line-2);
-    border:1px solid var(--line-2);border-radius:4px;overflow:hidden;margin-top:8px}
-  .pillar{background:var(--panel);padding:28px 24px}
-  .pillar .k{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--gold-soft);text-transform:uppercase}
-  .pillar h3{margin:12px 0 8px}
-  .pillar p{color:var(--muted);font-size:14.5px;margin:0}
+ /* PILLARS */
+ .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line-2);
+ border:1px solid var(--line-2);border-radius:4px;overflow:hidden;margin-top:8px}
+ .pillar{background:var(--panel);padding:28px 24px}
+ .pillar .k{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--gold-soft);text-transform:uppercase}
+ .pillar h3{margin:12px 0 8px}
+ .pillar p{color:var(--muted);font-size:14.5px;margin:0}
 
-  /* METRICS */
-  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-2);
-    border:1px solid var(--line-2);border-radius:4px;overflow:hidden;margin:26px 0}
-  .metric{background:var(--panel);padding:26px 22px}
-  .metric .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:30px;color:var(--text);line-height:1}
-  .metric .v small{font-size:15px;color:var(--muted)}
-  .metric .l{font-size:12.5px;color:var(--muted);margin-top:9px;letter-spacing:.02em}
-  .metric.hl .v{color:var(--gold)}
+ /* METRICS */
+ .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-2);
+ border:1px solid var(--line-2);border-radius:4px;overflow:hidden;margin:26px 0}
+ .metric{background:var(--panel);padding:26px 22px}
+ .metric .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:30px;color:var(--text);line-height:1}
+ .metric .v small{font-size:15px;color:var(--muted)}
+ .metric .l{font-size:12.5px;color:var(--muted);margin-top:9px;letter-spacing:.02em}
+ .metric.hl .v{color:var(--gold)}
 
-  /* ARCH GRID */
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:26px}
-  .card{background:var(--panel);border:1px solid var(--line-2);border-radius:5px;padding:22px 22px}
-  .card .tag{font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold-soft)}
-  .card h3{margin:11px 0 6px}
-  .card p{color:var(--muted);font-size:14.5px;margin:0}
+ /* ARCH GRID */
+ .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:26px}
+ .card{background:var(--panel);border:1px solid var(--line-2);border-radius:5px;padding:22px 22px}
+ .card .tag{font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold-soft)}
+ .card h3{margin:11px 0 6px}
+ .card p{color:var(--muted);font-size:14.5px;margin:0}
 
-  /* CLUSTER */
-  .nodes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
-  .node{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);
-    border-radius:6px;padding:22px}
-  .node .role{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-soft)}
-  .node .name{font-family:var(--serif);font-size:22px;margin:8px 0 4px}
-  .node ul{margin:12px 0 0;padding:0;list-style:none;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
-  .node li{padding:5px 0;border-top:1px solid var(--line-2);display:flex;justify-content:space-between;gap:10px}
-  .node li span{color:var(--text)}
+ /* CLUSTER */
+ .nodes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
+ .node{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);
+ border-radius:6px;padding:22px}
+ .node .role{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold-soft)}
+ .node .name{font-family:var(--serif);font-size:22px;margin:8px 0 4px}
+ .node ul{margin:12px 0 0;padding:0;list-style:none;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+ .node li{padding:5px 0;border-top:1px solid var(--line-2);display:flex;justify-content:space-between;gap:10px}
+ .node li span{color:var(--text)}
 
-  /* AUDIT DASHBOARD */
-  .audit{display:grid;gap:10px;margin-top:24px}
-  .row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;
-    background:var(--panel);border:1px solid var(--line-2);border-left-width:3px;border-radius:4px;padding:15px 18px}
-  .row.ok{border-left-color:var(--ok)} .row.warn{border-left-color:var(--warn)} .row.crit{border-left-color:var(--crit)}
-  .row .stripe{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
-  .row.ok .stripe{color:var(--ok)} .row.warn .stripe{color:var(--warn)} .row.crit .stripe{color:var(--crit)}
-  .row .what{font-size:15px;color:var(--text)}
-  .row .what small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
-  .chip{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:20px;letter-spacing:.06em;white-space:nowrap}
-  .chip.ok{background:rgba(95,185,138,.13);color:var(--ok)}
-  .chip.warn{background:rgba(224,169,74,.13);color:var(--warn)}
-  .chip.crit{background:rgba(215,106,95,.14);color:var(--crit)}
+ /* AUDIT DASHBOARD */
+ .audit{display:grid;gap:10px;margin-top:24px}
+ .row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;
+ background:var(--panel);border:1px solid var(--line-2);border-left-width:3px;border-radius:4px;padding:15px 18px}
+ .row.ok{border-left-color:var(--ok)} .row.warn{border-left-color:var(--warn)} .row.crit{border-left-color:var(--crit)}
+ .row .stripe{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+ .row.ok .stripe{color:var(--ok)} .row.warn .stripe{color:var(--warn)} .row.crit .stripe{color:var(--crit)}
+ .row .what{font-size:15px;color:var(--text)}
+ .row .what small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+ .chip{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:20px;letter-spacing:.06em;white-space:nowrap}
+ .chip.ok{background:rgba(95,185,138,.13);color:var(--ok)}
+ .chip.warn{background:rgba(224,169,74,.13);color:var(--warn)}
+ .chip.crit{background:rgba(215,106,95,.14);color:var(--crit)}
 
-  /* VERDICT */
-  .verdict{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:34px 32px;margin-top:24px}
-  .verdict .moat{font-family:var(--serif);font-size:clamp(20px,3vw,27px);line-height:1.32;color:var(--text);margin:0 0 20px}
-  .verdict .moat em{color:var(--gold);font-style:italic}
-  .verdict .two{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:8px}
-  .verdict h3{font-size:13px;font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--gold-soft);margin:0 0 10px}
-  .verdict ul{margin:0;padding-left:18px;color:var(--muted);font-size:14.5px}
-  .verdict li{margin:6px 0}
+ /* VERDICT */
+ .verdict{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:34px 32px;margin-top:24px}
+ .verdict .moat{font-family:var(--serif);font-size:clamp(20px,3vw,27px);line-height:1.32;color:var(--text);margin:0 0 20px}
+ .verdict .moat em{color:var(--gold);font-style:italic}
+ .verdict .two{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:8px}
+ .verdict h3{font-size:13px;font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--gold-soft);margin:0 0 10px}
+ .verdict ul{margin:0;padding-left:18px;color:var(--muted);font-size:14.5px}
+ .verdict li{margin:6px 0}
 
-  footer{padding:44px 0 60px;border-top:1px solid var(--line-2)}
-  footer .mono{font-size:12px;color:var(--dim);letter-spacing:.06em}
+ footer{padding:44px 0 60px;border-top:1px solid var(--line-2)}
+ footer .mono{font-size:12px;color:var(--dim);letter-spacing:.06em}
 
-  @media(max-width:760px){
-    .pillars,.metrics,.nodes,.grid2,.verdict .two{grid-template-columns:1fr}
-    .metrics{grid-template-columns:1fr 1fr}
-    section{padding:48px 0}
-    .row{grid-template-columns:auto 1fr;gap:10px}.row .chip{grid-column:2;justify-self:start}
-  }
+ @media(max-width:760px){
+ .pillars,.metrics,.nodes,.grid2,.verdict .two{grid-template-columns:1fr}
+ .metrics{grid-template-columns:1fr 1fr}
+ section{padding:48px 0}
+ .row{grid-template-columns:auto 1fr;gap:10px}.row .chip{grid-column:2;justify-self:start}
+ }
 </style>
 </head>
 <body>
 
 <div class="hero">
-  <div class="wrap">
-    <p class="eyebrow">Système cognitif souverain · Dossier 2026-09-15</p>
-    <h1>JARVIS <span class="amp">OS</span></h1>
-    <p class="thesis">Une appliance de recherche souveraine à réponses citées et auditables.</p>
-    <span class="doctrine"><span class="glow"></span> Doctrine&nbsp;: <b>Ombre</b>&nbsp;×&nbsp;<b>Lumière</b></span>
-  </div>
+ <div class="wrap">
+ <p class="eyebrow">Système cognitif souverain · Dossier 2026-09-15</p>
+ <h1>JARVIS <span class="amp">OS</span></h1>
+ <p class="thesis">Une appliance de recherche souveraine à réponses citées et auditables.</p>
+ <span class="doctrine"><span class="glow"></span> Doctrine&nbsp;: <b>Ombre</b>&nbsp;×&nbsp;<b>Lumière</b></span>
+ </div>
 </div>
 
 <section>
-  <div class="wrap">
-    <p class="eyebrow">Le principe</p>
-    <h2>Trois promesses tenues</h2>
-    <p class="lead">Ni « OS » ni « cluster » au sens propre — une surcouche cognitive au-dessus de Linux. Mais trois engagements réels et vérifiables.</p>
-    <div class="pillars">
-      <div class="pillar">
-        <span class="k">01 — Souveraineté</span>
-        <h3>Zéro token, illimité</h3>
-        <p>Inférence 100 % locale (LM Studio + Ollama). Rien ne sort, aucun abonnement au token payant.</p>
-      </div>
-      <div class="pillar">
-        <span class="k">02 — Traçabilité</span>
-        <h3>Pas de citation = rejeté</h3>
-        <p>Toute réponse cite ses sources ou elle est écartée — la règle est vérifiable en SQL.</p>
-      </div>
-      <div class="pillar">
-        <span class="k">03 — Continuité</span>
-        <h3>Tout est artefact</h3>
-        <p>Comprendre → tracer → vérifier → mémoriser → généraliser → automatiser → auditer.</p>
-      </div>
-    </div>
-  </div>
+ <div class="wrap">
+ <p class="eyebrow">Le principe</p>
+ <h2>Trois promesses tenues</h2>
+ <p class="lead">Ni « OS » ni « cluster » au sens propre — une surcouche cognitive au-dessus de Linux. Mais trois engagements réels et vérifiables.</p>
+ <div class="pillars">
+ <div class="pillar">
+ <span class="k">01 — Souveraineté</span>
+ <h3>Zéro token, illimité</h3>
+ <p>Inférence 100 % locale (moteur GPU souverain llama-server). Rien ne sort, aucun abonnement au token payant.</p>
+ </div>
+ <div class="pillar">
+ <span class="k">02 — Traçabilité</span>
+ <h3>Pas de citation = rejeté</h3>
+ <p>Toute réponse cite ses sources ou elle est écartée — la règle est vérifiable en SQL.</p>
+ </div>
+ <div class="pillar">
+ <span class="k">03 — Continuité</span>
+ <h3>Tout est artefact</h3>
+ <p>Comprendre → tracer → vérifier → mémoriser → généraliser → automatiser → auditer.</p>
+ </div>
+ </div>
+ </div>
 </section>
 
 <section>
-  <div class="wrap">
-    <p class="eyebrow">Le corpus · board.db</p>
-    <h2>Le moat, mesuré</h2>
-    <p class="lead">Une base de connaissances curée — de la donnée et de l'annotation, pas du code. Non réplicable par un simple <span class="mono">git clone</span>.</p>
-    <div class="metrics">
-      <div class="metric hl"><div class="v">11,6<small> Go</small></div><div class="l">taille du corpus</div></div>
-      <div class="metric"><div class="v">1,08<small> M</small></div><div class="l">extraits (chunks)</div></div>
-      <div class="metric"><div class="v">312<small> k</small></div><div class="l">sources</div></div>
-      <div class="metric hl"><div class="v">99,5<small> %</small></div><div class="l">vectorisé (nomic-768d)</div></div>
-    </div>
-    <p style="color:var(--muted);font-size:14px">Vue SQL <span class="mono">answers_sans_citation</span> = garantie anti-hallucination auditable · 14 505 citations tracées · 4 792 réponses. <span style="color:var(--dim)">Réserve honnête : la fidélité (la citation soutient-elle la réponse ?) reste à mesurer.</span></p>
-  </div>
+ <div class="wrap">
+ <p class="eyebrow">Le corpus · board.db</p>
+ <h2>Le moat, mesuré</h2>
+ <p class="lead">Une base de connaissances curée — de la donnée et de l'annotation, pas du code. Non réplicable par un simple <span class="mono">git clone</span>.</p>
+ <div class="metrics">
+ <div class="metric hl"><div class="v">11,6<small> Go</small></div><div class="l">taille du corpus</div></div>
+ <div class="metric"><div class="v">1,08<small> M</small></div><div class="l">extraits (chunks)</div></div>
+ <div class="metric"><div class="v">312<small> k</small></div><div class="l">sources</div></div>
+ <div class="metric hl"><div class="v">99,5<small> %</small></div><div class="l">vectorisé (nomic-768d)</div></div>
+ </div>
+ <p style="color:var(--muted);font-size:14px">Vue SQL <span class="mono">answers_sans_citation</span> = garantie anti-hallucination auditable · 14 505 citations tracées · 4 792 réponses. <span style="color:var(--dim)">Réserve honnête : la fidélité (la citation soutient-elle la réponse ?) reste à mesurer.</span></p>
+ </div>
 </section>
 
 <section>
-  <div class="wrap">
-    <p class="eyebrow">Architecture</p>
-    <h2>Quatre couches</h2>
-    <div class="grid2">
-      <div class="card"><span class="tag">Cockpit</span><h3>Poste de pilotage web</h3><p><span class="mono">serveur.py</span> · ports 8600 / 8610 · dashboards, télémétrie cluster, app bureau.</p></div>
-      <div class="card"><span class="tag">Board</span><h3>Conseil d'experts local</h3><p>48 experts / 14 domaines interrogeant le corpus RAG — réponse synthétisée et arbitrée, citée.</p></div>
-      <div class="card"><span class="tag">MCP</span><h3>Serveur d'outils</h3><p>~200 handlers exposés au format Model Context Protocol (famille <span class="mono">mcp__jarvis-mcp__*</span>).</p></div>
-      <div class="card"><span class="tag">OMEGA</span><h3>Orchestration</h3><p>Domino continu tri-moteur, routeur cognitif, journée automatisée par timers systemd.</p></div>
-    </div>
-  </div>
+ <div class="wrap">
+ <p class="eyebrow">Architecture</p>
+ <h2>Quatre couches</h2>
+ <div class="grid2">
+ <div class="card"><span class="tag">Cockpit</span><h3>Poste de pilotage web</h3><p><span class="mono">serveur.py</span> · ports 8600 / 8610 · dashboards, télémétrie cluster, app bureau.</p></div>
+ <div class="card"><span class="tag">Board</span><h3>Conseil d'experts local</h3><p>48 experts / 14 domaines interrogeant le corpus RAG — réponse synthétisée et arbitrée, citée.</p></div>
+ <div class="card"><span class="tag">MCP</span><h3>Serveur d'outils</h3><p>~200 handlers exposés au format Model Context Protocol (famille <span class="mono">mcp__jarvis-mcp__*</span>).</p></div>
+ <div class="card"><span class="tag">OMEGA</span><h3>Orchestration</h3><p>Domino continu tri-moteur, routeur cognitif, journée automatisée par timers systemd.</p></div>
+ </div>
+ </div>
 </section>
 
 <section>
-  <div class="wrap">
-    <p class="eyebrow">Le cluster distribué</p>
-    <h2>Trois nœuds souverains</h2>
-    <p class="lead">Le système n'est plus cloué à une machine — la charge se répartit sur le réseau (RJ45 + Tailscale).</p>
-    <div class="nodes">
-      <div class="node">
-        <span class="role">Nœud principal</span>
-        <div class="name">mining</div>
-        <ul>
-          <li>GPU <span>RTX 3080 + 2060</span></li>
-          <li>CPU <span>i5-3470 · sans AVX2</span></li>
-          <li>Rôle <span>inférence 7B/8B</span></li>
-          <li>Réglage <span>Ollama ×1,7</span></li>
-        </ul>
-      </div>
-      <div class="node">
-        <span class="role">Génération</span>
-        <div class="name">rem-linux</div>
-        <ul>
-          <li>Lien <span>Tailscale SOCKS5</span></li>
-          <li>GPU <span>GTX 1050 4 Go</span></li>
-          <li>Débit <span>38 tok/s</span></li>
-          <li>Câblé <span>nœud REMI ✓</span></li>
-        </ul>
-      </div>
-      <div class="node">
-        <span class="role">Poste de Claire</span>
-        <div class="name">M4 / pamerys</div>
-        <ul>
-          <li>GPU <span>4× GTX 1660S</span></li>
-          <li>agy <span>Claude Code ✓</span></li>
-          <li>Persona <span>9 couches</span></li>
-          <li>RAG <span>board.db complet</span></li>
-        </ul>
-      </div>
-    </div>
-  </div>
+ <div class="wrap">
+ <p class="eyebrow">Le cluster distribué</p>
+ <h2>Trois nœuds souverains</h2>
+ <p class="lead">Le système n'est plus cloué à une machine — la charge se répartit sur le réseau (RJ45 + Tailscale).</p>
+ <div class="nodes">
+ <div class="node">
+ <span class="role">Nœud principal</span>
+ <div class="name">mining</div>
+ <ul>
+ <li>GPU <span>RTX 3080 + 2060</span></li>
+ <li>CPU <span>i5-3470 · sans AVX2</span></li>
+ <li>Rôle <span>inférence 7B/8B</span></li>
+ <li>Réglage <span>Ollama ×1,7</span></li>
+ </ul>
+ </div>
+ <div class="node">
+ <span class="role">Génération</span>
+ <div class="name">rem-linux</div>
+ <ul>
+ <li>Lien <span>Tailscale SOCKS5</span></li>
+ <li>GPU <span>GTX 1050 4 Go</span></li>
+ <li>Débit <span>38 tok/s</span></li>
+ <li>Câblé <span>nœud REMI ✓</span></li>
+ </ul>
+ </div>
+ <div class="node">
+ <span class="role">Poste de Claire</span>
+ <div class="name">M4 / pamerys</div>
+ <ul>
+ <li>GPU <span>RTX 3080 + RTX 2060 (2 GPU)</span></li>
+ <li>agy <span>Claude Code ✓</span></li>
+ <li>Persona <span>9 couches</span></li>
+ <li>RAG <span>board.db complet</span></li>
+ </ul>
+ </div>
+ </div>
+ </div>
 </section>
 
 <section>
-  <div class="wrap">
-    <p class="eyebrow">Audit système · passe du 15/09</p>
-    <h2>État réel, sans fard</h2>
-    <div class="audit">
-      <div class="row crit">
-        <span class="stripe">critique</span>
-        <div class="what">Pilote GPU — incohérence de version<small>Module noyau 595.84 ≠ librairie 595.91 (upgrade apt). NVML KO.</small></div>
-        <span class="chip crit">Reboot requis</span>
-      </div>
-      <div class="row ok">
-        <span class="stripe">résolu</span>
-        <div class="what">Secrets · fichier .env<small>Durci de world-readable à propriétaire seul (600).</small></div>
-        <span class="chip ok">Corrigé</span>
-      </div>
-      <div class="row warn">
-        <span class="stripe">ouvert</span>
-        <div class="what">Cockpit :8600 — authentification<small>Répond 200 sans jeton. À protéger avant accès non-local.</small></div>
-        <span class="chip warn">P0 à faire</span>
-      </div>
-      <div class="row ok">
-        <span class="stripe">sain</span>
-        <div class="what">Gateway MCP :18789 — exposition<small>Localhost uniquement sur mining. 11 services actifs, 0 en échec.</small></div>
-        <span class="chip ok">Confiné</span>
-      </div>
-    </div>
+ <div class="wrap">
+ <p class="eyebrow">Audit système · passe du 15/09</p>
+ <h2>État réel, sans fard</h2>
+  <div class="audit">
+  <div class="row ok">
+  <span class="stripe">résolu</span>
+  <div class="what">Pilote GPU — 595.91.07 Open DKMS opérationnel<small>NVIDIA UNIX Open Kernel Module 595.91.07 aligné. Dual-GPU (RTX 3080 + 2060) 100% fonctionnel, NVML OK.</small></div>
+  <span class="chip ok">Corrigé</span>
   </div>
+ <div class="row ok">
+ <span class="stripe">résolu</span>
+ <div class="what">Secrets · fichier .env<small>Durci de world-readable à propriétaire seul (600).</small></div>
+ <span class="chip ok">Corrigé</span>
+ </div>
+ <div class="row warn">
+ <span class="stripe">ouvert</span>
+ <div class="what">Cockpit :8600 — authentification<small>Répond 200 sans jeton. À protéger avant accès non-local.</small></div>
+ <span class="chip warn">P0 à faire</span>
+ </div>
+ <div class="row ok">
+ <span class="stripe">sain</span>
+ <div class="what">Gateway MCP :18789 — exposition<small>Localhost uniquement sur mining. 11 services actifs, 0 en échec.</small></div>
+ <span class="chip ok">Confiné</span>
+ </div>
+ </div>
+ </div>
 </section>
 
 <section>
-  <div class="wrap">
-    <p class="eyebrow">Le verdict honnête</p>
-    <h2>Ce qui vaut vraiment</h2>
-    <div class="verdict">
-      <p class="moat">Le moat n'est pas le nombre d'outils, ni le cluster. C'est <em>le corpus curé</em> et <em>la discipline de citation auditable</em>. Le reste est rattrapable.</p>
-      <div class="two">
-        <div>
-          <h3>À protéger</h3>
-          <ul>
-            <li>Le corpus board.db (donnée + annotation)</li>
-            <li>La citation vérifiable en SQL</li>
-            <li>La souveraineté 0-token, réelle</li>
-          </ul>
-        </div>
-        <div>
-          <h3>À solder d'abord</h3>
-          <ul>
-            <li>Sécurité : auth cockpit, secrets</li>
-            <li>Fidélité RAG : la mesurer</li>
-            <li>Ne pas survendre les chiffres</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <p style="margin-top:24px;color:var(--muted)">Ligne de conduite, tenue de bout en bout&nbsp;: <b style="color:var(--text)">les données privées restent privées</b> — chacun apporte les siennes par son propre consentement — et <b style="color:var(--text)">chaque affirmation cite sa source</b>.</p>
-  </div>
+ <div class="wrap">
+ <p class="eyebrow">Le verdict honnête</p>
+ <h2>Ce qui vaut vraiment</h2>
+ <div class="verdict">
+ <p class="moat">Le moat n'est pas le nombre d'outils, ni le cluster. C'est <em>le corpus curé</em> et <em>la discipline de citation auditable</em>. Le reste est rattrapable.</p>
+ <div class="two">
+ <div>
+ <h3>À protéger</h3>
+ <ul>
+ <li>Le corpus board.db (donnée + annotation)</li>
+ <li>La citation vérifiable en SQL</li>
+ <li>La souveraineté 0-token, réelle</li>
+ </ul>
+ </div>
+ <div>
+ <h3>À solder d'abord</h3>
+ <ul>
+ <li>Sécurité : auth cockpit, secrets</li>
+ <li>Fidélité RAG : la mesurer</li>
+ <li>Ne pas survendre les chiffres</li>
+ </ul>
+ </div>
+ </div>
+ </div>
+ <p style="margin-top:24px;color:var(--muted)">Ligne de conduite, tenue de bout en bout&nbsp;: <b style="color:var(--text)">les données privées restent privées</b> — chacun apporte les siennes par son propre consentement — et <b style="color:var(--text)">chaque affirmation cite sa source</b>.</p>
+ </div>
 </section>
 
 <footer>
-  <div class="wrap">
-    <p class="mono">JARVIS OS · dossier système généré le 2026-09-15 · inférence & narration 100 % locales, 0 token</p>
-  </div>
+ <div class="wrap">
+ <p class="mono">JARVIS OS · dossier système généré le 2026-09-15 · inférence & narration 100 % locales, 0 token</p>
+ </div>
 </footer>
 
 </body>

@@ -1,5 +1,5 @@
 // Coquille hors-ligne : l'interface reste ouvrable même sans le serveur.
-const CACHE = "jarvis-cockpit-v1";
+const CACHE = "jarvis-cockpit-v2";
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/", "/manifest.json", "/icone.png", "/icone-192.png"])));
   self.skipWaiting();

@@ -4,7 +4,7 @@
 JARVIS COCKPIT — GPU ACTION MEMORY & CONTEXT COMPRESSOR ENGINE
 ==============================================================
 Mémoire action souveraine haute vitesse & délestage de contexte :
-  • Vectorisation permanente en tâche de fond sur GTX 1660S (Ollama :11436, nomic-embed-text 768D)
+  • Vectorisation permanente en tâche de fond via nomic-embed-text-v1.5 (:1300, 768D)
   • Stockage SQLite unifié (jarvis_action_memory.db) avec index FTS5 + vecteurs float32
   • Recherche hybride (similarité cosinus vectorielle GPU + BM25 textuel) en <15ms
   • Compression et libération de contexte : compacte les historiques d'actions lourds
@@ -169,7 +169,7 @@ class ActionMemoryEngine:
         }
 
     def _call_gpu_embed(self, texts: list) -> list:
-        """Appel direct vers l'instance Ollama GPU dédiée (:11436 nomic-embed-text)."""
+        """Appel direct vers l'instance embeddings (:1300 nomic-embed-text-v1.5)."""
         payload = json.dumps({"model": EMBED_MODEL, "input": texts}).encode("utf-8")
         req = urllib.request.Request(
             f"{OLLAMA_EMBED_URL}/api/embed",

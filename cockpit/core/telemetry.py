@@ -222,7 +222,7 @@ def get_m6_status() -> dict:
     active_host = M6_HOST
     active_port = M6_PORT
 
-    candidates = [(M6_HOST, M6_PORT), ("192.168.42.241", 1234), ("127.0.0.1", 1234)]
+    candidates = [("127.0.0.1", 1234), (M6_HOST, M6_PORT), ("192.168.42.241", 1234)]
     seen = set()
     for h, p in candidates:
         if (h, p) in seen:
@@ -231,19 +231,27 @@ def get_m6_status() -> dict:
         if is_port_open(h, p, timeout=0.15):
             try:
                 t0 = time.time()
-                req = urllib.request.Request(f"http://{h}:{p}/api/v0/models")
-                with urllib.request.urlopen(req, timeout=1.2) as resp:
-                    latency_ms = round((time.time() - t0) * 1000, 1)
-                    data = json.loads(resp.read().decode())
-                    for m in data.get("data", []):
-                        m_id = m.get("id", "")
-                        available_models.append(m_id)
-                        if m.get("state") == "loaded":
-                            loaded_models.append(m_id)
-                    online = True
-                    active_host = h
-                    active_port = p
-                    break
+                endpoint = f"http://{h}:{p}/v1/models"
+                try:
+                    req = urllib.request.Request(endpoint)
+                    with urllib.request.urlopen(req, timeout=1.2) as resp:
+                        data = json.loads(resp.read().decode())
+                except Exception:
+                    req = urllib.request.Request(f"http://{h}:{p}/api/v0/models")
+                    with urllib.request.urlopen(req, timeout=1.2) as resp:
+                        data = json.loads(resp.read().decode())
+
+                latency_ms = round((time.time() - t0) * 1000, 1)
+                for m in data.get("data", []):
+                    m_id = m.get("id", "")
+                    available_models.append(m_id)
+                    # In /v1/models (llama-server), exposed models are loaded; in /api/v0, state=="loaded"
+                    if m.get("state") == "loaded" or m.get("state") is None or "owned_by" in m:
+                        loaded_models.append(m_id)
+                online = True
+                active_host = h
+                active_port = p
+                break
             except Exception:
                 pass
 

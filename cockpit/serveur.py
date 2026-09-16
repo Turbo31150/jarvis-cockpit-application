@@ -76,7 +76,7 @@ from core.escouade_engine import (
 
 PORT = int(os.environ.get("COCKPIT_PORT", "8600"))
 M6_URL = f"http://{M6_HOST}:{M6_PORT}"
-OL_URL = "http://127.0.0.1:11434"
+OL_URL = "http://127.0.0.1:1235"
 WEB_DIR = os.path.join(RACINE, "web")
 
 
@@ -112,11 +112,10 @@ def get_cluster_telemetry():
             mem_used = int(parts[2])
             mem_free = int(parts[6])
 
-    # VRAM agrégée sur les 4 GPU du rig via get_vram_info() (multi-GPU correct +
-    # garde thermique doctrine excluant la 1660S). L'ancien parse inline supposait
-    # 1 seul GPU : sur 4 cartes nvidia-smi rend 4 lignes → split(',') plantait
-    # (ValueError) et retombait sur 0/4096 ; timeout=1 s trop court sous charge.
-    vram_used, vram_total, vram_temp = 0, 4096, 0
+    # VRAM agrégée sur les 2 GPU du rig via get_vram_info() (RTX 3080 10 Go +
+    # RTX 2060 12 Go = 22 Go). L'ancien parse inline supposait 1 seul GPU →
+    # split(',') plantait sur plusieurs lignes ; fallback prudent si indispo.
+    vram_used, vram_total, vram_temp = 0, 22528, 0
     try:
         _v = get_vram_info()
         if _v.get("available"):
@@ -134,8 +133,8 @@ def get_cluster_telemetry():
     # 3. Matrice des services
     ports_map = [
         ("Cockpit Web", "127.0.0.1", 8600),
-        ("LM Studio GPU", m6_ip, 1234),
-        ("Ollama M4", "127.0.0.1", 11434),
+        ("llama-server qwen2.5-7b", m6_ip, 1234),
+        ("llama-server qwen3-8b", "127.0.0.1", 1235),
         ("Chat Proxy LLM", "127.0.0.1", 18800),
         ("Board Serveur", "127.0.0.1", 8795),
         ("Planning Widget", "127.0.0.1", 8899),
@@ -224,6 +223,800 @@ def get_legion_status():
     return out
 
 
+def get_gpu_models_state():
+    """État moteur GPU : GPU0 (:1234 fixe qwen2.5-7b), GPU1 (:1235 slot modulable),
+    embeddings (:1300) + modèles chargeables (manifests ollama, hors embeddings)."""
+    import urllib.request as _u
+    def served(port):
+        try:
+            with _u.urlopen(f"http://127.0.0.1:{port}/v1/models", timeout=2) as r:
+                d = json.loads(r.read().decode())
+            return [(m.get("id") or m.get("name")) for m in (d.get("data") or d.get("models") or []) if (m.get("id") or m.get("name"))]
+        except Exception:
+            return []
+    man = os.path.expanduser("~/.ollama/models/manifests/registry.ollama.ai/library")
+    embeds = {"nomic-embed-text", "bge-m3", "mxbai-embed-large"}
+    available = []
+    try:
+        for repo in sorted(os.listdir(man)):
+            if repo in embeds:
+                continue
+            for tag in sorted(os.listdir(os.path.join(man, repo))):
+                available.append(f"{repo}:{tag}")
+    except Exception:
+        pass
+    return {"success": True, "gpu0_1234": served(1234), "gpu1_1235": served(1235),
+            "embeddings_1300": served(1300), "available": available, "switcher": "jarvis-model"}
+
+
+def charger_modele_gpu1(model):
+    """Charge un modèle sur le slot GPU1 (:1235) via jarvis-model (subprocess liste → pas d'injection shell).
+    GPU0 (:1234, qwen2.5-7b) reste intact."""
+    model = str(model or "").strip()
+    if not model or not all(c.isalnum() or c in "._:-" for c in model):
+        return {"success": False, "error": "nom de modèle invalide"}
+    try:
+        r = subprocess.run(["/home/turbo/.local/bin/jarvis-model", model],
+                           capture_output=True, text=True, timeout=120)
+        out = (r.stdout + r.stderr).strip()
+        ok = ("✅" in out) or (r.returncode == 0 and "❌" not in out and "⚠️" not in out)
+        return {"success": ok, "model": model, "output": out[-1000:]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def chat_gpu(model, prompt, port=1234, system=None):
+    """Chat direct « LM Studio maison » avec un modèle du moteur GPU (llama-server OpenAI /v1/)."""
+    import urllib.request as _u, time as _t
+    try:
+        port = int(port)
+    except Exception:
+        port = 1234
+    if port not in (1234, 1235):
+        port = 1234
+    prompt = str(prompt or "").strip()
+    if not prompt:
+        return {"success": False, "error": "prompt vide"}
+    msgs = []
+    if system:
+        msgs.append({"role": "system", "content": str(system)[:4000]})
+    msgs.append({"role": "user", "content": prompt[:8000]})
+    payload = json.dumps({"model": model or "local", "messages": msgs,
+                          "max_tokens": 640, "temperature": 0.7}).encode("utf-8")
+    try:
+        req = _u.Request(f"http://127.0.0.1:{port}/v1/chat/completions",
+                         data=payload, headers={"Content-Type": "application/json"})
+        t0 = _t.time()
+        with _u.urlopen(req, timeout=180) as r:
+            d = json.loads(r.read().decode())
+        ch = d["choices"][0]["message"]
+        content = (ch.get("content") or ch.get("reasoning_content") or "").strip()
+        u = d.get("usage", {})
+        return {"success": bool(content), "content": content, "port": port,
+                "model": d.get("model"), "tokens": u.get("completion_tokens"),
+                "latency": round(_t.time() - t0, 2)}
+    except Exception as e:
+        return {"success": False, "error": str(e), "port": port}
+
+
+_TTS_MAP = {
+    # Branding : jamais « JARVIS » à voix haute → toujours « Turbo OS »
+    "jarvis": "Turbo OS",
+    # Acronymes/anglicismes fréquents → articulation française (aucun mot anglais brut)
+    "gpu": "gé pé u", "cpu": "cé pé u", "ram": "ram", "vram": "vé ram", "ssd": "esse esse dé",
+    "llm": "modèle de langage", "llms": "modèles de langage", "rag": "rag", "os": "o ès",
+    "stt": "reconnaissance vocale", "tts": "synthèse vocale", "board": "conseil",
+    "checkpoint": "point de reprise", "screenshot": "capture d'écran", "cloud": "nuage",
+    "token": "jeton", "tokens": "jetons", "cockpit": "cockpit", "kokoro": "kokoro",
+}
+
+
+def sanitize_tts(text):
+    """Prépare un texte pour Kokoro : branding Turbo OS, aucun mot anglais brut, SANS ponctuation ni symbole."""
+    import re as _re
+    t = str(text or "")
+    t = _re.sub(r"[A-Za-zÀ-ÿ']+", lambda m: _TTS_MAP.get(m.group(0).lower(), m.group(0)), t)
+    t = _re.sub(r"[^0-9A-Za-zÀ-ÿ'\s]", " ", t)   # retire ponctuation & symboles
+    t = _re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def parler(text):
+    """Voix souveraine Kokoro FR : génère un WAV et le joue sur les HP (paplay). Non bloquant.
+
+    Texte assaini pour l'oral : branding Turbo OS (jamais « JARVIS »), sans ponctuation ni symbole,
+    acronymes articulés, aucun mot anglais brut (protocole voix Turbo OS).
+    """
+    import os as _os
+    # ── MUTE GLOBAL : respecter sound_enabled (Paramètres & Affichage). No-op si voix coupée. ──
+    try:
+        _snd = get_cockpit_settings().get("settings", {}).get("sound_enabled", True)
+    except Exception:
+        _snd = True
+    if not _snd:
+        return {"success": True, "muted": True, "message": "Voix coupée (sound_enabled=false)"}
+    text = sanitize_tts(text)[:1200]
+    if not text:
+        return {"success": False, "error": "texte vide"}
+    wav = f"/tmp/turbo-tts-{_os.getpid()}.wav"
+    try:
+        r = subprocess.run(["/home/turbo/jarvis/bin/jarvis-tts-souverain.sh", text, wav],
+                           capture_output=True, text=True, timeout=60)
+        if r.returncode != 0 or not _os.path.exists(wav) or _os.path.getsize(wav) < 100:
+            return {"success": False, "error": "TTS: " + (r.stderr or "")[-160:]}
+        env = dict(_os.environ, XDG_RUNTIME_DIR="/run/user/1000")
+        subprocess.Popen(["paplay", wav], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return {"success": True, "chars": len(text)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ── TURBO OS : pilotage de la boucle vocale mains-libres (service jarvis-voice-cockpit :1270) ──
+VOICE_STOP_FLAG = "/tmp/voice_cockpit_stop"
+VOICE_LOOP_SERVICE = "jarvis-voice-cockpit"
+VOICE_STATE_URL = "http://127.0.0.1:1270/state"
+
+
+def voice_loop_state():
+    """Lit l'état vivant de la boucle vocale (:1270/state). Renvoie un dict état + drapeau service."""
+    import os as _os
+    stop_present = _os.path.exists(VOICE_STOP_FLAG)
+    state = None
+    reachable = False
+    try:
+        req = urllib.request.Request(VOICE_STATE_URL, headers={"User-Agent": "JarvisCockpit/1.0"})
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            state = json.loads(resp.read().decode("utf-8"))
+            reachable = True
+    except Exception:
+        pass
+    # État systemd (lecture seule, jamais bloquant)
+    active = None
+    try:
+        r = subprocess.run(["systemctl", "--user", "is-active", VOICE_LOOP_SERVICE],
+                           capture_output=True, text=True, timeout=5)
+        active = (r.stdout or "").strip()  # active | inactive | failed | activating
+    except Exception:
+        pass
+    # Vérité affichée : "running" seulement si service actif ET flag stop absent
+    running = (active == "active") and (not stop_present)
+    return {
+        "success": True,
+        "running": running,
+        "service_active": active,
+        "stop_flag": stop_present,
+        "reachable": reachable,
+        "state": state,  # {mode: idle|listening|thinking|speaking, ...} si joignable
+    }
+
+
+def voice_loop_control(action):
+    """start|stop|status pour la boucle vocale mains-libres. subprocess en liste d'args (pas de shell)."""
+    import os as _os
+    action = (action or "status").strip().lower()
+    if action == "status":
+        return voice_loop_state()
+
+    if action == "start":
+        # 1) lever le drapeau d'arrêt s'il existe
+        try:
+            if _os.path.exists(VOICE_STOP_FLAG):
+                _os.remove(VOICE_STOP_FLAG)
+        except Exception as e:
+            return {"success": False, "error": f"impossible d'enlever le drapeau: {e}"}
+        # 2) démarrer le service utilisateur
+        try:
+            r = subprocess.run(["systemctl", "--user", "start", VOICE_LOOP_SERVICE],
+                               capture_output=True, text=True, timeout=20)
+            if r.returncode != 0:
+                return {"success": False, "error": (r.stderr or r.stdout or "start a échoué").strip()[-200:]}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        st = voice_loop_state()
+        st["message"] = "Boucle vocale démarrée."
+        return st
+
+    if action == "stop":
+        # 1) poser le drapeau d'arrêt (la boucle s'auto-arrête proprement au prochain tick)
+        try:
+            with open(VOICE_STOP_FLAG, "w") as f:
+                f.write("stop")
+        except Exception as e:
+            return {"success": False, "error": f"impossible de poser le drapeau: {e}"}
+        # 2) tenter aussi d'arrêter le service (non fatal si ça échoue : le drapeau suffit)
+        try:
+            subprocess.run(["systemctl", "--user", "stop", VOICE_LOOP_SERVICE],
+                           capture_output=True, text=True, timeout=20)
+        except Exception:
+            pass
+        st = voice_loop_state()
+        st["message"] = "Boucle vocale arrêtée (drapeau posé)."
+        return st
+
+    return {"success": False, "error": f"action inconnue: {action} (attendu start|stop|status)"}
+
+
+# ── PILOTAGE VOCAL DE TOUT LE COCKPIT ──
+# Onglets adressables (doivent rester alignés sur la liste `valides` de web/index.html → deep-link #rubrique)
+COCKPIT_TABS = {
+    "tableau de bord": "dashboard", "dashboard": "dashboard", "accueil": "dashboard", "bord": "dashboard",
+    "avancements": "avancements", "avancement": "avancements", "progrès": "avancements",
+    "plan": "plan", "planning": "plan",
+    "omega": "omega", "oméga": "omega",
+    "claude": "claude",
+    "terminal": "terminal", "console": "terminal", "bash": "terminal", "shell": "terminal",
+    "applications": "apps", "applis": "apps", "application": "apps", "apps": "apps",
+    "table ronde": "tableronde", "tableronde": "tableronde",
+    "studio": "studio", "modèles": "studio", "modeles": "studio",
+    "mcp": "mcps", "mcps": "mcps",
+    "sql": "sql", "base de données": "sql", "bases": "sql", "base": "sql",
+    "swarm": "swarm", "essaim": "swarm",
+    "moisson": "moisson", "récolte": "moisson",
+    "swan": "swan",
+    "ia web": "iaweb", "iaweb": "iaweb", "web": "iaweb",
+    "bureau": "bureau",
+    "réglages": "settings", "reglages": "settings", "paramètres": "settings", "parametres": "settings", "settings": "settings",
+    "audit": "audit", "moat": "audit", "cahier des charges": "audit", "comparaison": "audit",
+    "légion": "legion", "legion": "legion",
+    "escouade": "escouade", "agents": "escouade",
+}
+# Corrections déterministes rapides (vocabulaire Turbo + fautes STT FR fréquentes) — avant la passe LLM
+VOICE_FIX = {
+    "turbot": "turbo", "turbos": "turbo", "tourbo": "turbo", "tourbeau": "turbo", "turbeau": "turbo",
+    "jarviss": "jarvis", "jervis": "jarvis", "charvis": "jarvis", "charvie": "jarvis", "jarvisse": "jarvis",
+    "cocotte": "cockpit", "cockpite": "cockpit", "cocpit": "cockpit", "cockpit": "cockpit", "cocotpite": "cockpit",
+    "au méga": "omega", "o méga": "omega", "oh méga": "omega",
+    "aissquel": "sql", "aiscuel": "sql", "esse cu elle": "sql",
+    "ène cu": "gpu", "gpou": "gpu",
+    "écouade": "escouade", "excouade": "escouade",
+    "région": "légion", "légions": "légion",
+}
+
+
+# Applis bureau lançables à la voix (nom FR → candidats exec, 1er installé retenu). PC Control.
+APP_LAUNCH = {
+    "firefox": ["firefox"],
+    "navigateur": ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "firefox"],
+    "chrome": ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"],
+    "chromium": ["chromium", "chromium-browser"],
+    "vs code": ["code"], "vscode": ["code"], "visual studio code": ["code"], "éditeur de code": ["code"],
+    "fichiers": ["nautilus", "nemo", "dolphin", "thunar"], "explorateur de fichiers": ["nautilus", "nemo"],
+    "gestionnaire de fichiers": ["nautilus", "nemo", "dolphin", "thunar"],
+    "calculatrice": ["gnome-calculator", "kcalc", "galculator"],
+    "éditeur de texte": ["gedit", "kate", "xed", "mousepad"], "bloc-notes": ["gedit", "xed", "mousepad"],
+    "moniteur système": ["gnome-system-monitor", "ksysguard"], "gestionnaire des tâches": ["gnome-system-monitor"],
+    "capture d'écran": ["gnome-screenshot", "spectacle", "flameshot"],
+    "paramètres système": ["gnome-control-center", "systemsettings"],
+    "lecteur vidéo": ["vlc", "mpv", "totem"], "vlc": ["vlc"],
+}
+
+
+def resolve_app(phrase):
+    """Trouve l'exec d'une appli bureau installée à partir d'une phrase (clé la plus longue d'abord)."""
+    import shutil as _sh
+    hay = " " + str(phrase or "").lower() + " "
+    for key in sorted(APP_LAUNCH, key=len, reverse=True):
+        if key in hay:
+            for exe in APP_LAUNCH[key]:
+                if _sh.which(exe):
+                    return exe, key
+            return None, key  # reconnue mais non installée
+    return None, None
+
+
+def voice_command(raw):
+    """Corrige la transcription STT (selon le langage FR de l'utilisateur) PUIS route vers TOUT le cockpit.
+
+    Retour : {success, raw, corrige, type: 'command'|'chat', action, cible, dire}.
+    - type 'command' : action 'open_tab' (cible = rubrique) ou 'load_model' (cible = modèle) → le front exécute + parle `dire`.
+    - type 'chat' : le front interroge /api/gpu/chat avec `corrige` (texte nettoyé, montré à l'utilisateur).
+    """
+    import re as _re
+    import urllib.request as _u
+    raw = str(raw or "").strip()
+    if not raw:
+        return {"success": False, "error": "transcription vide"}
+    low = raw.lower().strip()
+    for wrong, right in VOICE_FIX.items():
+        low = _re.sub(r"\b" + _re.escape(wrong) + r"\b", right, low)
+
+    # ── FAST-PATH DÉTERMINISTE PC Control (AVANT le LLM : robuste même s'il échoue, + rapide) ──
+    _pc = " " + low + " "
+    if _re.search(r"capture d['’ ]?[ée]cran|screenshot|fai[ts]? une capture|prend[s]? une capture", _pc):
+        return {"success": True, "raw": raw, "corrige": low, "type": "command",
+                "action": "screenshot", "cible": "", "payload": "", "dire": "Je capture l'écran."}
+    if _re.search(r"list\w*\s+(?:les\s+|des\s+)?fen[êe]tres?|quelles?\s+fen[êe]tres|fen[êe]tres ouvertes", _pc):
+        return {"success": True, "raw": raw, "corrige": low, "type": "command",
+                "action": "list_windows", "cible": "", "payload": "", "dire": "Voici les fenêtres ouvertes."}
+    _mf = _re.search(
+        r"(?:passe[r]? (?:à|au|aux|sur)|bascule[r]? (?:vers|sur)|reviens (?:à|au)|au premier plan|"
+        r"met[s]? (?:au premier plan|devant)|affiche[r]? la fen[êe]tre|montre[r]? la fen[êe]tre|"
+        r"va (?:à|sur) la fen[êe]tre)\s+(?:la fen[êe]tre\s+|l['’]appli\w*\s+|de\s+|du\s+)?(.+?)\s*$", low)
+    if _mf and not _re.search(r"\b(ex[ée]cut\w*|lance[rz]?|commande|termine|arr[êe]te|ferme)\b", _pc):
+        tgt = _mf.group(1).strip(" .")
+        if tgt:
+            return {"success": True, "raw": raw, "corrige": low, "type": "command",
+                    "action": "focus_window", "cible": tgt, "payload": "", "dire": f"Je passe à {tgt}."}
+
+    # ── FAST-PATH DÉTERMINISTE : lecture vocale des chantiers ──
+    if _re.search(r"\b(?:lis|lire|donne|fais|point|r[ée]sum[ée]|[ée]tat)\b.*(?:chantiers?|avancements?|t[âa]ches?|progr[èe]s)", _pc) or (_re.search(r"\bchantiers?\b", _pc) and _re.search(r"\b(?:lire|lis|vocal|voix)\b", _pc)):
+        res_ch = lire_chantiers_vocal(parler_audio=False)
+        dire_txt = res_ch.get("texte", "Voici le point sur vos chantiers.")
+        return {"success": True, "raw": raw, "corrige": low, "type": "command",
+                "action": "read_chantiers", "cible": "", "payload": dire_txt, "dire": dire_txt}
+
+    sys_p = (
+        "Tu es le routeur vocal de Turbo OS (moteur interne JARVIS, application cockpit). "
+        "On te donne UNE phrase issue d'une reconnaissance vocale française, souvent mal transcrite.\n"
+        "1) CORRIGE la phrase en français correct SANS changer le sens.\n"
+        "2) CLASSE l'intention et EXTRAIS le contenu utile dans 'payload' :\n"
+        "   - ouvrir    : afficher un onglet du cockpit (dashboard, avancements, plan, omega, claude, "
+        "terminal, apps, tableronde, studio, mcps, sql, swarm, moisson, swan, iaweb, bureau, settings, "
+        "audit, legion, escouade). payload vide.\n"
+        "   - app       : lancer une application du bureau (Firefox, navigateur, VS Code, fichiers, "
+        "calculatrice, VLC, éditeur de texte, moniteur système…). cible = nom de l'application.\n"
+        "   - capture   : faire une capture d'écran. payload vide.\n"
+        "   - fenetres  : lister les fenêtres ouvertes. payload vide.\n"
+        "   - focus     : mettre une fenêtre au premier plan. cible = nom de la fenêtre/appli.\n"
+        "   - fermer    : fermer une fenêtre / une application. cible = nom de la fenêtre/appli.\n"
+        "   - modele    : charger un modèle d'IA. cible = nom du modèle.\n"
+        "   - consulter : chercher/consulter une information dans la base de connaissances. payload = la question.\n"
+        "   - executer  : lancer une commande système / faire une action sur le PC. payload = la commande shell.\n"
+        "   - coder     : écrire ou modifier du code / un fichier. payload = l'instruction de code complète.\n"
+        "   - email     : rédiger un e-mail. payload = 'destinataire | objet | corps' (laisse vide ce qui manque).\n"
+        "   - chat      : toute autre question ou discussion. payload vide.\n"
+        "Réponds STRICTEMENT en JSON, une seule ligne, sans texte autour :\n"
+        "{\"corrige\":\"...\",\"intent\":\"ouvrir|app|capture|fenetres|focus|fermer|modele|consulter|executer|coder|email|chat\","
+        "\"cible\":\"\",\"payload\":\"\",\"dire\":\"<confirmation courte à prononcer si commande, sinon vide>\"}"
+    )
+    payload = json.dumps({
+        "model": "local",
+        "messages": [{"role": "system", "content": sys_p}, {"role": "user", "content": low[:600]}],
+        "max_tokens": 400, "temperature": 0.1,
+    }).encode("utf-8")
+    try:
+        req = _u.Request("http://127.0.0.1:1234/v1/chat/completions",
+                         data=payload, headers={"Content-Type": "application/json"})
+        with _u.urlopen(req, timeout=60) as r:
+            d = json.loads(r.read().decode())
+        txt = (d["choices"][0]["message"].get("content") or "").strip()
+        m = _re.search(r"\{.*\}", txt, _re.S)
+        obj = json.loads(m.group(0)) if m else {}
+    except Exception:
+        # Repli robuste : pas de routage LLM → chat direct avec la correction déterministe
+        return {"success": True, "raw": raw, "corrige": low, "type": "chat", "action": "", "cible": "", "payload": "", "dire": ""}
+
+    corrige = (obj.get("corrige") or low).strip()
+    intent = (obj.get("intent") or "chat").strip().lower()
+    cible = (obj.get("cible") or "").strip().lower()
+    pay = (obj.get("payload") or "").strip()
+    dire = (obj.get("dire") or "").strip()
+
+    def _ret(**kw):
+        base = {"success": True, "raw": raw, "corrige": corrige, "type": "chat",
+                "action": "", "cible": "", "payload": "", "dire": ""}
+        base.update(kw)
+        return base
+
+    # ── OUVRIR un onglet (sûr, exécution immédiate) — choix DÉTERMINISTE ──
+    if intent in ("ouvrir", "open", "onglet"):
+        haystack = " " + corrige.lower() + " " + low + " "
+        tab = None
+        for key in sorted(COCKPIT_TABS, key=len, reverse=True):
+            if key in haystack:
+                tab = COCKPIT_TABS[key]
+                break
+        if not tab:
+            tab = COCKPIT_TABS.get(cible) or (cible if cible in set(COCKPIT_TABS.values()) else None)
+        if tab:
+            label = next((k for k, v in COCKPIT_TABS.items() if v == tab), tab)
+            return _ret(type="command", action="open_tab", cible=tab, dire=dire or f"J'ouvre {label}.")
+        # Pas un onglet → peut-être une appli bureau (« ouvre Firefox »)
+        exe, app_key = resolve_app(corrige + " " + low)
+        if exe:
+            return _ret(type="command", action="launch_app", cible=exe, dire=dire or f"J'ouvre {app_key}.")
+
+    # ── LANCER une application du bureau (PC Control, sûr) ──
+    if intent in ("app", "application", "appli", "lancer_app", "programme"):
+        exe, app_key = resolve_app(corrige + " " + low + " " + cible)
+        if exe:
+            return _ret(type="command", action="launch_app", cible=exe, dire=dire or f"J'ouvre {app_key}.")
+        # reconnue mais non installée, ou inconnue → repli chat en fin de fonction
+
+    # ── PC CONTROL : capture d'écran (sûr) ──
+    if intent in ("capture", "screenshot", "capturer"):
+        return _ret(type="command", action="screenshot", dire=dire or "Je capture l'écran.")
+
+    # ── PC CONTROL : lister les fenêtres ouvertes (sûr) ──
+    if intent in ("fenetres", "fenêtres", "list_windows"):
+        return _ret(type="command", action="list_windows", dire=dire or "Voici les fenêtres ouvertes.")
+
+    # ── PC CONTROL : mettre une fenêtre au premier plan (sûr) ──
+    if intent in ("focus", "afficher", "premier_plan"):
+        tgt = cible or pay or corrige
+        return _ret(type="command", action="focus_window", cible=tgt, dire=dire or f"Je passe à {tgt}.")
+
+    # ── PC CONTROL : fermer une fenêtre (perte de données possible → confirmation) ──
+    if intent in ("fermer", "close", "quitter"):
+        tgt = cible or pay or corrige
+        return _ret(type="confirm", action="close_window", cible=tgt, payload=tgt,
+                    dire=dire or "Je vais fermer une fenêtre, confirme.")
+
+    # ── CHARGER un modèle (sûr) ──
+    if intent in ("modele", "modèle", "model") and cible:
+        return _ret(type="command", action="load_model", cible=cible, dire=dire or f"Je charge le modèle {cible}.")
+
+    # ── CONSULTER la base de connaissances (lecture seule → immédiat) ──
+    if intent in ("consulter", "consultation", "recherche", "chercher", "lire", "rag"):
+        q = pay or corrige
+        return _ret(type="consult", action="rag", payload=q, dire=dire or "Je consulte la base.")
+
+    # ── EXÉCUTER une commande système (DANGEREUX → confirmation) ──
+    if intent in ("executer", "exécuter", "execute", "faire", "commande", "lancer", "action"):
+        if pay:
+            return _ret(type="confirm", action="exec", payload=pay,
+                        dire=dire or "Je vais exécuter une commande, confirme.")
+
+    # ── ÉCRIRE / MODIFIER DU CODE via Claude (PUISSANT → confirmation) ──
+    if intent in ("coder", "code", "écrire", "ecrire", "developper", "développer", "programmer"):
+        instr = pay or corrige
+        return _ret(type="confirm", action="code", payload=instr,
+                    dire=dire or "Je vais écrire du code, confirme.")
+
+    # ── E-MAIL (SORTANT → confirmation, JAMAIS d'envoi automatique) ──
+    if intent in ("email", "mail", "courriel", "e-mail"):
+        return _ret(type="confirm", action="email", payload=pay or corrige,
+                    dire=dire or "J'ai préparé un e-mail, à valider avant tout envoi.")
+
+    return _ret(type="chat")
+
+
+# ── PC CONTROL avancé : contrôle des fenêtres (xdotool) + capture d'écran (scrot) ──
+def _x_env():
+    import os as _os
+    return dict(_os.environ, DISPLAY=_os.environ.get("DISPLAY", ":1"),
+                XAUTHORITY=_os.environ.get("XAUTHORITY", "/run/user/1000/gdm/Xauthority"))
+
+
+def pc_windows():
+    """Liste les fenêtres visibles nommées (xdotool), dédupliquées par titre."""
+    try:
+        r = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", ""],
+                           capture_output=True, text=True, timeout=8, env=_x_env())
+        seen, wins = set(), []
+        for wid in r.stdout.split():
+            n = subprocess.run(["xdotool", "getwindowname", wid],
+                               capture_output=True, text=True, timeout=3, env=_x_env())
+            name = n.stdout.strip()
+            if name and name != "mutter guard window" and name not in seen:
+                seen.add(name)
+                wins.append({"id": wid, "name": name})
+        return {"success": True, "windows": wins, "count": len(wins)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def pc_window_op(op, target):
+    """Agit sur une fenêtre repérée par sous-chaîne de titre (insensible à la casse) : focus|close|minimize."""
+    op = (op or "").strip().lower()
+    target = (target or "").strip()
+    xop = {"focus": "windowactivate", "close": "windowclose", "minimize": "windowminimize"}.get(op)
+    if not xop:
+        return {"success": False, "error": "opération inconnue"}
+    if not target:
+        return {"success": False, "error": "fenêtre cible manquante"}
+    import re as _re
+    lst = pc_windows()
+    if not lst.get("success"):
+        return lst
+    tl = target.lower()
+    match = next((w for w in lst["windows"] if tl in w["name"].lower()), None)
+    if not match:  # repli : correspondance sur un mot significatif (≥3 car.) du titre
+        words = [x for x in _re.split(r"\W+", tl) if len(x) >= 3]
+        match = next((w for w in lst["windows"] if any(x in w["name"].lower() for x in words)), None)
+    if not match:
+        return {"success": False, "error": f"aucune fenêtre « {target} »",
+                "windows": [w["name"] for w in lst["windows"]]}
+    try:
+        subprocess.run(["xdotool", xop, match["id"]], capture_output=True, text=True, timeout=6, env=_x_env())
+        return {"success": True, "op": op, "window": match["name"], "id": match["id"]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def pc_screenshot():
+    """Capture l'écran (scrot) dans web/ (servi en loopback seulement) et renvoie l'URL."""
+    import os as _os
+    out = "/home/turbo/jarvis/cockpit/web/turbo-shot.png"
+    try:
+        r = subprocess.run(["scrot", "-o", out], capture_output=True, text=True, timeout=15, env=_x_env())
+        if r.returncode != 0 or not _os.path.exists(out) or _os.path.getsize(out) < 500:
+            return {"success": False, "error": "capture échouée: " + (r.stderr or "")[-160:]}
+        return {"success": True, "url": "/turbo-shot.png", "bytes": _os.path.getsize(out)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def lire_chantiers_vocal(parler_audio=True):
+    """Fait le point réel sur les chantiers (production.db) et le vocalise en français via Kokoro."""
+    try:
+        from core.sync_engine import get_avancements_data
+        d = get_avancements_data()
+        k = d.get("kpis", {})
+        runs = d.get("runs", [])
+        ouverts = [r for r in runs if r.get("etat") == "ouvert"]
+
+        def nettoyer_titre(t):
+            lines = [l.strip(" #*-") for l in (t or "").splitlines() if l.strip(" #*-")]
+            return lines[0][:75] if lines else "Chantier en cours"
+
+        titres = [nettoyer_titre(o.get("besoin", "")) for o in ouverts[:3]]
+        synth = (
+            f"Point sur vos chantiers : vous avez {k.get('runs_ouverts', 0)} chantiers ouverts "
+            f"et {k.get('runs_livres', 0)} livrés, pour une progression globale de {k.get('global_progress', 0)} pour cent. "
+            f"{k.get('fait_taches', 0)} tâches sont terminées sur {k.get('total_taches', 0)}."
+        )
+        if titres:
+            synth += " Les chantiers prioritaires sont : " + ", ".join(titres) + "."
+
+        if parler_audio:
+            parler(synth)
+
+        return {
+            "success": True,
+            "texte": synth,
+            "spoken": parler_audio,
+            "kpis": k,
+            "ouverts_count": len(ouverts),
+            "titres_prioritaires": titres
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Erreur lecture chantiers : {e}"}
+
+
+def appeler_agent_1260(message, speak=False):
+    """Transfère la requête à l'Agent souverain JARVIS (:1260), qui dispose des 12 outils réels."""
+    import urllib.request as _u
+    import json as _j
+    message = str(message or "").strip()
+    if not message:
+        return {"success": False, "error": "message vide"}
+    payload = _j.dumps({"message": message, "speak": speak}).encode("utf-8")
+    req = _u.Request("http://127.0.0.1:1260/agent", data=payload, headers={"Content-Type": "application/json"})
+    try:
+        with _u.urlopen(req, timeout=120) as r:
+            return _j.loads(r.read().decode())
+    except Exception as e:
+        return {"success": False, "error": f"Agent :1260 injoignable ou timeout : {e}"}
+
+
+def statut_agent_1260():
+    """Vérifie l'état de santé de l'Agent :1260."""
+    import urllib.request as _u
+    import json as _j
+    req = _u.Request("http://127.0.0.1:1260/health")
+    try:
+        with _u.urlopen(req, timeout=3) as r:
+            return _j.loads(r.read().decode())
+    except Exception as e:
+        return {"status": "offline", "error": str(e), "port": 1260}
+
+
+def envoyer_email_cockpit(to, subject, body, send_now=True):
+    """Envoie un e-mail via l'outil de l'agent :1260 ou SMTP local."""
+    to = str(to or "").strip()
+    subject = str(subject or "").strip()
+    body = str(body or "").strip()
+    if not to:
+        return {"success": False, "error": "Destinataire manquant"}
+    # Déléguer à l'agent :1260 qui possède tool_send_email avec gestion drafts/SMTP
+    res = appeler_agent_1260(f"Envoie un e-mail à {to} avec pour objet '{subject}' et pour corps :\n{body}", speak=False)
+    if res.get("status") == "done" or res.get("answer"):
+        return {"success": True, "result": res.get("answer", "E-mail traité."), "trace": res.get("trace", [])}
+    return {"success": False, "error": res.get("error", "Échec traitement e-mail")}
+
+
+def stt_transcribe(audio_b64, mime):
+    """Proxy vers le service STT souverain jarvis-stt (:1301, faster-whisper large-v3-turbo GPU, lazy+TTL).
+
+    L'orbe envoie l'audio en base64 (corps JSON, sûr) ; on décode et on relaie en OCTETS BRUTS
+    à POST :1301/transcribe (contrat réel : body = audio WAV/webm). Renvoie {success, text, seconds, lang}.
+    """
+    import urllib.request as _u
+    import base64 as _b64
+    if not audio_b64:
+        return {"success": False, "error": "audio manquant"}
+    try:
+        raw = _b64.b64decode(audio_b64)
+    except Exception:
+        return {"success": False, "error": "audio base64 invalide"}
+    try:
+        req = _u.Request("http://127.0.0.1:1301/transcribe", data=raw,
+                         headers={"Content-Type": mime or "audio/webm"})
+        with _u.urlopen(req, timeout=90) as r:  # 1re parole = ~12 s (chargement modèle lazy)
+            d = json.loads(r.read().decode())
+        return {"success": d.get("text") is not None, "text": (d.get("text") or "").strip(),
+                "seconds": d.get("load_s"), "lang": d.get("lang"), "device": d.get("device")}
+    except Exception as e:
+        return {"success": False, "error": f"service STT injoignable (:1301) : {e}"}
+
+
+# ── CHECKPOINT ENGINE : mettre une tâche en pause (persistée) puis la reprendre ──
+_CP_DB = "/home/turbo/jarvis/data/turbo_checkpoints.db"
+
+
+def _cp_conn():
+    import sqlite3
+    c = sqlite3.connect(_CP_DB, timeout=5)
+    c.execute("""CREATE TABLE IF NOT EXISTS checkpoints(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, created REAL, updated REAL,
+        kind TEXT, title TEXT, input TEXT, status TEXT, result TEXT)""")
+    return c
+
+
+def cp_save(kind, title, inp, status, result):
+    import time as _t
+    if not (inp or "").strip():
+        return {"success": False, "error": "tâche vide (rien à reprendre)"}
+    try:
+        c = _cp_conn(); now = _t.time()
+        cur = c.execute("INSERT INTO checkpoints(created,updated,kind,title,input,status,result) VALUES(?,?,?,?,?,?,?)",
+                        (now, now, kind or "task", (title or "")[:200], inp, status or "paused", (result or "")[:4000]))
+        c.commit(); i = cur.lastrowid; c.close()
+        return {"success": True, "id": i}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def cp_resolve(cid, status):
+    import time as _t
+    try:
+        c = _cp_conn()
+        c.execute("UPDATE checkpoints SET status=?, updated=? WHERE id=?", (status or "done", _t.time(), int(cid)))
+        c.commit(); c.close()
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def cp_pending():
+    """Dernière tâche reprenable (en pause ou interrompue)."""
+    try:
+        c = _cp_conn()
+        row = c.execute("SELECT id,kind,title,input,result,created FROM checkpoints "
+                        "WHERE status IN ('paused','running') ORDER BY id DESC LIMIT 1").fetchone()
+        c.close()
+        if not row:
+            return {"success": True, "found": False}
+        return {"success": True, "found": True, "id": row[0], "kind": row[1],
+                "title": row[2], "input": row[3], "result": row[4], "created": row[5]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def cp_list(limit=20):
+    try:
+        c = _cp_conn()
+        rows = c.execute("SELECT id,kind,title,status,created FROM checkpoints ORDER BY id DESC LIMIT ?",
+                         (int(limit),)).fetchall()
+        c.close()
+        return {"success": True, "items": [{"id": r[0], "kind": r[1], "title": r[2],
+                                            "status": r[3], "created": r[4]} for r in rows]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def stt_listen(seconds=6):
+    """Écoute DIRECTE côté cockpit : enregistre le micro du PC (parec) puis transcrit via :1301.
+
+    Indépendant du micro du navigateur → corrige le cas « micro bloqué dans la fenêtre Chrome ».
+    """
+    import urllib.request as _u
+    import tempfile as _tf
+    import os as _os
+    import time as _t
+    try:
+        seconds = max(2, min(15, int(seconds)))
+    except Exception:
+        seconds = 6
+    src = _os.environ.get("TURBO_MIC", "alsa_input.pci-0000_00_1b.0.analog-stereo")
+    wav = _tf.mktemp(prefix="turbo-listen-", suffix=".wav")
+    env = dict(_os.environ, XDG_RUNTIME_DIR="/run/user/1000")
+    p = None
+    try:
+        p = subprocess.Popen(["parec", "--device", src, "--file-format=wav",
+                              "--rate=16000", "--channels=1", wav], env=env,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        _t.sleep(seconds)
+        p.send_signal(2)  # SIGINT → finalise le WAV
+        try:
+            p.wait(timeout=2)
+        except Exception:
+            p.terminate()
+        if not _os.path.exists(wav) or _os.path.getsize(wav) < 2000:
+            return {"success": False, "error": "aucun son capté par le micro du PC"}
+        raw = open(wav, "rb").read()
+        req = _u.Request("http://127.0.0.1:1301/transcribe", data=raw,
+                         headers={"Content-Type": "audio/wav"})
+        with _u.urlopen(req, timeout=90) as r:
+            d = json.loads(r.read().decode())
+        return {"success": d.get("text") is not None, "text": (d.get("text") or "").strip(),
+                "device": d.get("device"), "source": "cockpit-mic", "seconds": seconds}
+    except Exception as e:
+        try:
+            p and p.kill()
+        except Exception:
+            pass
+        return {"success": False, "error": f"écoute cockpit : {str(e)[:180]}"}
+    finally:
+        try:
+            _os.remove(wav)
+        except OSError:
+            pass
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# OMEGA COGNITIVE OS — protocole 2 voix (JARVIS reformule → Conseil tranche)
+# App bureau cliente dissociée : elle ne parle QU'À ce cockpit (:8600).
+# 0 token cloud : routeur LLM local :1240 (JARVIS=qwen2.5-7b, Conseil=qwen3-8b).
+# ══════════════════════════════════════════════════════════════════════════
+ORBE_ROUTER = os.environ.get("OMEGA_ROUTER", "http://127.0.0.1:1240/v1/chat/completions")
+ORBE_AGENT = os.environ.get("OMEGA_AGENT", "http://127.0.0.1:1260/agent")
+_ORBE_JARVIS = {"name": "JARVIS", "model": os.environ.get("OMEGA_MODEL_JARVIS", "qwen2.5-7b"),
+    "system": ("Tu es JARVIS, l'IA vocale du client. On te donne une INSTRUCTION. Tu ne l'exécutes "
+               "PAS : tu la REFORMULES clairement (ce que le client veut) puis proposes le plan concret. "
+               "Oral, 2 phrases MAX, pas de listes ni markdown. Ne préfixe jamais par ton nom.")}
+_ORBE_BOARD = {"name": "Conseil", "model": os.environ.get("OMEGA_MODEL_BOARD", "qwen3-8b"),
+    "system": ("/nothink Tu es le Conseil, l'autorité de jugement. JARVIS vient de reformuler une "
+               "instruction et proposer un plan. Tu ARBITRES : valide ou corrige, et ÉNONCE la décision "
+               "finale (ce qu'il FAUT faire). Oral, 2 phrases MAX, tranché. Pas de listes ni markdown.")}
+_orbe_state = {"state": "idle", "you": "", "jarvis": "", "board": "", "decision": "", "ts": 0}
+
+
+def _orbe_clean(t):
+    import re
+    t = re.sub(r"(?is)<think>.*?</think>", "", t)
+    t = re.sub(r"(?is)^.*?</think>", "", t)
+    t = re.sub(r"^\s*(JARVIS|Board|Conseil)\s*[:：\-]\s*", "", t.strip())
+    return " ".join(t.split())[:500]
+
+
+def _orbe_llm(persona, user_msg):
+    import urllib.request
+    payload = {"model": persona["model"],
+               "messages": [{"role": "system", "content": persona["system"]},
+                            {"role": "user", "content": user_msg}],
+               "max_tokens": 120, "temperature": 0.7}
+    req = urllib.request.Request(ORBE_ROUTER, data=json.dumps(payload).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return _orbe_clean(json.loads(r.read())["choices"][0]["message"]["content"])
+
+
+def orbe_deliberate(instruction):
+    """Protocole 2 voix : JARVIS reformule+propose, le Conseil arbitre+tranche. N'EXÉCUTE PAS."""
+    import time as _t
+    _orbe_state.update({"state": "thinking", "you": instruction, "jarvis": "", "board": "",
+                        "decision": "", "ts": int(_t.time())})
+    jarvis = _orbe_llm(_ORBE_JARVIS, f"INSTRUCTION DU CLIENT : {instruction}")
+    _orbe_state.update({"state": "speaking", "jarvis": jarvis, "ts": int(_t.time())})
+    board = _orbe_llm(_ORBE_BOARD, f"INSTRUCTION DU CLIENT : {instruction}\n\nJARVIS a répondu : {jarvis}")
+    _orbe_state.update({"state": "idle", "board": board, "decision": board, "ts": int(_t.time())})
+    return {"instruction": instruction, "jarvis": jarvis, "board": board, "decision": board}
+
+
+def orbe_execute(instruction):
+    """Exécute la décision validée en la relayant à l'agent souverain :1260 (best effort)."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(ORBE_AGENT, data=json.dumps({"message": instruction}).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=180) as r:
+            return {"ok": True, "result": json.loads(r.read())}
+    except Exception as e:
+        return {"ok": False, "error": f"agent :1260 injoignable ({type(e).__name__}: {e})"}
+
+
 class CockpitHandler(BaseHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -296,6 +1089,42 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json({"success": False, "error": f"{type(e).__name__}: {e}"}, 500)
         return True
 
+    def router_orbe(self, path, req_data=None, params=None):
+        """OMEGA COGNITIVE OS — orbe cliente dissociée, connectée UNIQUEMENT à ce cockpit.
+        Sécurité C-SEC : loopback libre, client distant => jeton Bearer requis (local_seulement)."""
+        if not path.startswith("/orbe"):
+            return False
+        if not self.local_seulement():
+            return True
+        try:
+            if path == "/orbe.html":
+                f = "/home/turbo/omega-cognitive-os/app/index.html"
+                html = open(f, encoding="utf-8").read() if os.path.exists(f) else "<h1>OMEGA app absente</h1>"
+                data = html.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+            elif path == "/orbe/health":
+                self.respond_json({"ok": True, "service": "orbe-cockpit",
+                                   "jarvis": _ORBE_JARVIS["model"], "board": _ORBE_BOARD["model"]})
+            elif path == "/orbe/state":
+                self.respond_json(dict(_orbe_state))
+            elif path == "/orbe/ask":
+                msg = ((req_data or {}).get("message") or "").strip()
+                self.respond_json(orbe_deliberate(msg) if msg else {"error": "message vide"},
+                                  200 if msg else 400)
+            elif path == "/orbe/execute":
+                msg = ((req_data or {}).get("message") or "").strip()
+                self.respond_json(orbe_execute(msg) if msg else {"error": "message vide"},
+                                  200 if msg else 400)
+            else:
+                self.respond_json({"success": False, "error": "route orbe inconnue"}, 404)
+        except Exception as e:
+            self.respond_json({"error": f"{type(e).__name__}: {e}"}, 500)
+        return True
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -303,10 +1132,25 @@ class CockpitHandler(BaseHTTPRequestHandler):
 
         if self.router_terminal(path, params=params):
             return
+        if self.router_orbe(path, params=params):
+            return
 
         # ── TÉLÉMÉTRIE CLUSTER ──
         if path == "/api/status":
             self.respond_json(get_cluster_telemetry())
+            return
+
+        # ── MOTEUR GPU : état des modèles (remplace la gestion LM Studio) ──
+        elif path == "/api/gpu/models":
+            self.respond_json(get_gpu_models_state())
+            return
+
+        # ── CHECKPOINT ENGINE : tâche reprenable + historique ──
+        elif path == "/api/checkpoint/pending":
+            self.respond_json(cp_pending())
+            return
+        elif path == "/api/checkpoint/list":
+            self.respond_json(cp_list())
             return
 
         # ── S9 STANDALONE BRIDGE & BACKUPS ──
@@ -323,6 +1167,39 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 "timestamp": datetime.now().isoformat()
             })
             return
+
+        # ── AGENT SOUVERAIN (:1260) & CHANTIERS VOCAUX ──
+        elif path == "/api/agent/status":
+            self.respond_json(statut_agent_1260())
+            return
+        elif path == "/api/chantiers/lire":
+            speak = params.get("speak", ["1"])[0] not in ("0", "false", "non")
+            self.respond_json(lire_chantiers_vocal(parler_audio=speak))
+            return
+        elif path == "/api/turbo/audit":
+            audit_file = "/home/turbo/jarvis/turbo-os/RAPPORT_AUDIT_FINAL.md"
+            fmt = params.get("format", ["json"])[0]
+            if fmt in ("markdown", "md"):
+                if not os.path.exists(audit_file):
+                    subprocess.run(["python3", "/home/turbo/jarvis/turbo-os/bin/self_audit_engine.py", f"--output={audit_file}"], timeout=30)
+                content = open(audit_file, encoding="utf-8").read() if os.path.exists(audit_file) else ""
+                self.send_response(200)
+                self.send_header("Content-Type", "text/markdown; charset=utf-8")
+                self.send_header("Content-Length", str(len(content.encode("utf-8"))))
+                self.end_headers()
+                self.wfile.write(content.encode("utf-8"))
+                return
+            else:
+                try:
+                    if "/home/turbo/jarvis/turbo-os/bin" not in sys.path:
+                        sys.path.insert(0, "/home/turbo/jarvis/turbo-os/bin")
+                    import self_audit_engine as sae
+                    eng = sae.SelfAuditEngine()
+                    res = eng.run_all()
+                    self.respond_json({"success": True, "results": res, "tests_pass": eng.tests_pass, "tests_fail": eng.tests_fail})
+                except Exception as e:
+                    self.respond_json({"success": False, "error": str(e)})
+                return
 
         # ── ARMÉE D'AGENTS & MULTI-SSDs SQL ──
         elif path == "/api/escouade/agents":
@@ -490,6 +1367,67 @@ class CockpitHandler(BaseHTTPRequestHandler):
                     ],
                     "regle": "Toute réponse sans citation formelle est rejetée avant restitution.",
                     "sql_view": "CREATE VIEW answers_sans_citation AS SELECT a.id, a.query_id, a.expert_id FROM answers a LEFT JOIN citations c ON c.answer_id = a.id WHERE c.id IS NULL;"
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        # ── AUDIT CLAIMS EVIDENCE-FIRST (P0 MOAT — table claims, L3-01/L3-03) ──
+        # Le moat réel : ce que le batch evidence_answer a persisté (SUPPORTED/WEAK/
+        # UNSUPPORTED), là où /api/rag/audit-citations ne lit que answers/citations legacy.
+        elif path == "/api/rag/audit-claims":
+            try:
+                board_path = "/home/turbo/jarvis/board/board.db"
+                if not os.path.exists(board_path):
+                    self.respond_json({"success": False, "error": "board.db introuvable"}, 404)
+                    return
+                con = sqlite3.connect(f"file:{board_path}?mode=ro", uri=True, timeout=5.0)
+                con.execute("PRAGMA query_only=1")
+                c = con.cursor()
+                total = c.execute("SELECT count(*) FROM claims;").fetchone()[0]
+                distinct_req = c.execute("SELECT count(DISTINCT request_id) FROM claims;").fetchone()[0]
+                par_verdict = {(k or "?"): v for (k, v) in c.execute(
+                    "SELECT verdict, count(*) FROM claims GROUP BY verdict;").fetchall()}
+                par_status = {(k or "?"): v for (k, v) in c.execute(
+                    "SELECT answer_status, count(*) FROM claims GROUP BY answer_status;").fetchall()}
+                par_model = {(k or "?"): v for (k, v) in c.execute(
+                    "SELECT model, count(*) FROM claims GROUP BY model ORDER BY 2 DESC LIMIT 6;").fetchall()}
+                sup = par_verdict.get("SUPPORTED", 0)
+                weak = par_verdict.get("WEAK", 0)
+                unsup = par_verdict.get("UNSUPPORTED", 0)
+                supported_pct = round(sup / max(total, 1) * 100, 1)
+                grounded_pct = round((sup + weak) / max(total, 1) * 100, 1)
+                # Échantillon des 40 dernières claims + document source réel.
+                # limit-first PUIS join CAST → index PK chunks.id (mesuré ~0,08 s sur 12 Go) :
+                # claims.chunk_id est déclaré INTEGER mais stocke le chunk_id TEXTE (chk_/s_/local_).
+                ech = c.execute("""
+                    SELECT cl.id, cl.request_id, cl.verdict, cl.ratio, cl.answer_status,
+                           substr(cl.affirmation, 1, 260), substr(cl.extrait, 1, 260),
+                           cl.chunk_id, s.title, s.url, s.kind
+                    FROM (SELECT * FROM claims ORDER BY id DESC LIMIT 40) cl
+                    LEFT JOIN chunks ch ON ch.id = CAST(cl.chunk_id AS TEXT)
+                    LEFT JOIN sources s ON s.id = ch.source_id;
+                """).fetchall()
+                con.close()
+                self.respond_json({
+                    "success": True,
+                    "metrics": {
+                        "total_claims": total,
+                        "distinct_request_id": distinct_req,
+                        "supported": sup, "weak": weak, "unsupported": unsup,
+                        "supported_pct": supported_pct,
+                        "grounded_pct": grounded_pct,
+                        "par_verdict": par_verdict,
+                        "par_answer_status": par_status,
+                        "par_model": par_model,
+                    },
+                    "echantillon": [
+                        {"id": r[0], "request_id": r[1], "verdict": r[2], "ratio": r[3],
+                         "answer_status": r[4], "affirmation": r[5], "extrait": r[6],
+                         "chunk_id": r[7], "source_titre": r[8], "source_url": r[9],
+                         "source_kind": r[10]} for r in ech
+                    ],
+                    "regle": "Evidence-First : chaque affirmation est vérifiée verbatim contre l'extrait cité (SUPPORTED/WEAK/UNSUPPORTED). Refus fail-closed sans preuve.",
                 })
             except Exception as e:
                 self.respond_json({"success": False, "error": str(e)}, 500)
@@ -868,11 +1806,15 @@ class CockpitHandler(BaseHTTPRequestHandler):
             return
 
         elif path == "/api/s9/status":
+            # FIX audit 2026-09-17 : ne plus mentir 'online' sans sonde réelle de l'appareil.
+            bdir = "/home/turbo/Bureau/SAUVEGARDE_S9"
             self.respond_json({
                 "success": True,
-                "bridge": "online",
+                "bridge": "non_sondé",
+                "note": "Aucune sonde réelle de l'appareil S9/S8 — état non vérifié.",
                 "device_target": "S9/S8",
-                "backup_dir": "/home/turbo/Bureau/SAUVEGARDE_S9",
+                "backup_dir": bdir,
+                "backup_dir_present": os.path.exists(bdir),
                 "timestamp": datetime.now().isoformat()
             })
             return
@@ -983,22 +1925,8 @@ class CockpitHandler(BaseHTTPRequestHandler):
         elif path == "/api/benchmark/status":
             # État en direct des GPU et de la performance d'inférence Dual-GPU
             try:
-                r_gpu = subprocess.run([
-                    "nvidia-smi", "--query-gpu=index,name,memory.total,memory.used,utilization.gpu,temperature.gpu",
-                    "--format=csv,noheader,nounits"
-                ], capture_output=True, text=True, timeout=3)
-                gpus = []
-                for line in r_gpu.stdout.strip().splitlines():
-                    parts = [p.strip() for p in line.split(",")]
-                    if len(parts) >= 6:
-                        gpus.append({
-                            "index": int(parts[0]),
-                            "name": parts[1],
-                            "total_mb": int(parts[2]),
-                            "used_mb": int(parts[3]),
-                            "util_pct": int(parts[4]),
-                            "temp_c": int(parts[5])
-                        })
+                from core.metrics_collector import collecter_gpu
+                gpus = collecter_gpu()
                 # Modèles LM Studio
                 models_loaded = []
                 try:
@@ -1008,21 +1936,165 @@ class CockpitHandler(BaseHTTPRequestHandler):
                         models_loaded = [m.get("id") for m in data_lms.get("data", [])]
                 except Exception:
                     pass
+                # Historique benchmarks depuis lms CLI
+                bench_hist = []
+                bench_hist_path = os.path.expanduser("~/.local/share/lms/benchmark_history.json")
+                if os.path.exists(bench_hist_path):
+                    try:
+                        with open(bench_hist_path) as f:
+                            bh = json.load(f)
+                        if bh:
+                            last = bh[0]
+                            bench_hist = last.get("resultats", [])
+                    except Exception:
+                        pass
                 self.respond_json({
                     "success": True,
                     "gpus": gpus,
                     "models_loaded": models_loaded,
-                    "benchmarks_recente": {
-                        "qwen3-8b": {"tok_per_sec": 48.4, "ttft_ms": 22.0, "gpu": "GPU 0 (RTX 3080 10GB)", "status": "DEDICATED_OFFLOAD"},
-                        "deepseek-r1-7b": {"tok_per_sec": 28.0, "ttft_ms": 45.0, "gpu": "GPU 1 (RTX 2060 12GB)", "status": "DEDICATED_OFFLOAD"},
-                        "throughput_parallele": 56.0
-                    },
+                    "last_benchmark": bench_hist,
                     "split_mode": "dedicated_per_gpu",
                     "kv_offload": True,
                     "flash_attn": True
                 })
             except Exception as e:
                 self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+        elif path == "/api/benchmark/live":
+            # Stats GPU live + job en cours
+            try:
+                from core.metrics_collector import lire_cache
+                cache = lire_cache()
+                self.respond_json({"success": True, "ts": cache.get("ts"), "gpu": cache.get("gpu", []),
+                                   "ram": cache.get("ram", {}), "cpu": cache.get("cpu", {}),
+                                   "lms": cache.get("lms", {})})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)})
+            return
+
+        elif path == "/api/benchmark/resultats":
+            # Historique complet des benchmarks
+            bench_hist_path = os.path.expanduser("~/.local/share/lms/benchmark_history.json")
+            if os.path.exists(bench_hist_path):
+                try:
+                    with open(bench_hist_path) as f:
+                        self.respond_json({"success": True, "historique": json.load(f)})
+                except Exception as e:
+                    self.respond_json({"success": False, "error": str(e), "historique": []})
+            else:
+                self.respond_json({"success": True, "historique": []})
+            return
+
+        elif path == "/api/metrics/snapshot":
+            # Snapshot complet système en temps réel
+            try:
+                from core.metrics_collector import snapshot
+                self.respond_json({"success": True, **snapshot()})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)})
+            return
+
+        elif path == "/api/metrics/alertes":
+            # Alertes actives + historique
+            try:
+                from core.metrics_collector import lire_cache, lire_alertes
+                cache = lire_cache()
+                alertes_actives = cache.get("alertes", [])
+                historique = lire_alertes(20)
+                self.respond_json({"success": True, "actives": alertes_actives, "historique": historique})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e), "actives": [], "historique": []})
+            return
+
+        elif path == "/api/metrics/historique":
+            # Historique des 50 dernières collectes
+            try:
+                from core.metrics_collector import lire_historique
+                self.respond_json({"success": True, "historique": lire_historique(50)})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e), "historique": []})
+            return
+
+        elif path.startswith("/api/scraping/recherche_gouv"):
+            # Recherche SIRENE API gouv.fr
+            # FIX audit 2026-09-17 : do_GET met path=parsed.path (query retirée) ; réutiliser
+            # le dict 'params' déjà parsé au lieu de re-parser une query vide.
+            q = (params.get("q") or [""])[0]
+            dep = (params.get("dep") or [""])[0]
+            if not q:
+                self.respond_json({"success": False, "error": "Paramètre q requis", "resultats": []})
+                return
+            try:
+                from core.scraping_pipeline import recherche_gouv
+                res = recherche_gouv(q, dep)
+                self.respond_json({"success": True, "total": len(res), "resultats": res})
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e), "resultats": []})
+            return
+
+        elif path == "/api/veille/sources":
+            # Sources de veille actives
+            sources_path = "/home/turbo/jarvis/data/veille_sources.json"
+            if os.path.exists(sources_path):
+                try:
+                    with open(sources_path) as f:
+                        self.respond_json(json.load(f))
+                    return
+                except Exception:
+                    pass
+            self.respond_json({"sources": [
+                {"nom": "API Recherche-Entreprises (gouv.fr)", "url": "https://recherche-entreprises.api.gouv.fr/", "type": "api", "actif": True},
+                {"nom": "Pappers.fr",  "url": "https://api.pappers.fr/", "type": "api", "actif": True},
+                {"nom": "Infogreffe",  "url": "https://www.infogreffe.fr/", "type": "scraping", "actif": False},
+                {"nom": "Société.com", "url": "https://www.societe.com/", "type": "scraping", "actif": False},
+                {"nom": "Ollama Rémi (veille IA)", "url": "http://127.0.0.1:11500", "type": "llm", "actif": True},
+            ]})
+            return
+
+        elif path == "/api/veille/derniers_leads":
+            # 20 derniers leads capturés
+            leads_path = "/home/turbo/jarvis/data/veille_leads.jsonl"
+            leads = []
+            if os.path.exists(leads_path):
+                try:
+                    with open(leads_path) as f:
+                        lignes = f.readlines()
+                    leads = [json.loads(l) for l in lignes[-20:] if l.strip()]
+                except Exception:
+                    pass
+            self.respond_json({"success": True, "leads": list(reversed(leads))})
+            return
+
+        elif path == "/api/drip/sequences":
+            # Séquences de relance disponibles
+            self.respond_json({"sequences": [
+                {"id": "cold_outreach", "nom": "Prospection froide", "etapes": 4,
+                 "duree_jours": 21, "canal": "email+linkedin",
+                 "delais": [0, 4, 10, 21],
+                 "desc": "4 touches espacées pour convertir un prospect froid"},
+                {"id": "relance_devis", "nom": "Relance devis envoyé", "etapes": 3,
+                 "duree_jours": 14, "canal": "email",
+                 "delais": [3, 7, 14],
+                 "desc": "3 relances pour transformer un devis en bon de commande"},
+                {"id": "nurturing_veille", "nom": "Nurturing veille mensuelle", "etapes": 6,
+                 "duree_jours": 90, "canal": "email",
+                 "delais": [0, 15, 30, 45, 60, 90],
+                 "desc": "6 contenus valeur pour rester top-of-mind"},
+            ]})
+            return
+
+        elif path == "/api/drip/leads_actifs":
+            # Leads en cours de séquence drip
+            drip_path = "/home/turbo/jarvis/data/drip_leads.json"
+            if os.path.exists(drip_path):
+                try:
+                    with open(drip_path) as f:
+                        self.respond_json(json.load(f))
+                    return
+                except Exception:
+                    pass
+            self.respond_json({"leads": []})
             return
 
 
@@ -1088,7 +2160,9 @@ class CockpitHandler(BaseHTTPRequestHandler):
             try:
                 from core.action_memory import ActionMemoryEngine
                 engine = ActionMemoryEngine()
-                self.respond_json({"success": True, "stats": engine._stats})
+                # FIX audit 2026-09-17 : get_stats() lit la vraie DB (total/vectorized réels),
+                # _stats = compteurs en-process init à 0 (trompeur).
+                self.respond_json({"success": True, "stats": engine.get_stats()})
             except Exception as e:
                 self.respond_json({"success": False, "error": str(e)}, 500)
             return
@@ -1335,6 +2409,8 @@ class CockpitHandler(BaseHTTPRequestHandler):
 
         if self.router_terminal(path, req_data=req_data):
             return
+        if self.router_orbe(path, req_data=req_data):
+            return
 
         # ── SYNCHRONISATION 1-CLIC ──
         if path == "/api/sync/run":
@@ -1342,6 +2418,80 @@ class CockpitHandler(BaseHTTPRequestHandler):
             msg_commit = req_data.get("commit_message", "")
             res = trigger_synchronisation(auto_git_commit=auto_git, message_commit=msg_commit)
             self.respond_json(res)
+            return
+
+        # ── MOTEUR GPU : charger un modèle sur le slot GPU1 (:1235) ──
+        elif path == "/api/gpu/models/load":
+            self.respond_json(charger_modele_gpu1(req_data.get("model", "")))
+            return
+
+        # ── LM STUDIO MAISON : chat direct avec un modèle GPU ──
+        elif path == "/api/gpu/chat":
+            self.respond_json(chat_gpu(req_data.get("model"), req_data.get("prompt"),
+                                       req_data.get("port", 1234), req_data.get("system")))
+            return
+
+        # ── TURBO OS : voix souveraine (Kokoro FR) ──
+        elif path == "/api/gpu/speak":
+            self.respond_json(parler(req_data.get("text", "")))
+            return
+
+        # ── TURBO OS : commande vocale (correction STT + routage tout le cockpit) ──
+        elif path == "/api/voice/command":
+            self.respond_json(voice_command(req_data.get("text", "")))
+            return
+
+        # ── TURBO OS : pilotage de la boucle vocale mains-libres (service jarvis-voice-cockpit :1270) ──
+        elif path == "/api/voice/loop":
+            self.respond_json(voice_loop_control(req_data.get("action", "status")))
+            return
+
+        # ── PC CONTROL : fenêtres + capture d'écran ──
+        elif path == "/api/pc/windows":
+            self.respond_json(pc_windows())
+            return
+        elif path == "/api/pc/window":
+            self.respond_json(pc_window_op(req_data.get("op", ""), req_data.get("target", "")))
+            return
+        elif path == "/api/pc/screenshot":
+            self.respond_json(pc_screenshot())
+            return
+
+        # ── TURBO OS : STT souverain (faster-whisper GPU, CPU banni) ──
+        elif path == "/api/stt/transcribe":
+            self.respond_json(stt_transcribe(req_data.get("audio_b64"), req_data.get("mime")))
+            return
+
+        # ── TURBO OS : écoute DIRECTE côté cockpit (micro du PC, sans navigateur) ──
+        elif path == "/api/stt/listen":
+            self.respond_json(stt_listen(req_data.get("seconds", 6)))
+            return
+
+        # ── CHECKPOINT ENGINE : pause/reprise de tâche ──
+        elif path == "/api/checkpoint/save":
+            self.respond_json(cp_save(req_data.get("kind"), req_data.get("title"),
+                                      req_data.get("input"), req_data.get("status"), req_data.get("result")))
+            return
+        elif path == "/api/checkpoint/resolve":
+            self.respond_json(cp_resolve(req_data.get("id"), req_data.get("status")))
+            return
+
+        # ── AGENT SOUVERAIN (:1260), CHANTIERS VOCAUX & E-MAILS ──
+        elif path == "/api/agent":
+            msg = req_data.get("message", "")
+            speak = bool(req_data.get("speak", False))
+            self.respond_json(appeler_agent_1260(msg, speak=speak))
+            return
+        elif path == "/api/chantiers/lire":
+            speak = bool(req_data.get("speak", True))
+            self.respond_json(lire_chantiers_vocal(parler_audio=speak))
+            return
+        elif path == "/api/emails/envoyer":
+            to = req_data.get("to", "")
+            subj = req_data.get("subject", "")
+            body = req_data.get("body", "")
+            send_now = bool(req_data.get("send_now", True))
+            self.respond_json(envoyer_email_cockpit(to, subj, body, send_now=send_now))
             return
 
         # ── PROSPECTION & ENRICHISSEMENT SOURCES ──
@@ -1714,7 +2864,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 domain = req_data.get("domain", "souverainete")
                 question = req_data.get("question", "").strip()
                 mode = req_data.get("mode", "consensus")
-                k = int(req_data.get("k", 5))
+                k = int(req_data.get("k", 10))
 
                 if not question:
                     self.respond_json({"success": False, "error": "Question requise"}, 400)
@@ -1760,6 +2910,19 @@ class CockpitHandler(BaseHTTPRequestHandler):
                         except Exception as fe:
                             faith_data["eval_error"] = str(fe)
 
+                    # ── FAIL-CLOSE : la validation reflète l'ANCRAGE réel, pas le simple nombre de citations ──
+                    try:
+                        sup = float(str(faith_data.get("faithfulness_pct") or "0").replace("%", "").strip() or 0)
+                    except Exception:
+                        sup = 0.0
+                    min_faith = float(os.environ.get("RAG_MIN_FAITH", "40"))
+                    if has_citations and consensus_text and sup < min_faith:
+                        validation_status = "PREUVE_INSUFFISANTE"
+                        validation_reason = (
+                            f"Fail-close : ancrage {sup:.0f}% < {min_faith:.0f}% — réponse plausible mais NON "
+                            f"suffisamment soutenue par les {len(citations)} citations (anti-hallucination stricte)."
+                        )
+
                     self.respond_json({
                         "success": True,
                         "domain": res.get("domain"),
@@ -1770,7 +2933,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
                         "consensus": consensus_text,
                         "validation": {
                             "status": validation_status,
-                            "is_valid": has_citations,
+                            "is_valid": validation_status == "VALIDATED",
                             "citations_count": len(citations),
                             "reason": validation_reason
                         },
@@ -1911,7 +3074,9 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 r = subprocess.run(["python3", script_path, titre, contenu], capture_output=True, text=True)
                 self.respond_json({"success": (r.returncode == 0), "output": r.stdout or r.stderr})
             else:
-                self.respond_json({"success": True, "output": f"Signal '{titre}' enregistré."})
+                # FIX audit 2026-09-17 : ne plus prétendre 'enregistré' quand le moteur est absent.
+                self.respond_json({"success": False, "error": "not_implemented",
+                                   "reason": "swan_stream_engine.py absent — rien émis ni enregistré."})
             return
 
         # ── REPLAY & GUÉRISON ──
@@ -1919,7 +3084,11 @@ class CockpitHandler(BaseHTTPRequestHandler):
             script = os.path.expanduser("~/jarvis/scripts/jarvis_full_session_replay.sh")
             if os.path.exists(script):
                 subprocess.Popen(["bash", script])
-            self.respond_json({"success": True, "message": "Rejeu complet 1-clic initié en arrière-plan."})
+                self.respond_json({"success": True, "message": "Rejeu complet 1-clic initié en arrière-plan."})
+            else:
+                # FIX audit 2026-09-17 : ne plus mentir 'initié' quand le script est absent.
+                self.respond_json({"success": False, "error": "not_implemented",
+                                   "reason": "jarvis_full_session_replay.sh absent — aucun rejeu lancé."})
             return
 
         # ── ROTATION JETON SÉCURITÉ P0 (LOCAL UNIQUEMENT) ──
@@ -1986,8 +3155,29 @@ class CockpitServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
 
+def _demarrer_collecte_metrics():
+    """Thread daemon : collecte métriques toutes les 30s, sauve dans metrics_history.jsonl."""
+    import threading as _th
+    def _loop():
+        import time as _t
+        # Attendre 5s au démarrage pour laisser le serveur se stabiliser
+        _t.sleep(5)
+        while True:
+            try:
+                from core.metrics_collector import snapshot, sauver_historique
+                data = snapshot()
+                sauver_historique(data)
+            except Exception:
+                pass
+            _t.sleep(30)
+    t = _th.Thread(target=_loop, daemon=True, name="MetricsCollector")
+    t.start()
+
+
 def main():
     os.makedirs(WEB_DIR, exist_ok=True)
+    # Démarrer la collecte métriques en arrière-plan
+    _demarrer_collecte_metrics()
     server = CockpitServer(("0.0.0.0", PORT), CockpitHandler)
     print(f"🚀 JARVIS COCKPIT DESKTOP SERVER démarré sur http://127.0.0.1:{PORT}")
     try:

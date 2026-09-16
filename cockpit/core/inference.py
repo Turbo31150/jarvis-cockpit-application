@@ -71,6 +71,8 @@ def _lmstudio_local_model(base_url: str, timeout: float = 2.0):
     qu'un modèle déjà `loaded`. Si aucun n'est résident → None (tier-0 sauté,
     repli Ollama). Une fois chargé, l'inférence tourne en VRAM en ~2 s.
     """
+    loaded = []
+    # 1) LM Studio natif : /api/v0/models expose `state` → on ne retient que `loaded`.
     try:
         req = urllib.request.Request(f"{base_url}/api/v0/models")
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -79,14 +81,28 @@ def _lmstudio_local_model(base_url: str, timeout: float = 2.0):
                   if m.get("state") == "loaded"
                   and m.get("type") != "embeddings"
                   and m.get("id") and "embed" not in m.get("id", "").lower()]
-        if not loaded:
-            return None
-        for pref in _LMSTUDIO_PREFERRED:
-            if pref in loaded:
-                return pref
-        return loaded[0]
     except Exception:
+        loaded = []
+    # 2) Repli llama-server OpenAI (/v1/models) : les modèles listés sont servis en VRAM.
+    #    Formats tolérés : {"data":[{"id"}]} (OpenAI) et {"models":[{"name"/"model"}]} (Ollama-bundled).
+    if not loaded:
+        try:
+            req = urllib.request.Request(f"{base_url}/v1/models")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                d = json.loads(resp.read().decode())
+            items = d.get("data") or d.get("models") or []
+            for m in items:
+                mid = m.get("id") or m.get("name") or m.get("model")
+                if mid and "embed" not in str(mid).lower():
+                    loaded.append(mid)
+        except Exception:
+            loaded = []
+    if not loaded:
         return None
+    for pref in _LMSTUDIO_PREFERRED:
+        if pref in loaded:
+            return pref
+    return loaded[0]
 
 
 def list_ollama_models(timeout: float = 1.5) -> list:
@@ -277,7 +293,7 @@ def generate_completion(prompt: str, sys_prompt: str = None, max_tokens: int = 1
     if res_ol:
         return res_ol
 
-    # 1. Tier 1 : Nœud M6 GPU (Lien direct 10.42.0.230) — sondé avant appel
+    # Repli local :1234 /v1 (redondant avec le tier LM Studio ci-dessus ; filet si _call_lmstudio a échoué)
     try:
         if not _port_open(M6_URL):
             raise ConnectionError("M6 hors-ligne")
@@ -310,7 +326,7 @@ def generate_completion(prompt: str, sys_prompt: str = None, max_tokens: int = 1
     except Exception:
         pass
 
-    # 2. Tier 2 : Ollama Local M4 (127.0.0.1:11434) — modèles auto-découverts
+    # Repli legacy Ollama-natif /api/generate (daemon :11434 mort → 404 fast-fail ; conservé si un daemon Ollama est un jour relancé)
     full_prompt = sys_prompt + "\n\n" + prompt
     for model_name in _ollama_candidates():
         try:
@@ -339,28 +355,32 @@ def generate_completion(prompt: str, sys_prompt: str = None, max_tokens: int = 1
         except Exception:
             continue
 
-    # 2b. Tier 2b : délestage RTX 2060 (127.0.0.1:11435, qwen2.5:7b épinglé)
-    #     Utile quand la 3080 (:11434) est occupée par un autre client (cockpit, IDE).
+    # 2b. Repli délestage : RTX 2060 via :1235 (qwen3-8b, llama-server API OpenAI /v1/).
+    #     Utile si le tier principal :1234 (3080) est occupé/indisponible.
     try:
         if _port_open(OLLAMA_2060_URL):
             ol_payload = json.dumps({
-                "model": "qwen2.5:7b",
-                "prompt": full_prompt,
-                "stream": False,
-                "options": {"num_predict": max(64, min(max_tokens, 384)), "temperature": temperature}
+                "model": "qwen3-8b",
+                "messages": [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": temperature,
+                "max_tokens": effective_max_tokens
             }).encode("utf-8")
-            req_ol = urllib.request.Request(f"{OLLAMA_2060_URL}/api/generate", data=ol_payload, headers={"Content-Type": "application/json"})
+            req_ol = urllib.request.Request(f"{OLLAMA_2060_URL}/v1/chat/completions", data=ol_payload, headers={"Content-Type": "application/json"})
             t0 = time.time()
             with urllib.request.urlopen(req_ol, timeout=90) as resp_ol:
                 data_ol = json.loads(resp_ol.read().decode())
-                content = data_ol.get("response", "").strip()
+                choice = data_ol["choices"][0]["message"]
+                content = (choice.get("content") or choice.get("reasoning_content") or "").strip()
                 if content:
                     return {
                         "content": content,
-                        "source": "RTX 2060 (Ollama qwen2.5:7b, délestage)",
+                        "source": "RTX 2060 (:1235 qwen3-8b, délestage)",
                         "latency": round(time.time() - t0, 2),
                         "success": True,
-                        "model": "qwen2.5:7b"
+                        "model": "qwen3-8b"
                     }
     except Exception:
         pass
@@ -401,7 +421,7 @@ def generate_completion(prompt: str, sys_prompt: str = None, max_tokens: int = 1
 
 
 def embed(inputs, timeout: float = 60.0) -> dict:
-    """Vectorisation permanente via la GTX 1660S (Ollama :11436, nomic-embed-text résident).
+    """Vectorisation via nomic-embed-text-v1.5 (:1300, llama-server OpenAI /v1/embeddings, 768d).
 
     inputs : str ou list[str]. Retourne {"embeddings": [...], "model", "source", "success"}.
     Le modèle reste chargé (KEEP_ALIVE=-1) → pas de coût de rechargement.
@@ -410,17 +430,21 @@ def embed(inputs, timeout: float = 60.0) -> dict:
         inputs = [inputs]
     try:
         if not _port_open(OLLAMA_EMBED_URL):
-            raise ConnectionError("instance embeddings (1660S) hors-ligne")
+            raise ConnectionError("instance embeddings (:1300) hors-ligne")
         payload = json.dumps({"model": EMBED_MODEL, "input": inputs}).encode("utf-8")
-        req = urllib.request.Request(f"{OLLAMA_EMBED_URL}/api/embed", data=payload, headers={"Content-Type": "application/json"})
+        req = urllib.request.Request(f"{OLLAMA_EMBED_URL}/v1/embeddings", data=payload, headers={"Content-Type": "application/json"})
         t0 = time.time()
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode())
-            embs = data.get("embeddings") or ([data["embedding"]] if "embedding" in data else [])
+            # OpenAI /v1/embeddings → {"data":[{"embedding":[...]}, ...]} ; fallback Ollama /api/embed
+            if isinstance(data.get("data"), list):
+                embs = [d["embedding"] for d in data["data"] if "embedding" in d]
+            else:
+                embs = data.get("embeddings") or ([data["embedding"]] if "embedding" in data else [])
             return {
                 "embeddings": embs,
                 "model": EMBED_MODEL,
-                "source": "GTX 1660S (Ollama nomic-embed-text)",
+                "source": "Embeddings (:1300, nomic-embed-text-v1.5)",
                 "latency": round(time.time() - t0, 2),
                 "success": bool(embs),
             }

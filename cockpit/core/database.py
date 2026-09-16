@@ -232,14 +232,60 @@ def scan_all_sqlite_databases() -> list[dict]:
     bases_list.sort(key=lambda x: x["table_count"], reverse=True)
     return bases_list
 
+# Pragmas de LECTURE/introspection autorisés. Tout autre PRAGMA est refusé (L1-01).
+_PRAGMA_LECTURE = frozenset({
+    "table_info", "table_xinfo", "index_list", "index_info", "index_xinfo",
+    "foreign_key_list", "database_list", "collation_list", "function_list",
+    "module_list", "pragma_list", "compile_options", "table_list",
+    "page_count", "page_size", "freelist_count", "encoding", "user_version",
+    "schema_version", "application_id", "data_version", "cache_size",
+    "journal_mode", "auto_vacuum", "integrity_check", "quick_check",
+    "wal_autocheckpoint", "busy_timeout", "cache_spill", "mmap_size",
+})
+# Mots-clés d'écriture/DDL/DML bloqués comme mots entiers, où qu'ils apparaissent.
+_SQL_INTERDITS = re.compile(
+    r"\b(?:attach|detach|insert|update|delete|replace|drop|alter|create|"
+    r"vacuum|reindex|truncate)\b", re.IGNORECASE)
+
+def _decommente_sql(sql: str) -> str:
+    """Retire les commentaires SQL (-- … et /* … */) pour analyser le vrai 1er mot-clé."""
+    sql = re.sub(r"/\*.*?\*/", " ", sql, flags=re.DOTALL)
+    sql = re.sub(r"--[^\n]*", " ", sql)
+    return sql.strip()
+
 def execute_safe_query(db_path: str, sql: str, limit: int = 50) -> dict:
     """Exécute une requête SQL en lecture sécurisée avec pagination."""
     if not os.path.exists(db_path):
         return {"error": "Base introuvable", "columns": [], "rows": [], "row_count": 0}
+    # Whitelist lecture seule (L1-01/L1-02) : mode=ro bloque l'écriture de DONNÉES mais
+    # PAS le texte SQL — ATTACH et les PRAGMA mutants atteignent le moteur. On filtre donc
+    # le texte : commentaires retirés, 1er mot-clé en whitelist, mots d'écriture bloqués,
+    # PRAGMA restreint à l'introspection, un seul statement, et on exécute _sql validé.
+    _sql = _decommente_sql(sql).rstrip(";").strip()
+    if not _sql:
+        return {"error": "Requête vide", "columns": [], "rows": [], "row_count": 0}
+    if ";" in _sql:
+        return {"error": "Un seul statement autorisé (pas de ';' interne)", "columns": [], "rows": [], "row_count": 0}
+    _head = _sql.lstrip("( \t\r\n").split(None, 1)[0].lower()
+    if _head not in ("select", "with", "explain", "pragma"):
+        return {"error": f"Lecture seule : seuls SELECT/WITH/EXPLAIN/PRAGMA sont autorisés (reçu « {_head} »)", "columns": [], "rows": [], "row_count": 0}
+    _interdit = _SQL_INTERDITS.search(_sql)
+    if _interdit:
+        return {"error": f"Mot-clé d'écriture interdit : « {_interdit.group(0).upper()} »", "columns": [], "rows": [], "row_count": 0}
+    if _head == "pragma":
+        if "=" in _sql:
+            return {"error": "PRAGMA en écriture interdit (assignation « = »)", "columns": [], "rows": [], "row_count": 0}
+        _nom = re.split(r"[\s(=]", _sql[6:].lstrip("( \t\r\n"), 1)[0].lower()
+        if _nom not in _PRAGMA_LECTURE:
+            return {"error": f"PRAGMA « {_nom} » interdit (lecture/introspection seule)", "columns": [], "rows": [], "row_count": 0}
     try:
         con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5.0)
+        con.execute("PRAGMA query_only=1")        # durcit la lecture seule (L1-02)
+        con.execute("PRAGMA busy_timeout=5000")   # ne pas rester bloqué sur le WAL de board.db
+        con.execute("PRAGMA cache_size=-256000")  # 256 Mo de cache lecture
+        con.execute("PRAGMA temp_store=MEMORY")   # tris/temp en RAM, jamais sur disque
         c = con.cursor()
-        c.execute(sql)
+        c.execute(_sql)                           # on exécute la requête VALIDÉE, pas le texte brut
         cols = [d[0] for d in c.description] if c.description else []
         rows = c.fetchmany(limit)
         con.close()

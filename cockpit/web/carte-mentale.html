@@ -5,301 +5,300 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Carte mentale JARVIS — mesurée</title>
 <style>
-  :root{
-    --fond:#0b0f14; --carte:#131a23; --bord:#1f2b38;
-    --texte:#dbe6f0; --faible:#7f95ab; --titre:#e8f1fa;
-    --vert:#3ddc84; --rouge:#ff5d5d; --ambre:#ffb454; --bleu:#4fa8ff; --violet:#b07cff;
-    --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--fond);color:var(--texte);
-       font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-       font-size:15px;line-height:1.55;padding:28px 20px 60px}
-  .enveloppe{max-width:1180px;margin:0 auto}
-  h1{font-size:1.5rem;margin:0 0 4px;color:var(--titre);letter-spacing:-.01em}
-  .sous{color:var(--faible);font-size:.87rem;margin-bottom:26px}
-  .sous b{color:var(--ambre);font-weight:600}
-  h2{font-size:1.02rem;margin:32px 0 12px;color:var(--titre);
-     display:flex;align-items:center;gap:9px}
-  h2::before{content:"";width:3px;height:17px;background:var(--bleu);border-radius:2px}
-  .grille{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
-  .carte{background:var(--carte);border:1px solid var(--bord);border-radius:10px;padding:15px 17px}
-  .carte.vivant{border-left:3px solid var(--vert)}
-  .carte.mort{border-left:3px solid var(--rouge)}
-  .carte.tiede{border-left:3px solid var(--ambre)}
-  .nom{font-weight:650;color:var(--titre);font-size:1.06rem;display:flex;
-       justify-content:space-between;align-items:baseline;gap:10px}
-  .voie{font-family:var(--mono);font-size:.74rem;color:var(--faible);
-        text-transform:uppercase;letter-spacing:.06em}
-  dl{margin:11px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.86rem}
-  dt{color:var(--faible)}
-  dd{margin:0;font-family:var(--mono);color:var(--texte)}
-  .ok{color:var(--vert)} .ko{color:var(--rouge)} .att{color:var(--ambre)}
-  table{width:100%;border-collapse:collapse;font-size:.86rem;margin-top:6px}
-  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bord);vertical-align:top}
-  th{color:var(--faible);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
-  td.m{font-family:var(--mono);font-size:.82rem}
-  .defile{overflow-x:auto}
-  .note{background:#161e29;border:1px solid var(--bord);border-left:3px solid var(--violet);
-        border-radius:8px;padding:13px 16px;margin-top:14px;font-size:.89rem}
-  .note b{color:var(--violet)}
-  .cible{background:linear-gradient(135deg,#12241a,#131a23);border:1px solid #2c5f3f;
-         border-radius:10px;padding:17px 19px;margin-top:6px}
-  .cible .gros{font-size:1.7rem;font-weight:700;color:var(--vert);font-family:var(--mono)}
-  ol{padding-left:22px;margin:8px 0 0}
-  ol li{margin-bottom:7px}
-  code{font-family:var(--mono);font-size:.85em;background:#1b2531;
-       padding:1px 5px;border-radius:4px;color:#cfe3f7}
-  footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--bord);
-         color:var(--faible);font-size:.8rem}
+ :root{
+ --fond:#0b0f14; --carte:#131a23; --bord:#1f2b38;
+ --texte:#dbe6f0; --faible:#7f95ab; --titre:#e8f1fa;
+ --vert:#3ddc84; --rouge:#ff5d5d; --ambre:#ffb454; --bleu:#4fa8ff; --violet:#b07cff;
+ --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+ }
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--fond);color:var(--texte);
+ font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+ font-size:15px;line-height:1.55;padding:28px 20px 60px}
+ .enveloppe{max-width:1180px;margin:0 auto}
+ h1{font-size:1.5rem;margin:0 0 4px;color:var(--titre);letter-spacing:-.01em}
+ .sous{color:var(--faible);font-size:.87rem;margin-bottom:26px}
+ .sous b{color:var(--ambre);font-weight:600}
+ h2{font-size:1.02rem;margin:32px 0 12px;color:var(--titre);
+ display:flex;align-items:center;gap:9px}
+ h2::before{content:"";width:3px;height:17px;background:var(--bleu);border-radius:2px}
+ .grille{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+ .carte{background:var(--carte);border:1px solid var(--bord);border-radius:10px;padding:15px 17px}
+ .carte.vivant{border-left:3px solid var(--vert)}
+ .carte.mort{border-left:3px solid var(--rouge)}
+ .carte.tiede{border-left:3px solid var(--ambre)}
+ .nom{font-weight:650;color:var(--titre);font-size:1.06rem;display:flex;
+ justify-content:space-between;align-items:baseline;gap:10px}
+ .voie{font-family:var(--mono);font-size:.74rem;color:var(--faible);
+ text-transform:uppercase;letter-spacing:.06em}
+ dl{margin:11px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.86rem}
+ dt{color:var(--faible)}
+ dd{margin:0;font-family:var(--mono);color:var(--texte)}
+ .ok{color:var(--vert)} .ko{color:var(--rouge)} .att{color:var(--ambre)}
+ table{width:100%;border-collapse:collapse;font-size:.86rem;margin-top:6px}
+ th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--bord);vertical-align:top}
+ th{color:var(--faible);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+ td.m{font-family:var(--mono);font-size:.82rem}
+ .defile{overflow-x:auto}
+ .note{background:#161e29;border:1px solid var(--bord);border-left:3px solid var(--violet);
+ border-radius:8px;padding:13px 16px;margin-top:14px;font-size:.89rem}
+ .note b{color:var(--violet)}
+ .cible{background:linear-gradient(135deg,#12241a,#131a23);border:1px solid #2c5f3f;
+ border-radius:10px;padding:17px 19px;margin-top:6px}
+ .cible .gros{font-size:1.7rem;font-weight:700;color:var(--vert);font-family:var(--mono)}
+ ol{padding-left:22px;margin:8px 0 0}
+ ol li{margin-bottom:7px}
+ code{font-family:var(--mono);font-size:.85em;background:#1b2531;
+ padding:1px 5px;border-radius:4px;color:#cfe3f7}
+ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--bord);
+ color:var(--faible);font-size:.8rem}
 </style>
 </head>
 <body>
 <div class="enveloppe">
 
-  <h1>Carte mentale JARVIS — ce qui est <em>mesuré</em></h1>
-  <p class="sous">Relevé du <b>2026-08-24 entre 09:44 et 10:01</b> · tout chiffre ici porte sa date.
-     Les témoins retenus sont <code>ip neigh</code> et un <b>test applicatif</b> —
-     jamais <code>carrier</code>, jamais un <code>ping</code> seul.</p>
+ <h1>Carte mentale JARVIS — ce qui est <em>mesuré</em></h1>
+ <p class="sous">Relevé du <b>2026-08-24 entre 09:44 et 10:01</b> · tout chiffre ici porte sa date.
+ Les témoins retenus sont <code>ip neigh</code> et un <b>test applicatif</b> —
+ jamais <code>carrier</code>, jamais un <code>ping</code> seul.</p>
 
-  <h2>Les trois nœuds de calcul</h2>
-  <div class="grille">
+ <h2>Les trois nœuds de calcul</h2>
+ <div class="grille">
 
-    <div class="carte tiede">
-      <div class="nom">M4 <span class="voie">local · ici</span></div>
-      <dl>
-        <dt>Test applicatif</dt><dd class="ok">HTTP 200 · 22,9 ms</dd>
-        <dt>Température</dt><dd class="att">80 °C (throttle à 91)</dd>
-        <dt>RAM libre</dt><dd>4 208 Mo / 15 Gi</dd>
-        <dt>Swap</dt><dd class="ko">78,1 % — 15 Gi débordés</dd>
-        <dt>Charge</dt><dd>6,78</dd>
-        <dt>Résident</dt><dd>gemma3:4b</dd>
-      </dl>
-      <p style="margin:11px 0 0;font-size:.85rem;color:var(--faible)">
-        i5-11400H · RTX 3050 · <b style="color:var(--ambre)">RAM en canal unique</b>.
-        À 09:44 il ne restait que <b>672 Mo</b> libres à 92 °C.</p>
-    </div>
+ <div class="carte tiede">
+ <div class="nom">M4 <span class="voie">local · ici</span></div>
+ <dl>
+ <dt>Test applicatif</dt><dd class="ok">HTTP 200 · 22,9 ms</dd>
+ <dt>Température</dt><dd class="att">80 °C (throttle à 91)</dd>
+ <dt>RAM libre</dt><dd>4 208 Mo / 15 Gi</dd>
+ <dt>Swap</dt><dd class="ko">78,1 % — 15 Gi débordés</dd>
+ <dt>Charge</dt><dd>6,78</dd>
+ <dt>Résident</dt><dd>gemma3:4b</dd>
+ </dl>
+ <p style="margin:11px 0 0;font-size:.85rem;color:var(--faible)">
+ i5-11400H · RTX 3050 · <b style="color:var(--ambre)">RAM en canal unique</b>.
+ À 09:44 il ne restait que <b>672 Mo</b> libres à 92 °C.</p>
+ </div>
 
-    <div class="carte vivant">
-      <div class="nom">M6 <span class="voie">câble direct</span></div>
-      <dl>
-        <dt>Test applicatif</dt><dd class="ok">HTTP 200 · 9,9 ms</dd>
-        <dt>ip neigh</dt><dd class="ok">REACHABLE</dd>
-        <dt>RTT</dt><dd class="ok">1,526 ms → <b>câble</b></dd>
-        <dt>GPU</dt><dd>RTX 2060 · 1660S · 3080</dd>
-        <dt>Charge</dt><dd>7,50 · uptime 1 h 23</dd>
-        <dt>Résidents</dt><dd>nomic-embed · qwen3.5-9b · qwen2.5-coder-14b</dd>
-      </dl>
-      <p style="margin:11px 0 0;font-size:.85rem;color:var(--faible)">
-        <b style="color:var(--rouge)">Alerte</b> : la GTX 1660 SUPER est à <b>90 °C</b>.
-        <b>3 GPU, pas 4</b> — la 2ᵉ 1660S reste absente du bus PCI.</p>
-    </div>
+ <div class="carte vivant">
+ <div class="nom">M6 <span class="voie">câble direct</span></div>
+ <dl>
+ <dt>Test applicatif</dt><dd class="ok">HTTP 200 · 9,9 ms</dd>
+ <dt>ip neigh</dt><dd class="ok">REACHABLE</dd>
+ <dt>RTT</dt><dd class="ok">1,526 ms → <b>câble</b></dd>
+ <dt>GPU</dt><dd>RTX 3080 · RTX 2060</dd>
+ <dt>Charge</dt><dd>7,50 · uptime 1 h 23</dd>
+ <dt>Résidents</dt><dd>nomic-embed · qwen3.5-9b · qwen2.5-coder-14b</dd>
+ </dl>
+ <p style="margin:11px 0 0;font-size:.85rem;color:var(--faible)">
+ <b>2 GPU</b> sur ce rig : RTX 3080 (10 Go) + RTX 2060 (12 Go). Aucune .</p>
+ </div>
 
-    <div class="carte vivant">
-      <div class="nom">REMI <span class="voie">tailscale direct</span></div>
-      <dl>
-        <dt>Test applicatif</dt><dd class="ok">HTTP 200 · 95,1 ms</dd>
-        <dt>ip neigh</dt><dd>ABSENT <span style="color:var(--faible)">(normal : pair L3)</span></dd>
-        <dt>RTT</dt><dd>67,1 ms → tunnel</dd>
-        <dt>Catalogue</dt><dd>7 modèles · dont gemma3:27b (17,4 Go)</dd>
-        <dt>Résidents</dt><dd class="ok">0 — nœud LIBRE</dd>
-      </dl>
-      <p style="margin:11px 0 0;font-size:.85rem;color:var(--faible)">
-        <code>rem-pc-asus</code> · <code>active; direct</code>.
-        <b style="color:var(--vert)">Le seul nœud du parc qui a de la place.</b></p>
-    </div>
-  </div>
+ <div class="carte vivant">
+ <div class="nom">REMI <span class="voie">tailscale direct</span></div>
+ <dl>
+ <dt>Test applicatif</dt><dd class="ok">HTTP 200 · 95,1 ms</dd>
+ <dt>ip neigh</dt><dd>ABSENT <span style="color:var(--faible)">(normal : pair L3)</span></dd>
+ <dt>RTT</dt><dd>67,1 ms → tunnel</dd>
+ <dt>Catalogue</dt><dd>7 modèles · dont gemma3:27b (17,4 Go)</dd>
+ <dt>Résidents</dt><dd class="ok">0 — nœud LIBRE</dd>
+ </dl>
+ <p style="margin:11px 0 0;font-size:.85rem;color:var(--faible)">
+ <code>rem-pc-asus</code> · <code>active; direct</code>.
+ <b style="color:var(--vert)">Le seul nœud du parc qui a de la place.</b></p>
+ </div>
+ </div>
 
-  <h2>Verdict de délestage</h2>
-  <div class="cible">
-    <div class="gros">→ REMI</div>
-    <p style="margin:6px 0 0;font-size:.9rem">
-      Classement calculé par <code>scripts/delestage.py</code> :
-      <b>REMI 119,0</b> · M6 114,9 · M4 84,8.<br>
-      <span style="color:var(--faible)">Motif : aucun modèle résident, donc rien à évincer.
-      M4 est pénalisé sur la chaleur, le swap et la RAM.</span></p>
-    <p class="note" style="margin-top:13px">
-      <b>La leçon.</b> « Balancer du multi-task » sur M4 ne peut pas marcher : la machine
-      throttle à 2394 MHz dès 91 °C et passe son temps à swapper. Le bon geste n'est pas de
-      <em>répartir davantage</em> en local, c'est de <em>délester</em> vers M6 (9,9 ms) et Remi.</p>
-  </div>
+ <h2>Verdict de délestage</h2>
+ <div class="cible">
+ <div class="gros">→ REMI</div>
+ <p style="margin:6px 0 0;font-size:.9rem">
+ Classement calculé par <code>scripts/delestage.py</code> :
+ <b>REMI 119,0</b> · M6 114,9 · M4 84,8.<br>
+ <span style="color:var(--faible)">Motif : aucun modèle résident, donc rien à évincer.
+ M4 est pénalisé sur la chaleur, le swap et la RAM.</span></p>
+ <p class="note" style="margin-top:13px">
+ <b>La leçon.</b> « Balancer du multi-task » sur M4 ne peut pas marcher : la machine
+ throttle à 2394 MHz dès 91 °C et passe son temps à swapper. Le bon geste n'est pas de
+ <em>répartir davantage</em> en local, c'est de <em>délester</em> vers M6 (9,9 ms) et Remi.</p>
+ </div>
 
-  <h2>Ce que le CLAUDE.md affirme et qui est faux au 24/08 10:00</h2>
-  <div class="defile">
-  <table>
-    <thead><tr><th>Affirmation en mémoire</th><th>Mesure réelle</th><th>Statut</th></tr></thead>
-    <tbody>
-      <tr><td>M6 est retombé à 06:28 et n'est jamais revenu</td>
-          <td class="m">REACHABLE · RTT 1,526 ms · :1234 HTTP 200 · uptime 1 h 23</td>
-          <td class="ko">périmé</td></tr>
-      <tr><td><code>lms:1234</code> ✖ MUET <span style="color:var(--faible)">(hook de session)</span></td>
-          <td class="m">HTTP 200 en 5 ms, 3 modèles résidents</td>
-          <td class="ko">périmé</td></tr>
-      <tr><td><code>:9222</code> ABSENT — Chrome sans remote-debugging</td>
-          <td class="m">LISTEN 127.0.0.1:9222 (browseros) · /json/version HTTP 200</td>
-          <td class="ko">périmé</td></tr>
-      <tr><td><code>qwen/qwen3.5-9b</code> · contexte 32 768</td>
-          <td class="m">max_context_length = <b>262 144</b></td>
-          <td class="ko">périmé</td></tr>
-      <tr><td>M6 rend 4 GPU (2060, 1660S, 3080, 1660S)</td>
-          <td class="m">3 GPU — la 2ᵉ 1660S absente du bus PCI</td>
-          <td class="ok">déjà corrigé en mémoire</td></tr>
-      <tr><td>Board : 528 767 chunks</td>
-          <td class="m">528 767 — figé, mais la locomotive a repris à 09:48</td>
-          <td class="ok">exact</td></tr>
-    </tbody>
-  </table>
-  </div>
+ <h2>Ce que le CLAUDE.md affirme et qui est faux au 24/08 10:00</h2>
+ <div class="defile">
+ <table>
+ <thead><tr><th>Affirmation en mémoire</th><th>Mesure réelle</th><th>Statut</th></tr></thead>
+ <tbody>
+ <tr><td>M6 est retombé à 06:28 et n'est jamais revenu</td>
+ <td class="m">REACHABLE · RTT 1,526 ms · :1234 HTTP 200 · uptime 1 h 23</td>
+ <td class="ko">périmé</td></tr>
+ <tr><td><code>lms:1234</code> ✖ MUET <span style="color:var(--faible)">(hook de session)</span></td>
+ <td class="m">HTTP 200 en 5 ms, 3 modèles résidents</td>
+ <td class="ko">périmé</td></tr>
+ <tr><td><code>:9222</code> ABSENT — Chrome sans remote-debugging</td>
+ <td class="m">LISTEN 127.0.0.1:9222 (browseros) · /json/version HTTP 200</td>
+ <td class="ko">périmé</td></tr>
+ <tr><td><code>qwen/qwen3.5-9b</code> · contexte 32 768</td>
+ <td class="m">max_context_length = <b>262 144</b></td>
+ <td class="ko">périmé</td></tr>
+ <tr><td>Ancienne doctrine « 2 GPU » (2060, ×2, 3080)</td>
+ <td class="m">Réalité : 2 GPU (RTX 3080 + RTX 2060), aucune </td>
+ <td class="ok">déjà corrigé en mémoire</td></tr>
+ <tr><td>Board : 528 767 chunks</td>
+ <td class="m">528 767 — figé, mais la locomotive a repris à 09:48</td>
+ <td class="ok">exact</td></tr>
+ </tbody>
+ </table>
+ </div>
 
-  <h2>La locomotive : elle n'était pas cassée, elle était étouffée</h2>
-  <div class="carte">
-    <ol>
-      <li><b>Symptôme</b> — <code>locomotive-board.service</code> en <code>failed</code>,
-          <code>Result=timeout</code>, <code>ExecMainStatus=15</code>, et le board figé
-          à 528 767 chunks depuis 06:25.</li>
-      <li><b>Fausse piste</b> — le timeout de 240 s. Il est <em>volontaire</em> : le commentaire
-          de l'unit dit qu'il coupe avant l'expiration du verrou interne de 10 min. Le « réparer »
-          aurait cassé une ceinture de sécurité.</li>
-      <li><b>Cause réelle</b> — un mur de <code>SKIP temp=92→96 °C</code> de 07:55 à 09:39.
-          Elle <em>s'auto-censure</em> sur la température. Tant que M4 cuit, elle ne produit rien.</li>
-      <li><b>Preuve du déblocage</b> — relancée à 09:48 quand la température est retombée :
-          <code>09:48:24 inference-locale M6 81C -- 3 tâche(s) réinjectée(s)</code>, exit 0.
-          Elle a tourné <b>sur M6</b>.</li>
-    </ol>
-    <p class="note"><b>Son contradicteur fonctionne.</b> Le même log montre qu'elle a rejeté
-      d'elle-même « Déconnecter les agents non actifs de toutes leurs sessions tmux »,
-      « Supprimer les fichiers inutilisés » et « Recharger le système d'exploitation »
-      comme <b>destructeurs</b>. C'est exactement l'action que j'envisageais pour libérer de la RAM :
-      son garde-fou a eu raison avant moi.</p>
-  </div>
+ <h2>La locomotive : elle n'était pas cassée, elle était étouffée</h2>
+ <div class="carte">
+ <ol>
+ <li><b>Symptôme</b> — <code>locomotive-board.service</code> en <code>failed</code>,
+ <code>Result=timeout</code>, <code>ExecMainStatus=15</code>, et le board figé
+ à 528 767 chunks depuis 06:25.</li>
+ <li><b>Fausse piste</b> — le timeout de 240 s. Il est <em>volontaire</em> : le commentaire
+ de l'unit dit qu'il coupe avant l'expiration du verrou interne de 10 min. Le « réparer »
+ aurait cassé une ceinture de sécurité.</li>
+ <li><b>Cause réelle</b> — un mur de <code>SKIP temp=92→96 °C</code> de 07:55 à 09:39.
+ Elle <em>s'auto-censure</em> sur la température. Tant que M4 cuit, elle ne produit rien.</li>
+ <li><b>Preuve du déblocage</b> — relancée à 09:48 quand la température est retombée :
+ <code>09:48:24 inference-locale M6 81C -- 3 tâche(s) réinjectée(s)</code>, exit 0.
+ Elle a tourné <b>sur M6</b>.</li>
+ </ol>
+ <p class="note"><b>Son contradicteur fonctionne.</b> Le même log montre qu'elle a rejeté
+ d'elle-même « Déconnecter les agents non actifs de toutes leurs sessions tmux »,
+ « Supprimer les fichiers inutilisés » et « Recharger le système d'exploitation »
+ comme <b>destructeurs</b>. C'est exactement l'action que j'envisageais pour libérer de la RAM :
+ son garde-fou a eu raison avant moi.</p>
+ </div>
 
-  <h2>Le mythe des « 529 Overloaded » côté cluster</h2>
-  <div class="carte mort">
-    <p style="margin:0 0 9px"><b>Aucun 529 réel dans les logs.</b> Chaque occurrence grepée est
-      un faux positif numérique :</p>
-    <dl>
-      <dt><code>ollama-pull.log</code></dt><dd>« 529 MB/1.4 GB »</dd>
-      <dt><code>lms-get.log</code></dt><dd>« 529.97 MB / 2.50 GB »</dd>
-      <dt><code>m6-link-watch.log</code></dt><dd>« rtt= 1.372/1.441/<b>1.529</b> ms »</dd>
-    </dl>
-    <p class="note" style="border-left-color:var(--rouge)"><b>Conclusion.</b> 529 est le code
-      <code>overloaded_error</code> de l'API Anthropic — un plafond <em>côté cloud</em>.
-      Ollama tournait déjà à <code>OLLAMA_NUM_PARALLEL=2</code>, <code>MAX_QUEUE=64</code>,
-      <code>KEEP_ALIVE=15m</code> <b>avant</b> toute modification. Régler Ollama ne pouvait
-      pas corriger un 529.</p>
-  </div>
+ <h2>Le mythe des « 529 Overloaded » côté cluster</h2>
+ <div class="carte mort">
+ <p style="margin:0 0 9px"><b>Aucun 529 réel dans les logs.</b> Chaque occurrence grepée est
+ un faux positif numérique :</p>
+ <dl>
+ <dt><code>ollama-pull.log</code></dt><dd>« 529 MB/1.4 GB »</dd>
+ <dt><code>lms-get.log</code></dt><dd>« 529.97 MB / 2.50 GB »</dd>
+ <dt><code>m6-link-watch.log</code></dt><dd>« rtt= 1.372/1.441/<b>1.529</b> ms »</dd>
+ </dl>
+ <p class="note" style="border-left-color:var(--rouge)"><b>Conclusion.</b> 529 est le code
+ <code>overloaded_error</code> de l'API Anthropic — un plafond <em>côté cloud</em>.
+ Ollama tournait déjà à <code>OLLAMA_NUM_PARALLEL=2</code>, <code>MAX_QUEUE=64</code>,
+ <code>KEEP_ALIVE=15m</code> <b>avant</b> toute modification. Régler Ollama ne pouvait
+ pas corriger un 529.</p>
+ </div>
 
-  <h2>Organes mesurés</h2>
-  <div class="defile">
-  <table>
-    <thead><tr><th>Organe</th><th>Port</th><th>État applicatif</th><th>Détail</th></tr></thead>
-    <tbody>
-      <tr><td>Cockpit OS (API)</td><td class="m">8600</td><td class="ok">HTTP 200 · 0,25 s</td>
-          <td>6 routes vérifiées : status, tasks, mcps, databases, swarm, board</td></tr>
-      <tr><td>Planning widget</td><td class="m">8899</td><td class="ok">actif</td><td>unit systemd active</td></tr>
-      <tr><td>Passerelle LLM</td><td class="m">18800</td><td class="ok">LISTEN</td><td>node · chat_proxy</td></tr>
-      <tr><td>Ollama M4</td><td class="m">11434</td><td class="ok">HTTP 200 · 2,9 ms</td><td>gemma3:4b résident</td></tr>
-      <tr><td>LM Studio M6</td><td class="m">1234</td><td class="ok">HTTP 200 · 5 ms</td><td>3 modèles résidents</td></tr>
-      <tr><td>CDP browseros</td><td class="m">9108 · 9222</td><td class="ok">HTTP 200</td><td>PID 159494</td></tr>
-      <tr><td>OpenClaw ACP</td><td class="m">18789</td><td class="ok">vivant</td><td>—</td></tr>
-      <tr><td>n8n</td><td class="m">5678</td><td class="ok">vivant</td><td>—</td></tr>
-      <tr><td>Antigravity shim</td><td class="m">18811</td><td class="ko">MUET</td>
-          <td>le CLI <code>agy</code> tourne (PID 23371) mais n'expose pas ce port</td></tr>
-    </tbody>
-  </table>
-  </div>
+ <h2>Organes mesurés</h2>
+ <div class="defile">
+ <table>
+ <thead><tr><th>Organe</th><th>Port</th><th>État applicatif</th><th>Détail</th></tr></thead>
+ <tbody>
+ <tr><td>Cockpit OS (API)</td><td class="m">8600</td><td class="ok">HTTP 200 · 0,25 s</td>
+ <td>6 routes vérifiées : status, tasks, mcps, databases, swarm, board</td></tr>
+ <tr><td>Planning widget</td><td class="m">8899</td><td class="ok">actif</td><td>unit systemd active</td></tr>
+ <tr><td>Passerelle LLM</td><td class="m">18800</td><td class="ok">LISTEN</td><td>node · chat_proxy</td></tr>
+ <tr><td>Ollama M4</td><td class="m">11434</td><td class="ok">HTTP 200 · 2,9 ms</td><td>gemma3:4b résident</td></tr>
+ <tr><td>llama-server GPU souverain M6</td><td class="m">1234</td><td class="ok">HTTP 200 · 5 ms</td><td>3 modèles résidents</td></tr>
+ <tr><td>CDP browseros</td><td class="m">9108 · 9222</td><td class="ok">HTTP 200</td><td>PID 159494</td></tr>
+ <tr><td>OpenClaw ACP</td><td class="m">18789</td><td class="ok">vivant</td><td>—</td></tr>
+ <tr><td>n8n</td><td class="m">5678</td><td class="ok">vivant</td><td>—</td></tr>
+ <tr><td>Antigravity shim</td><td class="m">18811</td><td class="ko">MUET</td>
+ <td>le CLI <code>agy</code> tourne (PID 23371) mais n'expose pas ce port</td></tr>
+ </tbody>
+ </table>
+ </div>
 
-  <h2>Les deux terminaux, identifiés</h2>
-  <div class="grille">
-    <div class="carte">
-      <div class="nom">Terminal 1 <span class="voie">tmux · attaché</span></div>
-      <dl>
-        <dt>Client</dt><dd>/dev/pts/20 · 118×34</dd>
-        <dt>Session</dt><dd>jc-jmo</dd>
-        <dt>Occupant</dt><dd>Claude Code (PID 97091)</dd>
-      </dl>
-    </div>
-    <div class="carte">
-      <div class="nom">Terminal 2 <span class="voie">hors tmux</span></div>
-      <dl>
-        <dt>Parent</dt><dd>bash --rcfile profils/turbo</dd>
-        <dt>Occupant</dt><dd>Antigravity CLI 1.1.19</dd>
-        <dt>PID</dt><dd>23371 · 143 % CPU · 102 threads</dd>
-      </dl>
-      <p style="margin:10px 0 0;font-size:.85rem;color:var(--faible)">
-        Ce n'est <b>pas</b> un emballement : c'est la session qui développe le Cockpit.
-        Elle a produit 4 commits entre 09:36 et 09:49.</p>
-    </div>
-    <div class="carte">
-      <div class="nom">Reste <span class="voie">5 sessions détachées</span></div>
-      <dl>
-        <dt>Panneaux</dt><dd>24 au total</dd>
-        <dt>agy idle</dt><dd>PID 9268 · 14565</dd>
-        <dt>claude idle</dt><dd>PID 14545 · 9277</dd>
-        <dt>À surveiller</dt><dd class="att">sqlite3 interactif ouvert sur jarvis_master.db (PID 93489)</dd>
-      </dl>
-    </div>
-  </div>
+ <h2>Les deux terminaux, identifiés</h2>
+ <div class="grille">
+ <div class="carte">
+ <div class="nom">Terminal 1 <span class="voie">tmux · attaché</span></div>
+ <dl>
+ <dt>Client</dt><dd>/dev/pts/20 · 118×34</dd>
+ <dt>Session</dt><dd>jc-jmo</dd>
+ <dt>Occupant</dt><dd>Claude Code (PID 97091)</dd>
+ </dl>
+ </div>
+ <div class="carte">
+ <div class="nom">Terminal 2 <span class="voie">hors tmux</span></div>
+ <dl>
+ <dt>Parent</dt><dd>bash --rcfile profils/turbo</dd>
+ <dt>Occupant</dt><dd>Antigravity CLI 1.1.19</dd>
+ <dt>PID</dt><dd>23371 · 143 % CPU · 102 threads</dd>
+ </dl>
+ <p style="margin:10px 0 0;font-size:.85rem;color:var(--faible)">
+ Ce n'est <b>pas</b> un emballement : c'est la session qui développe le Cockpit.
+ Elle a produit 4 commits entre 09:36 et 09:49.</p>
+ </div>
+ <div class="carte">
+ <div class="nom">Reste <span class="voie">5 sessions détachées</span></div>
+ <dl>
+ <dt>Panneaux</dt><dd>24 au total</dd>
+ <dt>agy idle</dt><dd>PID 9268 · 14565</dd>
+ <dt>claude idle</dt><dd>PID 14545 · 9277</dd>
+ <dt>À surveiller</dt><dd class="att">sqlite3 interactif ouvert sur jarvis_master.db (PID 93489)</dd>
+ </dl>
+ </div>
+ </div>
 
-  <h2>Risque ouvert : écriture concurrente</h2>
-  <div class="carte tiede">
-    <p style="margin:0">Antigravity réécrit <code>cockpit/serveur.py</code> et
-      <code>cockpit/web/index.html</code> en ce moment même (990, 437 puis 265 lignes modifiées).
-      Toute édition simultanée de ces deux fichiers produirait une écriture perdue —
-      le scénario exact de l'incident du 11/08.</p>
-    <p class="note" style="margin-top:12px"><b>Parade appliquée.</b> Tout ce qui est livré ici
-      l'est en <b>fichiers neufs</b> : <code>scripts/delestage.py</code> et cette page
-      <code>cockpit/web/carte-mentale.html</code>. Zéro fichier partagé, zéro collision.</p>
-    <p style="margin:11px 0 0;font-size:.88rem">Reste à câbler, et c'est à Antigravity de le faire
-      puisqu'il tient le fichier : <code>scripts/cluster_health.py</code> existe depuis le commit
-      <code>e780ba6</code> mais <code>/api/cluster/health</code> répond <b>404</b> — la sonde est
-      écrite, pas branchée. Et elle ignore Remi.</p>
-  </div>
+ <h2>Risque ouvert : écriture concurrente</h2>
+ <div class="carte tiede">
+ <p style="margin:0">Antigravity réécrit <code>cockpit/serveur.py</code> et
+ <code>cockpit/web/index.html</code> en ce moment même (990, 437 puis 265 lignes modifiées).
+ Toute édition simultanée de ces deux fichiers produirait une écriture perdue —
+ le scénario exact de l'incident du 11/08.</p>
+ <p class="note" style="margin-top:12px"><b>Parade appliquée.</b> Tout ce qui est livré ici
+ l'est en <b>fichiers neufs</b> : <code>scripts/delestage.py</code> et cette page
+ <code>cockpit/web/carte-mentale.html</code>. Zéro fichier partagé, zéro collision.</p>
+ <p style="margin:11px 0 0;font-size:.88rem">Reste à câbler, et c'est à Antigravity de le faire
+ puisqu'il tient le fichier : <code>scripts/cluster_health.py</code> existe depuis le commit
+ <code>e780ba6</code> mais <code>/api/cluster/health</code> répond <b>404</b> — la sonde est
+ écrite, pas branchée. Et elle ignore Remi.</p>
+ </div>
 
-  <h2>Blocage LinkedIn : les cookies sont là, mais illisibles</h2>
-  <div class="carte mort">
-    <p style="margin:0 0 10px"><code>browseros-cdp-authentifie verifier</code> répond
-      <b>NON AUTHENTIFIÉ</b> et LinkedIn redirige vers <code>/login</code> — alors que la session
-      existe. Ce n'est pas un problème de session, c'est un problème de <b>clé de déchiffrement</b>.</p>
-    <div class="defile">
-    <table>
-      <thead><tr><th>Témoin</th><th>Mesure</th><th>Lecture</th></tr></thead>
-      <tbody>
-        <tr><td>Cookie <code>li_at</code></td><td class="m">expire 2027-08-23</td>
-            <td class="ok">valide, pas expiré</td></tr>
-        <tr><td>Schéma des cookies LinkedIn</td><td class="m">17 × <code>v11</code> · 5 × <code>v10</code></td>
-            <td class="att">v11 = chiffré par le trousseau GNOME</td></tr>
-        <tr><td><code>gnome-keyring-daemon</code></td><td class="m">PID 3378, composant <code>secrets</code></td>
-            <td class="ok">le trousseau tourne</td></tr>
-        <tr><td>Socket DBUS</td><td class="m">/run/user/1000/bus présent</td>
-            <td class="ok">joignable</td></tr>
-        <tr><td>Env du process CDP 159494</td><td class="m">ni <code>DBUS_SESSION_BUS_ADDRESS</code>, ni <code>XDG_RUNTIME_DIR</code></td>
-            <td class="ko">le process ne peut pas atteindre le trousseau</td></tr>
-      </tbody>
-    </table>
-    </div>
-    <p class="note" style="border-left-color:var(--rouge)"><b>Chaîne causale.</b>
-      Chrome lancé en <code>--headless=new</code> sans DBUS ne joint pas le trousseau →
-      il ne déchiffre pas les 17 cookies <code>v11</code> → <code>li_at</code> est inexploitable →
-      LinkedIn le traite en visiteur anonyme. Le correctif du <code>405</code> sur
-      <code>/json/new</code> (passage en <code>PUT</code>) était juste et nécessaire,
-      mais il ne touchait pas cette cause.</p>
-    <p style="margin:12px 0 0;font-size:.88rem"><b>Correctif à appliquer</b> dans
-      <code>bin/browseros-cdp-authentifie</code>, avant le lancement du binaire :</p>
-    <pre style="background:#0d141c;border:1px solid var(--bord);border-radius:7px;
-                padding:11px 14px;overflow-x:auto;font-size:.83rem;margin:8px 0 0"><code>export XDG_RUNTIME_DIR=/run/user/1000
+ <h2>Blocage LinkedIn : les cookies sont là, mais illisibles</h2>
+ <div class="carte mort">
+ <p style="margin:0 0 10px"><code>browseros-cdp-authentifie verifier</code> répond
+ <b>NON AUTHENTIFIÉ</b> et LinkedIn redirige vers <code>/login</code> — alors que la session
+ existe. Ce n'est pas un problème de session, c'est un problème de <b>clé de déchiffrement</b>.</p>
+ <div class="defile">
+ <table>
+ <thead><tr><th>Témoin</th><th>Mesure</th><th>Lecture</th></tr></thead>
+ <tbody>
+ <tr><td>Cookie <code>li_at</code></td><td class="m">expire 2027-08-23</td>
+ <td class="ok">valide, pas expiré</td></tr>
+ <tr><td>Schéma des cookies LinkedIn</td><td class="m">17 × <code>v11</code> · 5 × <code>v10</code></td>
+ <td class="att">v11 = chiffré par le trousseau GNOME</td></tr>
+ <tr><td><code>gnome-keyring-daemon</code></td><td class="m">PID 3378, composant <code>secrets</code></td>
+ <td class="ok">le trousseau tourne</td></tr>
+ <tr><td>Socket DBUS</td><td class="m">/run/user/1000/bus présent</td>
+ <td class="ok">joignable</td></tr>
+ <tr><td>Env du process CDP 159494</td><td class="m">ni <code>DBUS_SESSION_BUS_ADDRESS</code>, ni <code>XDG_RUNTIME_DIR</code></td>
+ <td class="ko">le process ne peut pas atteindre le trousseau</td></tr>
+ </tbody>
+ </table>
+ </div>
+ <p class="note" style="border-left-color:var(--rouge)"><b>Chaîne causale.</b>
+ Chrome lancé en <code>--headless=new</code> sans DBUS ne joint pas le trousseau →
+ il ne déchiffre pas les 17 cookies <code>v11</code> → <code>li_at</code> est inexploitable →
+ LinkedIn le traite en visiteur anonyme. Le correctif du <code>405</code> sur
+ <code>/json/new</code> (passage en <code>PUT</code>) était juste et nécessaire,
+ mais il ne touchait pas cette cause.</p>
+ <p style="margin:12px 0 0;font-size:.88rem"><b>Correctif à appliquer</b> dans
+ <code>bin/browseros-cdp-authentifie</code>, avant le lancement du binaire :</p>
+ <pre style="background:#0d141c;border:1px solid var(--bord);border-radius:7px;
+ padding:11px 14px;overflow-x:auto;font-size:.83rem;margin:8px 0 0"><code>export XDG_RUNTIME_DIR=/run/user/1000
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus</code></pre>
-    <p style="margin:10px 0 0;font-size:.85rem;color:var(--faible)">
-      Non appliqué ici volontairement : ce fichier vient d'être édité par Antigravity
-      (correctif <code>PUT</code>), et deux écritures concurrentes dessus produiraient
-      une perte. À poser par celui qui tient le fichier.</p>
-  </div>
+ <p style="margin:10px 0 0;font-size:.85rem;color:var(--faible)">
+ Non appliqué ici volontairement : ce fichier vient d'être édité par Antigravity
+ (correctif <code>PUT</code>), et deux écritures concurrentes dessus produiraient
+ une perte. À poser par celui qui tient le fichier.</p>
+ </div>
 
-  <footer>
-    Relevé JARVIS · M4 <code>pamerys-m4</code> · uid=1000(pamerys) ·
-    mesures du 2026-08-24 09:44 → 10:01 · servi par le Cockpit OS sur
-    <code>http://127.0.0.1:8600/carte-mentale.html</code>
-  </footer>
+ <footer>
+ Relevé JARVIS · M4 <code>pamerys-m4</code> · uid=1000(pamerys) ·
+ mesures du 2026-08-24 09:44 → 10:01 · servi par le Cockpit OS sur
+ <code>http://127.0.0.1:8600/carte-mentale.html</code>
+ </footer>
 
 </div>
 </body>

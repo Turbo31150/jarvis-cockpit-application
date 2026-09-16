@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>JARVIS — Studio de modèles (LM Studio maison)</title>
+<style>
+  :root {
+    --bg:#0b0f19; --panel:#111827; --panel2:#0f172a; --border:#1f2a44;
+    --cyan:#38bdf8; --purple:#c084fc; --green:#4ade80; --amber:#fbbf24;
+    --red:#f87171; --muted:#64748b; --text:#e2e8f0;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+  .wrap { max-width:1100px; margin:0 auto; padding:22px 18px 80px; }
+
+  /* header */
+  .header { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+  h1 { font-size:20px; color:var(--cyan); }
+  .badge-version { font-size:10px; background:rgba(56,189,248,.15); color:var(--cyan); border:1px solid rgba(56,189,248,.35); border-radius:20px; padding:2px 8px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+
+  /* section titles */
+  .section { margin-top:28px; }
+  .section-title { font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  /* GPU cards */
+  .gpu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+  .gpu-card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px 18px; position:relative; overflow:hidden; }
+  .gpu-card::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(56,189,248,.04),transparent); }
+  .gpu-card.slot::before { background:linear-gradient(135deg,rgba(192,132,252,.05),transparent); }
+  .gpu-card.embed::before { background:linear-gradient(135deg,rgba(74,222,128,.04),transparent); }
+  .gpu-label { font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+  .gpu-model { font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px; word-break:break-word; }
+  .gpu-meta { display:flex; gap:6px; flex-wrap:wrap; }
+  .tag { font-size:10px; padding:2px 8px; border-radius:20px; font-weight:600; }
+  .tag-fix { background:rgba(56,189,248,.12); color:var(--cyan); border:1px solid rgba(56,189,248,.35); }
+  .tag-slot { background:rgba(192,132,252,.12); color:var(--purple); border:1px solid rgba(192,132,252,.35); }
+  .tag-emb { background:rgba(74,222,128,.1); color:var(--green); border:1px solid rgba(74,222,128,.3); }
+  .tag-router { background:rgba(251,191,36,.1); color:var(--amber); border:1px solid rgba(251,191,36,.3); }
+
+  /* VRAM bar */
+  .vram-row { margin-top:10px; }
+  .vram-label { font-size:11px; color:var(--muted); margin-bottom:3px; display:flex; justify-content:space-between; }
+  .vram-bar { height:6px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; }
+  .vram-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--cyan),var(--purple)); transition:width .4s; }
+  .vram-fill.high { background:linear-gradient(90deg,var(--amber),var(--red)); }
+
+  /* tps badge */
+  .tps-badge { font-size:11px; color:var(--green); font-weight:700; margin-top:4px; }
+
+  /* table modèles */
+  .model-table { width:100%; border-collapse:collapse; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--panel); }
+  .model-table th { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); padding:9px 14px; border-bottom:1px solid var(--border); text-align:left; background:var(--panel2); }
+  .model-table td { padding:9px 14px; font-size:13px; border-bottom:1px solid var(--border); }
+  .model-table tr:last-child td { border-bottom:none; }
+  .model-table tr.active-row td { background:rgba(192,132,252,.06); }
+  .model-table tr.active-row td:first-child { border-left:2px solid var(--purple); }
+
+  /* buttons */
+  button { font:inherit; cursor:pointer; border-radius:10px; font-weight:600; transition:filter .15s; }
+  button:hover:not(:disabled) { filter:brightness(1.12); }
+  button:disabled { opacity:.45; cursor:default; }
+  .btn-primary { background:linear-gradient(180deg,#0ea5e9,#0369a1); border:1px solid rgba(56,189,248,.4); color:#fff; padding:7px 14px; font-size:13px; }
+  .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--muted); padding:7px 12px; font-size:12px; }
+  .btn-danger { background:linear-gradient(180deg,#dc2626,#991b1b); border:1px solid rgba(248,113,113,.4); color:#fff; padding:7px 12px; font-size:12px; }
+  .btn-amber { background:linear-gradient(180deg,#d97706,#92400e); border:1px solid rgba(251,191,36,.4); color:#fff; padding:7px 12px; font-size:12px; }
+  .btn-sm { padding:5px 10px; font-size:12px; }
+
+  /* toolbar */
+  .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:10px 0; }
+
+  /* form controls */
+  select,textarea,input { font:inherit; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:9px 11px; font-size:13px; }
+  select:focus,textarea:focus,input:focus { outline:none; border-color:var(--cyan); }
+
+  /* benchmark */
+  .bench-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; }
+  .bench-card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .bench-model { font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .bench-val { font-size:24px; font-weight:800; color:var(--cyan); }
+  .bench-unit { font-size:12px; color:var(--muted); }
+  .bench-bar { height:4px; border-radius:4px; background:var(--border); margin-top:8px; overflow:hidden; }
+  .bench-fill { height:100%; background:linear-gradient(90deg,var(--cyan),var(--green)); transition:width .5s; }
+
+  /* chat */
+  .chat-box { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:18px; }
+  .chat-controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+  #prompt { width:100%; min-height:72px; resize:vertical; }
+  #response-box { min-height:100px; background:var(--panel2); border:1px solid var(--border); border-radius:12px; padding:14px; white-space:pre-wrap; font-size:14px; margin-top:12px; }
+  #response-box.working { color:var(--amber); }
+  #response-box.error { color:var(--red); }
+  .chat-meta { color:var(--muted); font-size:11px; margin-top:6px; }
+
+  /* status banner */
+  #status-bar { min-height:20px; font-size:12px; padding:7px 12px; border-radius:10px; margin-top:10px; transition:opacity .3s; }
+  #status-bar:empty { display:none; }
+  #status-bar.ok { background:rgba(74,222,128,.1); color:var(--green); }
+  #status-bar.err { background:rgba(248,113,113,.1); color:var(--red); }
+  #status-bar.work { background:rgba(251,191,36,.1); color:var(--amber); }
+
+  /* spinner */
+  .spin { display:inline-block; width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:sp .7s linear infinite; vertical-align:-2px; margin-right:5px; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+
+  /* live dot */
+  .live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); display:inline-block; animation:pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  /* tabs */
+  .tabs { display:flex; gap:4px; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:0; }
+  .tab { font-size:13px; font-weight:600; padding:8px 14px; cursor:pointer; border-bottom:2px solid transparent; color:var(--muted); background:none; border-top:none; border-left:none; border-right:none; }
+  .tab.active { color:var(--cyan); border-bottom-color:var(--cyan); }
+  .tab-pane { display:none; }
+  .tab-pane.active { display:block; }
+
+  code { background:var(--panel2); padding:1px 6px; border-radius:6px; color:var(--cyan); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>🎛️ Studio de modèles JARVIS</h1>
+    <span class="badge-version">LM Studio maison</span>
+    <span class="live-dot" id="live-dot" title="Rafraîchissement auto"></span>
+  </div>
+  <p class="sub">
+    Moteur souverain <code>llama-server</code> (CUDA 12, sans AVX2) ·
+    API OpenAI compatible · <code>jarvis-model</code> switcher GPU1 ·
+    Routeur multi-modèles <code>:1240</code>
+  </p>
+
+  <!-- ── GPU CARDS ── -->
+  <div class="section">
+    <div class="section-title">Infrastructure GPU</div>
+    <div class="gpu-grid" id="gpu-cards">
+      <div class="gpu-card"><span class="spin"></span> Chargement…</div>
+    </div>
+  </div>
+
+  <!-- ── TABS ── -->
+  <div class="section">
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('tab-models')">📦 Modèles</button>
+      <button class="tab" onclick="showTab('tab-chat')">💬 Chat</button>
+      <button class="tab" onclick="showTab('tab-bench')">⚡ Benchmark</button>
+    </div>
+
+    <!-- TAB: Models -->
+    <div id="tab-models" class="tab-pane active">
+      <div class="toolbar">
+        <button class="btn-ghost" onclick="charger('qwen3')">↺ Défaut GPU1 (qwen3-8b)</button>
+        <button class="btn-ghost" onclick="rafraichir()">⟳ Rafraîchir</button>
+      </div>
+      <table class="model-table" id="model-table">
+        <thead><tr>
+          <th>Modèle</th>
+          <th>Taille</th>
+          <th>GPU</th>
+          <th style="width:130px">Action</th>
+        </tr></thead>
+        <tbody id="model-rows"><tr><td colspan="4"><span class="spin"></span> Chargement…</td></tr></tbody>
+      </table>
+      <div id="status-bar"></div>
+    </div>
+
+    <!-- TAB: Chat -->
+    <div id="tab-chat" class="tab-pane">
+      <div class="chat-box">
+        <div class="chat-controls">
+          <label style="font-size:13px;color:var(--muted)">Cible :</label>
+          <select id="chat-target" style="min-width:220px">
+            <option value="1234">GPU0 · RTX 3080 · :1234 · qwen2.5-7b (FIXE)</option>
+            <option value="1235">GPU1 · RTX 2060 · :1235 · slot modulable</option>
+            <option value="1240">🔀 Routeur · :1240 · multi-modèles</option>
+          </select>
+          <input id="chat-model" placeholder="Modèle (routeur seulement)" style="width:180px" />
+          <input id="chat-sys" placeholder="Prompt système (optionnel)" style="flex:1;min-width:200px"/>
+        </div>
+        <textarea id="prompt" placeholder="Ton message…  (Ctrl+Entrée pour envoyer)"></textarea>
+        <div class="toolbar">
+          <button class="btn-primary" onclick="envoyer()">▶ Envoyer</button>
+          <button class="btn-ghost" onclick="effacer()">Effacer</button>
+          <span class="chat-meta" id="chat-meta"></span>
+        </div>
+        <div id="response-box"></div>
+      </div>
+    </div>
+
+    <!-- TAB: Benchmark -->
+    <div id="tab-bench" class="tab-pane">
+      <div class="toolbar">
+        <button class="btn-amber" onclick="lancerBench(false)">⚡ Benchmark séquentiel</button>
+        <button class="btn-primary" onclick="lancerBench(true)">🚀 Benchmark simultané (Dual-GPU)</button>
+        <label style="font-size:13px;color:var(--muted)">Tokens :</label>
+        <input type="number" id="bench-tokens" value="100" min="20" max="500" style="width:80px"/>
+      </div>
+      <div id="bench-status" style="font-size:13px;color:var(--muted);margin:8px 0"></div>
+      <div class="bench-grid" id="bench-results"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let state = {};
+let maxTps = 0;
+
+// ─── TABS ───────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  $('#' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ─── FETCH HELPERS ──────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+// ─── REFRESH ────────────────────────────────────────────
+async function rafraichir() {
+  try {
+    // GPU models state
+    const d = await api('/api/gpu/models');
+    state = d;
+    renderCards(d);
+    renderTable(d);
+
+    // GPU VRAM live
+    try {
+      const snap = await api('/api/metrics/snapshot');
+      if (snap && snap.gpu) updateVRAM(snap.gpu);
+    } catch(e) {}
+
+    $('#live-dot').style.background = 'var(--green)';
+  } catch(e) {
+    $('#live-dot').style.background = 'var(--red)';
+    setStatus('err', '⚠️ Cockpit injoignable : ' + e);
+  }
+}
+
+// ─── GPU CARDS ──────────────────────────────────────────
+function renderCards(d) {
+  const g0 = (d.gpu0_1234 || []).join(', ') || '—';
+  const g1 = (d.gpu1_1235 || []).join(', ') || '—';
+  const em = (d.embeddings_1300 || []).join(', ') || '—';
+
+  $('#gpu-cards').innerHTML = `
+    <div class="gpu-card">
+      <div class="gpu-label">GPU0 · RTX 3080 · :1234</div>
+      <div class="gpu-model" id="g0-model">${g0}</div>
+      <div class="gpu-meta">
+        <span class="tag tag-fix">FIXE</span>
+        <span class="tag tag-router">qwen2.5-7b</span>
+      </div>
+      <div class="vram-row">
+        <div class="vram-label"><span>VRAM</span><span id="g0-vram-txt">…</span></div>
+        <div class="vram-bar"><div class="vram-fill" id="g0-vram-bar" style="width:0%"></div></div>
+      </div>
+      <div class="tps-badge" id="g0-tps"></div>
+    </div>
+    <div class="gpu-card slot">
+      <div class="gpu-label">GPU1 · RTX 2060 · :1235</div>
+      <div class="gpu-model" id="g1-model">${g1}</div>
+      <div class="gpu-meta">
+        <span class="tag tag-slot">SLOT</span>
+      </div>
+      <div class="vram-row">
+        <div class="vram-label"><span>VRAM</span><span id="g1-vram-txt">…</span></div>
+        <div class="vram-bar"><div class="vram-fill" id="g1-vram-bar" style="width:0%"></div></div>
+      </div>
+      <div class="tps-badge" id="g1-tps"></div>
+    </div>
+    <div class="gpu-card embed">
+      <div class="gpu-label">Embeddings · :1300</div>
+      <div class="gpu-model">${em}</div>
+      <div class="gpu-meta">
+        <span class="tag tag-emb">RAG 768d</span>
+      </div>
+    </div>
+    <div class="gpu-card">
+      <div class="gpu-label">Routeur multi-modèles · :1240</div>
+      <div class="gpu-model" id="router-models">…</div>
+      <div class="gpu-meta">
+        <span class="tag tag-router">ROUTER</span>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--muted)">Point d'entrée unifié — distribue GPU0+GPU1</div>
+    </div>
+  `;
+  // Charger les modèles du routeur
+  fetch('http://127.0.0.1:1240/v1/models').then(r=>r.json()).then(d=>{
+    const ids = (d.data||[]).filter(m=>m.loaded).map(m=>m.id).join(', ') || (d.data||[]).map(m=>m.id).join(', ') || '—';
+    $('#router-models').textContent = ids;
+  }).catch(()=>{ if($('#router-models')) $('#router-models').textContent='hors ligne'; });
+}
+
+function updateVRAM(gpus) {
+  gpus.forEach(g => {
+    const idx = g.index;
+    const pct = Math.round(g.used_mb / g.total_mb * 100);
+    const txt = `${g.used_mb} / ${g.total_mb} MB (${pct}%)`;
+    const high = pct > 85;
+    const barEl = idx == 0 ? $('#g0-vram-bar') : $('#g1-vram-bar');
+    const txtEl = idx == 0 ? $('#g0-vram-txt') : $('#g1-vram-txt');
+    if (barEl) { barEl.style.width = pct + '%'; barEl.className = 'vram-fill' + (high ? ' high' : ''); }
+    if (txtEl) txtEl.textContent = txt;
+  });
+}
+
+// ─── MODEL TABLE ────────────────────────────────────────
+const MODEL_SIZES = {
+  '7b': '7B', '8b': '8B', '1.7b': '1.7B', '1.5b': '1.5B',
+  '14b': '14B', '70b': '70B', 'embed': 'EMB'
+};
+function modelSize(name) {
+  const n = name.toLowerCase();
+  for (const [k, v] of Object.entries(MODEL_SIZES)) if (n.includes(k)) return v;
+  return '?';
+}
+
+function renderTable(d) {
+  const loaded1235 = (d.gpu1_1235 || []).map(x => x.toLowerCase());
+  const loaded1234 = (d.gpu0_1234 || []).map(x => x.toLowerCase());
+
+  const rows = (d.available || []).map(m => {
+    const base = m.split(':')[0].toLowerCase();
+    const onG1 = loaded1235.some(c => c.includes(base) || base.includes(c.split(':')[0]));
+    const onG0 = loaded1234.some(c => c.includes(base) || base.includes(c.split(':')[0]));
+    const size = modelSize(m);
+    let gpuBadge = '';
+    if (onG0) gpuBadge = '<span class="tag tag-fix">GPU0</span>';
+    else if (onG1) gpuBadge = '<span class="tag tag-slot">GPU1</span>';
+    const btn = onG0
+      ? `<button class="btn-ghost btn-sm" disabled>fixe GPU0</button>`
+      : onG1
+        ? `<button class="btn-ghost btn-sm" disabled>actif GPU1</button>`
+        : `<button class="btn-primary btn-sm" onclick="charger('${m}')">↑ GPU1</button>`;
+    return `<tr class="${onG1 ? 'active-row' : ''}">
+      <td>${m} ${onG0||onG1 ? '<span style="color:var(--green);font-size:10px">●</span>' : ''}</td>
+      <td><code>${size}</code></td>
+      <td>${gpuBadge}</td>
+      <td>${btn}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" style="color:var(--muted)">Aucun modèle Ollama trouvé</td></tr>';
+
+  $('#model-rows').innerHTML = rows;
+}
+
+// ─── LOAD MODEL ─────────────────────────────────────────
+async function charger(model) {
+  document.querySelectorAll('button').forEach(b => b.disabled = true);
+  setStatus('work', `<span class="spin"></span> Chargement de <b>${model}</b> sur GPU1 (~15-40 s)…`);
+  try {
+    const d = await api('/api/gpu/models/load', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({model})
+    });
+    setStatus(d.success ? 'ok' : 'err',
+      (d.success ? '✅ ' : '❌ ') + `<b>${d.model || model}</b> — ${(d.output || d.error || '').slice(-200)}`);
+  } catch(e) { setStatus('err', '❌ ' + e); }
+  await rafraichir();
+  document.querySelectorAll('button').forEach(b => b.disabled = false);
+}
+
+// ─── CHAT ───────────────────────────────────────────────
+function effacer() {
+  $('#response-box').textContent = '';
+  $('#response-box').className = '';
+  $('#chat-meta').textContent = '';
+}
+
+async function envoyer() {
+  const prompt = $('#prompt').value.trim();
+  if (!prompt) return;
+  const port = parseInt($('#chat-target').value);
+  const sys = $('#chat-sys').value.trim();
+  const customModel = $('#chat-model').value.trim();
+
+  $('#response-box').className = 'working';
+  $('#response-box').innerHTML = '<span class="spin"></span> génération…';
+  $('#chat-meta').textContent = '';
+  document.querySelectorAll('button').forEach(b => b.disabled = true);
+
+  try {
+    let url, body;
+    if (port === 1240 || customModel) {
+      // Appel direct au routeur avec streaming simulé
+      url = `http://127.0.0.1:${port}/v1/chat/completions`;
+      body = {
+        model: customModel || 'qwen2.5-7b',
+        messages: [
+          ...(sys ? [{role:'system', content:sys}] : []),
+          {role:'user', content:prompt}
+        ],
+        max_tokens: 512, temperature: 0.4, stream: false
+      };
+      const t0 = Date.now();
+      const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+      const d = await r.json();
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+      const content = (d.choices || [])[0]?.message?.content || '';
+      const tokens = d.usage?.completion_tokens || '?';
+      const tps = tokens !== '?' ? (tokens / elapsed).toFixed(1) : '?';
+      $('#response-box').className = '';
+      $('#response-box').textContent = content;
+      $('#chat-meta').textContent = `modèle ${d.model||customModel||'?'} · :${port} · ${tokens} tokens · ${elapsed}s · ${tps} tok/s`;
+    } else {
+      // Via cockpit
+      const d = await api('/api/gpu/chat', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({prompt, port, system: sys || null})
+      });
+      if (d.success) {
+        $('#response-box').className = '';
+        $('#response-box').textContent = d.content;
+        $('#chat-meta').textContent = `modèle ${d.model||'?'} · :${d.port} · ${d.tokens||'?'} tokens · ${d.latency||'?'}s`;
+      } else {
+        $('#response-box').className = 'error';
+        $('#response-box').textContent = '❌ ' + (d.error || 'échec');
+      }
+    }
+  } catch(e) {
+    $('#response-box').className = 'error';
+    $('#response-box').textContent = '❌ ' + e;
+  }
+  document.querySelectorAll('button').forEach(b => b.disabled = false);
+}
+
+$('#prompt').addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') envoyer(); });
+
+// ─── BENCHMARK ──────────────────────────────────────────
+async function lancerBench(parallel) {
+  const tokens = parseInt($('#bench-tokens').value) || 100;
+  const targets = [
+    {port: 1234, model: (state.gpu0_1234||['qwen2.5-7b'])[0], label:'GPU0 :1234'},
+    {port: 1235, model: (state.gpu1_1235||['qwen3-8b'])[0], label:'GPU1 :1235'},
+  ];
+
+  $('#bench-status').innerHTML = `<span class="spin"></span> Benchmark ${parallel ? 'SIMULTANÉ' : 'séquentiel'} en cours (${tokens} tokens par modèle)…`;
+  $('#bench-results').innerHTML = '';
+  document.querySelectorAll('button').forEach(b => b.disabled = true);
+
+  const PROMPT = "Explique en une phrase ce qu'est l'intelligence artificielle.";
+
+  async function testOne(t) {
+    const t0 = Date.now();
+    try {
+      const r = await fetch(`http://127.0.0.1:${t.port}/v1/chat/completions`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model: t.model,
+          messages:[{role:'user',content:PROMPT}],
+          max_tokens: tokens, temperature:0, stream:false
+        })
+      });
+      const d = await r.json();
+      const elapsed = (Date.now() - t0) / 1000;
+      const toks = d.usage?.completion_tokens || tokens;
+      const tps = (toks / elapsed).toFixed(1);
+      const ttft_ms = d.usage?.prompt_eval_duration ? Math.round(d.usage.prompt_eval_duration / 1e6) : '—';
+      return {ok:true, label:t.label, model:t.model, port:t.port, tps:parseFloat(tps), tokens:toks, elapsed:elapsed.toFixed(2), ttft_ms};
+    } catch(e) {
+      return {ok:false, label:t.label, model:t.model, port:t.port, error:String(e)};
+    }
+  }
+
+  let results;
+  if (parallel) {
+    const t0 = Date.now();
+    results = await Promise.all(targets.map(testOne));
+    const wallTime = (Date.now() - t0) / 1000;
+    const totalToks = results.filter(r=>r.ok).reduce((s,r)=>s+r.tokens, 0);
+    const combined = (totalToks / wallTime).toFixed(1);
+    $('#bench-status').innerHTML = `✅ Terminé · <strong style="color:var(--cyan)">${combined} tok/s combinés</strong> (${totalToks} tokens en ${wallTime.toFixed(2)}s)`;
+  } else {
+    results = [];
+    for (const t of targets) {
+      $('#bench-status').innerHTML = `<span class="spin"></span> Test ${t.label}…`;
+      results.push(await testOne(t));
+    }
+    $('#bench-status').innerHTML = `✅ Benchmark séquentiel terminé`;
+  }
+
+  maxTps = Math.max(...results.filter(r=>r.ok).map(r=>r.tps), 1);
+  $('#bench-results').innerHTML = results.map(r => r.ok ? `
+    <div class="bench-card">
+      <div class="bench-model">${r.label} · <code>${(r.model||'?').slice(0,20)}</code></div>
+      <div><span class="bench-val">${r.tps}</span> <span class="bench-unit">tok/s</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">${r.tokens} tokens · ${r.elapsed}s</div>
+      <div class="bench-bar"><div class="bench-fill" style="width:${Math.round(r.tps/maxTps*100)}%"></div></div>
+    </div>
+  ` : `
+    <div class="bench-card">
+      <div class="bench-model">${r.label}</div>
+      <div style="color:var(--red);font-size:13px">❌ ${r.error}</div>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('button').forEach(b => b.disabled = false);
+}
+
+// ─── STATUS ─────────────────────────────────────────────
+function setStatus(cls, html) {
+  const s = $('#status-bar');
+  s.className = cls;
+  s.innerHTML = html;
+}
+
+// ─── INIT ───────────────────────────────────────────────
+rafraichir();
+setInterval(() => {
+  const inWork = ['working','work'].some(c =>
+    ($('#response-box')||{}).className?.includes(c) ||
+    ($('#status-bar')||{}).className?.includes('work')
+  );
+  if (!inWork) rafraichir();
+}, 15000);
+</script>
+</body>
+</html>

@@ -182,7 +182,7 @@ class JarvisCockpit(App):
                     
                     with Vertical(classes="hud-box"):
                         yield Label("⚡ TOPOLOGIE & INFRASTRUCTURE", classes="hud-title")
-                        yield Static("• Machine   : mining • i5-3450 4c • 31 Go RAM\n• GPU 0     : RTX 2060 12Go → LM Studio 127.0.0.1:1234 (qwen3-8b)\n• GPU 1     : RTX 3080 10Go → Ollama 127.0.0.1:11434 (qwen2.5:7b)\n• SSD       : / (systeme) • /mnt/jarvis-m1 • /mnt/jarvis-m6\n• Moteurs   : DOMINO dual-moteur (board boost)\n• Docker    : 29.1.3 (runtime nvidia)")
+                        yield Static("• Machine   : mining • i5-3470 4c (SANS AVX2) • 32 Go RAM\n• GPU 0     : RTX 3080 10Go → llama-server 127.0.0.1:1234 (qwen2.5-7b)\n• GPU 1     : RTX 2060 12Go → llama-server 127.0.0.1:1235 (qwen3-8b)\n• Embeddings: 127.0.0.1:1300 (nomic-embed-text-v1.5 768D)\n• SSD       : / (systeme) • /mnt/jarvis-m1 • /mnt/jarvis-m6\n• Docker    : 29.1.3 (runtime nvidia)")
                         yield Button("🔄 Scanner & Régénérer To-Do List M4", id="btn-plan-regen", classes="action-btn")
                         yield Button("🌾 Lancer Moisson Claude Code", id="btn-moisson-run", classes="action-btn")
 
@@ -250,7 +250,7 @@ class JarvisCockpit(App):
         n8n_up = is_port_open("127.0.0.1", 5678)
         port_up = is_port_open("127.0.0.1", 9000)
         lms_up = is_port_open("192.168.42.241", 1234) or is_port_open("127.0.0.1", 1234)
-        ol1_up = is_port_open("127.0.0.1", 11434)
+        ol1_up = is_port_open("127.0.0.1", 1235)
 
         telem = (
             f"⚡ GPU RTX 3050 : {v_used} MB / {v_tot} MB ({temp}°C) | "
@@ -273,8 +273,8 @@ class JarvisCockpit(App):
             t_swarm.add_row("n8n Automation", "127.0.0.1:5678", "Moteur de workflows & déclencheurs", "🟢 UP" if n8n_up else "🔴 DOWN")
             t_swarm.add_row("Portainer CE", "127.0.0.1:9000", "Console d'administration Swarm", "🟢 UP" if port_up else "🔴 DOWN")
             t_swarm.add_row("Docker Registry", "127.0.0.1:5000", "Registre d'images local", "🟢 UP" if is_port_open("127.0.0.1", 5000) else "🔴 DOWN")
-            t_swarm.add_row("Ollama Local (OL1)", "127.0.0.1:11434", "Inférence locale gemma3/llama3", "🟢 UP" if ol1_up else "🔴 DOWN")
-            t_swarm.add_row("LM Studio GPU", "127.0.0.1:1234", "Dual GPU (RTX 2060+3080)", "🟢 UP" if lms_up else "🔴 DOWN")
+            t_swarm.add_row("llama-server GPU", "127.0.0.1:1235", "qwen3-8b GPU", "🟢 UP" if ol1_up else "🔴 DOWN")
+            t_swarm.add_row("Local LLM Server", "127.0.0.1:1234", "llama-server qwen2.5-7b (RTX 3080)", "🟢 UP" if lms_up else "🔴 DOWN")
         except Exception:
             pass
 

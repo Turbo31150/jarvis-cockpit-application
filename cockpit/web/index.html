@@ -254,6 +254,9 @@
         <button onclick="showTab('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg active-nav text-slate-300 hover:text-white transition">
           <i class="fa-solid fa-gauge-high w-4 text-cyan-400"></i> Dashboard Cluster
         </button>
+        <a href="/turbo.html" target="_blank" id="nav-turbo-os" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-indigo-300 hover:bg-indigo-800/40 hover:text-white border border-indigo-500/30 transition" style="text-decoration:none">
+          <i class="fa-solid fa-circle-nodes w-4 text-indigo-400 animate-pulse"></i> 🔮 Turbo OS &amp; Orbe Vocale
+        </a>
         <button onclick="showTab('avancements')" id="nav-avancements" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 transition">
           <i class="fa-solid fa-diagram-project w-4 text-emerald-400"></i> 🏗️ Chantiers & Production
         </button>
@@ -332,7 +335,7 @@
         <i class="fa-solid fa-mobile-screen-button text-cyan-400"></i> Installer sur Téléphone
       </button>
       <div class="text-[10px] text-slate-500 text-center mono truncate">
-        Rig 4 GPU (mining) · Intel Pentium · 4 Go RAM
+        Rig 2 GPU (mining) · Intel i5-3470 · 32 Go RAM
       </div>
     </div>
   </aside>
@@ -343,20 +346,29 @@
   <main class="flex-1 flex flex-col min-w-0 bg-transparent overflow-hidden">
     
     <!-- Top Bar Telemetry HUD -->
-    <header class="h-16 glass border-b border-cyan-500/20 px-6 flex items-center justify-between z-10 shrink-0 shadow-lg">
-      <div class="flex items-center gap-4 min-w-0">
+    <header class="min-h-16 glass border-b border-cyan-500/20 px-6 py-1.5 flex items-center justify-between gap-3 flex-wrap z-10 shrink-0 shadow-lg">
+      <div class="flex items-center gap-3 min-w-0 flex-1 overflow-x-auto">
         <span id="section-title" class="font-black text-base tracking-wide text-slate-100 truncate hud-title">Dashboard Cluster</span>
         <div id="m6-badge" class="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-slate-400 text-xs mono flex items-center gap-1.5 shrink-0">
-          <span class="w-2 h-2 rounded-full bg-slate-500"></span> LM Studio GPU : HORS LIGNE
+          <span class="w-2 h-2 rounded-full bg-slate-500"></span> llama-server GPU : HORS LIGNE
         </div>
         <div class="px-2.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-700/80 text-cyan-300 text-xs mono flex items-center gap-1.5 shrink-0">
-          <span class="w-2 h-2 rounded-full bg-cyan-400"></span> RIG 4 GPU : ACTIF
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span> RIG 2 GPU : ACTIF
         </div>
-        <div id="gpu-action-mem-badge" class="px-2.5 py-1 rounded-full bg-purple-950/60 border border-purple-700/80 text-purple-300 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:border-purple-400 transition" title="Mémoire Action permanente vectorisée sur GPU 0 (GTX 1660S 768D) — Cliquez pour chercher" onclick="ouvrirModalMemoireAction()">
+        <a href="/modeles.html" class="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-700/80 text-emerald-300 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:border-emerald-400 transition" style="text-decoration:none" title="Choisir / charger un modèle sur le GPU1 — remplace LM Studio">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> ⚙️ Modèles
+        </a>
+        <button onclick="lireChantiersVocal(this)" class="px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/80 text-emerald-200 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:bg-emerald-800/80 transition" title="Faire le point et lire à voix haute mes chantiers (Kokoro FR)">
+          <i class="fa-solid fa-volume-high text-emerald-400"></i> 🔊 Lire Chantiers
+        </button>
+        <a href="/turbo.html" target="_blank" class="px-2.5 py-1 rounded-full bg-indigo-950/80 border border-indigo-500/80 text-indigo-200 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:bg-indigo-800/80 transition" style="text-decoration:none" title="Ouvrir Turbo OS (Orbe &amp; Agent souverain :1260)">
+          <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> 🔮 Turbo OS (:1260)
+        </a>
+        <div id="gpu-action-mem-badge" class="px-2.5 py-1 rounded-full bg-purple-950/60 border border-purple-700/80 text-purple-300 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:border-purple-400 transition" title="Mémoire Action permanente vectorisée (RTX 3080/2060 · 768D via :1300) — Cliquez pour chercher" onclick="ouvrirModalMemoireAction()">
           <span class="w-2 h-2 rounded-full bg-purple-400"></span> Vecto GPU : Actif
         </div>
       </div>
-      <div class="flex items-center gap-3 text-xs mono shrink-0">
+      <div class="flex items-center gap-3 text-xs mono shrink-0 flex-wrap justify-end">
         <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50" title="Station locale d'inférence et de délibération">
           <i class="fa-solid fa-server text-emerald-400 mr-1"></i> <span id="appliance-host" class="text-emerald-300 font-bold">mining</span>
         </div>
@@ -394,10 +406,10 @@
             </div>
           </div>
           <div class="glass-card p-4 rounded-xl border-l-4 border-emerald-500">
-            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Inférence (LM Studio GPU)</div>
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Inférence (llama-server GPU)</div>
             <div class="text-xl font-black text-white mt-1" id="dash-m6-ip">192.168.42.241:1234</div>
             <div class="text-xs text-emerald-400 mt-2 flex items-center justify-between">
-              <span id="dash-m6-status">LM Studio Dual GPU</span>
+              <span id="dash-m6-status">llama-server Dual GPU</span>
               <span id="dash-m6-latency">-- ms</span>
             </div>
           </div>
@@ -678,7 +690,7 @@
                 <i class="fa-solid fa-microchip text-indigo-400 mt-0.5"></i>
                 <div>
                   <div class="font-semibold text-white">Cluster Multi-Machines & Multi-Modèles</div>
-                  <div class="text-slate-400 text-[11px]">Nœuds M1, M2, M3 orchestrés sans dépendance externe, LLM locaux LM Studio + Ollama.</div>
+                  <div class="text-slate-400 text-[11px]">Nœuds M1, M2, M3 orchestrés sans dépendance externe, LLM locaux llama-server + Ollama.</div>
                 </div>
               </div>
               <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-start gap-3">
@@ -1392,7 +1404,7 @@
             <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
               <i class="fa-solid fa-users-gear text-cyan-400"></i> Escouade d'Élite Active (agents_escouade)
             </h3>
-            <span class="text-xs text-slate-400">Moteur LLM : LM Studio (:1234) / Ollama (:11434)</span>
+            <span class="text-xs text-slate-400">Moteur LLM : llama-server (:1234) / Ollama (:11434)</span>
           </div>
           <div id="agents-cards-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="text-xs text-slate-400 py-4 text-center col-span-4">Chargement de l'escouade...</div>
@@ -1774,7 +1786,7 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
               <i class="fa-solid fa-crosshairs text-amber-400"></i> Prospection Souveraine, Veille Pôles Métiers & Tunnels Réseau
             </h2>
             <p class="text-xs text-slate-300 mt-1 max-w-3xl">
-              Qualification B2B déterministe ciblée sur le <strong>"processus qui saigne"</strong> (règles TSV, zéro token LLM gaspillé), moissonnage web par cURL anti-bruit, interconnexion live avec l'Open Data SIRENE (api.gouv.fr) et synthèse locale ultra-rapide (<span class="text-amber-300 font-bold">48.4 tok/s</span> LM Studio / Ollama Rémi).
+              Qualification B2B déterministe ciblée sur le <strong>"processus qui saigne"</strong> (règles TSV, zéro token LLM gaspillé), moissonnage web par cURL anti-bruit, interconnexion live avec l'Open Data SIRENE (api.gouv.fr) et synthèse locale ultra-rapide (<span class="text-amber-300 font-bold">48.4 tok/s</span> llama-server / Ollama Rémi).
             </p>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
@@ -1806,7 +1818,7 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
             <span id="badge-tunnel-board" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
           </div>
           <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between">
-            <span class="text-slate-400">LM Studio Local (:1234)</span>
+            <span class="text-slate-400">llama-server Local (:1234)</span>
             <span id="badge-lmstudio-local" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
           </div>
         </div>
@@ -2218,6 +2230,12 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
             <button onclick="chargerAuditComplet('cahier_charges')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-lg text-xs flex items-center gap-2 transition">
               <i class="fa-solid fa-file-contract"></i> Cahier des Charges
             </button>
+            <a href="/turbo-os.html" target="_blank" class="px-3 py-2 bg-gradient-to-r from-indigo-600/40 to-violet-600/40 hover:from-indigo-500/60 text-indigo-100 border border-indigo-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition" style="text-decoration:none">
+              <i class="fa-solid fa-microchip"></i> Turbo OS — Cahier &amp; Comparaison
+            </a>
+            <a href="/turbo.html" target="_blank" class="px-3 py-2 bg-gradient-to-r from-slate-800 to-indigo-950/60 hover:border-indigo-400 text-indigo-200 border border-indigo-500/40 font-bold rounded-lg text-xs flex items-center gap-2 transition" style="text-decoration:none">
+              <i class="fa-solid fa-circle-nodes"></i> Interface Turbo OS
+            </a>
             <button onclick="chargerAuditComplet('kit_commercial')" class="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition shadow">
               <i class="fa-solid fa-scale-balanced"></i> Kit Commercial Cabinets
             </button>
@@ -2342,6 +2360,65 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
                 Chargement des rejets...
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- MOAT EVIDENCE-FIRST : CLAIMS AUDITABLES (table claims, distinct du legacy answers/citations) -->
+        <div class="glass-card p-5 rounded-xl border border-cyan-500/40 bg-slate-900/95 space-y-4" id="moat-claims-card">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-400">
+                <i class="fa-solid fa-fingerprint text-cyan-400"></i> Moat Evidence-First — Claims Auditables (table <code class="text-cyan-300">claims</code>)
+              </div>
+              <p class="text-xs text-slate-300 mt-0.5">
+                Chaque affirmation est vérifiée <em>verbatim</em> contre l'extrait cité : <span class="text-emerald-400 font-semibold">SUPPORTED</span> / <span class="text-amber-400 font-semibold">WEAK</span> / <span class="text-rose-400 font-semibold">UNSUPPORTED</span>. Refus <em>fail-closed</em> sans preuve — lu en direct dans <code class="text-cyan-300">board.db:claims</code>.
+              </p>
+            </div>
+            <button onclick="chargerMoatClaims()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+              <i class="fa-solid fa-rotate"></i> Actualiser
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-center text-xs">
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-cyan-800/50">
+              <div class="text-[10px] text-slate-400 uppercase">Claims Totales</div>
+              <div id="moat-total" class="text-base font-black text-cyan-400">—</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Requêtes (distinct)</div>
+              <div id="moat-req" class="text-base font-black text-white">—</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-emerald-800/60">
+              <div class="text-[10px] text-emerald-400 uppercase">Supported</div>
+              <div id="moat-sup" class="text-base font-black text-emerald-400">—</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-amber-800/50">
+              <div class="text-[10px] text-amber-400 uppercase">Weak</div>
+              <div id="moat-weak" class="text-base font-black text-amber-400">—</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-rose-900/40">
+              <div class="text-[10px] text-rose-400 uppercase">Unsupported</div>
+              <div id="moat-unsup" class="text-base font-black text-rose-400">—</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/80 border border-emerald-800/60">
+              <div class="text-[10px] text-emerald-400 uppercase">% Supported</div>
+              <div id="moat-pct" class="text-base font-black text-emerald-400">—</div>
+            </div>
+          </div>
+          <div class="w-full h-2 rounded bg-slate-800 overflow-hidden" title="Ancrage = SUPPORTED + WEAK">
+            <div id="moat-bar" class="h-full bg-gradient-to-r from-emerald-500 to-cyan-400" style="width:0%"></div>
+          </div>
+
+          <div class="flex items-center gap-2 text-xs flex-wrap">
+            <span class="text-[10px] uppercase tracking-widest text-slate-500 font-mono">Filtre</span>
+            <button class="moat-f px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-slate-200 ring-2 ring-cyan-500" data-v="ALL">Tout</button>
+            <button class="moat-f px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-emerald-300" data-v="SUPPORTED">SUPPORTED</button>
+            <button class="moat-f px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-amber-300" data-v="WEAK">WEAK</button>
+            <button class="moat-f px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-rose-300" data-v="UNSUPPORTED">UNSUPPORTED</button>
+            <span class="text-[10px] text-slate-500 font-mono ml-auto">échantillon des 40 dernières · clic = extrait + source</span>
+          </div>
+          <div id="moat-claims-list" class="space-y-2 text-[11px]">
+            <div class="text-slate-500 font-mono">Chargement des claims Evidence-First…</div>
           </div>
         </div>
 
@@ -2824,7 +2901,7 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
             <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
               <div class="text-[10px] text-slate-400 uppercase">Inférence LLM Locale</div>
               <div id="bench-val-toks" class="text-base font-black text-purple-400 mt-1">42.5 tok/s</div>
-              <div id="bench-val-backend" class="text-[9px] text-slate-400 truncate">LM Studio Qwen 2.5 7B</div>
+              <div id="bench-val-backend" class="text-[9px] text-slate-400 truncate">llama-server Qwen 2.5 7B</div>
             </div>
             <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
               <div class="text-[10px] text-slate-400 uppercase">Capacité Usine</div>
@@ -2886,6 +2963,28 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
         });
       } else {
         alert("📲 Pour installer JARVIS COCKPIT OS sur votre téléphone :\n\n• Android (Chrome / Brave / Edge) :\n  Appuyez sur le menu (les 3 points en haut à droite)\n  puis sur « Installer l'application » ou « Ajouter à l'écran d'accueil ».\n\n• iPhone / iPad (Safari) :\n  Appuyez sur l'icône Partager (carré avec flèche vers le haut)\n  puis sur « Sur l'écran d'accueil ».\n\nL'application s'ouvrira ensuite en plein écran comme une application native !");
+      }
+    }
+
+    async function lireChantiersVocal(btn) {
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-emerald-400"></i> Lecture…';
+      try {
+        const r = await fetch('/api/chantiers/lire');
+        const d = await r.json();
+        if (d.success) {
+          if (typeof afficherToast === 'function') {
+            afficherToast("🔊 Point chantiers : " + d.texte.slice(0, 90) + "...", "success");
+          } else {
+            alert("🔊 " + d.texte);
+          }
+        } else {
+          alert("Erreur lecture chantiers : " + (d.error || 'échec'));
+        }
+      } catch(e) {
+        alert("Erreur de connexion : " + e);
+      } finally {
+        if (btn) btn.innerHTML = orig;
       }
     }
 
@@ -2954,6 +3053,7 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
       } else if (tabId === 'audit') {
         chargerAuditComplet('complet');
         chargerAuditSqlRag();
+        chargerMoatClaims();
         actualiserRoiInteractif();
         chargerAuditProvenanceUI();
         chargerHaStatusUI();
@@ -3035,6 +3135,73 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
         prompt("Chemin du document :", chemin);
       });
     }
+
+    // ── MOAT EVIDENCE-FIRST : claims auditables (L3-02) ──
+    let MOAT_CACHE = [];
+    let MOAT_FILTER = "ALL";
+    function moatEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+    const MOAT_PILL = {SUPPORTED:'bg-emerald-500/20 text-emerald-300', WEAK:'bg-amber-500/20 text-amber-300', UNSUPPORTED:'bg-rose-500/20 text-rose-300'};
+    function renderMoatClaims(){
+      const box = document.getElementById('moat-claims-list');
+      if(!box) return;
+      const rows = MOAT_CACHE.filter(c => MOAT_FILTER==='ALL' || c.verdict===MOAT_FILTER);
+      if(!rows.length){ box.innerHTML = '<div class="text-slate-500 font-mono">Aucune claim pour ce filtre.</div>'; return; }
+      box.innerHTML = rows.map(c => {
+        const pill = MOAT_PILL[c.verdict] || 'bg-slate-600/30 text-slate-300';
+        const ratio = (c.ratio!=null) ? Number(c.ratio).toFixed(2) : '—';
+        const srcKind = c.source_kind ? ` <span class="text-slate-500">[${moatEsc(c.source_kind)}]</span>` : '';
+        let src;
+        if (c.source_titre) {
+          const isWeb = c.source_url && /^https?:\/\//i.test(c.source_url);
+          src = isWeb
+            ? `<a href="${moatEsc(c.source_url)}" target="_blank" rel="noopener" class="text-cyan-300 underline decoration-dotted hover:text-cyan-200">${moatEsc(c.source_titre)}</a>${srcKind}`
+            : `<span class="text-cyan-300">${moatEsc(c.source_titre)}</span>${srcKind}`;
+        } else if (c.source_url) {
+          src = `<a href="${moatEsc(c.source_url)}" target="_blank" rel="noopener" class="text-cyan-300 underline decoration-dotted hover:text-cyan-200">${moatEsc(c.source_url)}</a>${srcKind}`;
+        } else {
+          src = '<span class="text-slate-600">source non résolue</span>';
+        }
+        return `<details class="rounded-lg bg-slate-950/80 border border-slate-800 p-2.5">
+          <summary class="cursor-pointer flex items-start gap-2 list-none">
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${pill} shrink-0">${moatEsc(c.verdict||'?')}</span>
+            <span class="text-slate-200 flex-1">${moatEsc(c.affirmation||'')}</span>
+            <span class="text-[10px] text-slate-500 font-mono shrink-0">r=${ratio}</span>
+          </summary>
+          <div class="mt-2 pl-2 border-l-2 border-slate-700 space-y-1">
+            <div class="text-slate-400"><span class="text-slate-500">extrait :</span> « ${moatEsc(c.extrait||'')} »</div>
+            <div class="text-slate-500 font-mono text-[10px]">source : ${src} · chunk ${moatEsc(String(c.chunk_id||'?'))} · ${moatEsc(c.answer_status||'')}</div>
+          </div>
+        </details>`;
+      }).join('');
+    }
+    async function chargerMoatClaims(){
+      try{
+        const r = await fetch('/api/rag/audit-claims');
+        const d = await r.json();
+        if(!d.success) throw new Error(d.error||'refus serveur');
+        const m = d.metrics||{};
+        const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
+        set('moat-total', (m.total_claims||0).toLocaleString('fr-FR'));
+        set('moat-req', (m.distinct_request_id||0).toLocaleString('fr-FR'));
+        set('moat-sup', m.supported||0);
+        set('moat-weak', m.weak||0);
+        set('moat-unsup', m.unsupported||0);
+        set('moat-pct', (m.supported_pct||0)+' %');
+        const bar=document.getElementById('moat-bar'); if(bar) bar.style.width=(m.grounded_pct||0)+'%';
+        MOAT_CACHE = d.echantillon||[];
+        renderMoatClaims();
+      }catch(e){
+        const box=document.getElementById('moat-claims-list');
+        if(box) box.innerHTML = `<div class="text-rose-400 font-mono">Moat indisponible : ${moatEsc(e.message)} — redémarrage cockpit requis pour activer /api/rag/audit-claims.</div>`;
+      }
+    }
+    document.addEventListener('click', e=>{
+      const b = e.target.closest('.moat-f'); if(!b) return;
+      MOAT_FILTER = b.dataset.v;
+      document.querySelectorAll('.moat-f').forEach(x=>x.classList.remove('ring-2','ring-cyan-500'));
+      b.classList.add('ring-2','ring-cyan-500');
+      renderMoatClaims();
+    });
 
     async function chargerAuditSqlRag() {
       try {
@@ -3836,11 +4003,11 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
           const modText = (data.m6.models && data.m6.models.length > 0) ? ` · ${data.m6.models.join(', ')}` : '';
           if (data.m6.online) {
             m6Badge.className = "px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-xs mono flex items-center gap-1.5 shrink-0";
-            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> LM Studio GPU : EN LIGNE (${data.m6.latency_ms}ms)`;
-            m6Badge.title = `LM Studio @ ${data.m6.ip}:1234${modText}`;
+            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> llama-server GPU : EN LIGNE (${data.m6.latency_ms}ms)`;
+            m6Badge.title = `llama-server @ ${data.m6.ip}:1234${modText}`;
           } else {
             m6Badge.className = "px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-slate-400 text-xs mono flex items-center gap-1.5 shrink-0";
-            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span> LM Studio : HORS LIGNE`;
+            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span> llama-server : HORS LIGNE`;
           }
         }
 
@@ -3850,7 +4017,7 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
           const dashM6Status = document.getElementById('dash-m6-status');
           const dashM6Latency = document.getElementById('dash-m6-latency');
           if (dashM6Status) {
-            dashM6Status.textContent = data.m6.online ? (data.m6.models && data.m6.models.length ? data.m6.models[0] : 'LM Studio EN LIGNE') : 'LM Studio HORS LIGNE';
+            dashM6Status.textContent = data.m6.online ? (data.m6.models && data.m6.models.length ? data.m6.models[0] : 'llama-server EN LIGNE') : 'llama-server HORS LIGNE';
           }
           if (dashM6Latency) {
             dashM6Latency.textContent = data.m6.online ? `${data.m6.latency_ms} ms` : 'Inactif';
@@ -4216,7 +4383,46 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
       }
     }
 
-    // ── RÉGLAGES / PARAMÈTRES ──
+    // ── RÉGLAGES / PARAMÈTRES (INTERACTIF) ──
+    // Écrit une clé unique via merge partiel côté backend (save_cockpit_settings fait un update()).
+    async function postSetting(key, value) {
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [key]: value })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'échec');
+      } catch (e) {
+        console.error('postSetting', key, e);
+        alert('Échec enregistrement ' + key + ' : ' + e.message);
+      }
+      await loadSettings(); // relit l'état réel (source de vérité)
+    }
+
+    async function voiceLoop(action) {
+      try {
+        const res = await fetch('/api/voice/loop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'échec');
+      } catch (e) {
+        console.error('voiceLoop', action, e);
+        alert('Boucle vocale : ' + e.message);
+      }
+      await loadSettings();
+    }
+
+    // Clés éditables par toggle booléen (cliquables). Le reste = lecture seule.
+    const SETTINGS_BOOL_EDITABLE = new Set([
+      'sound_enabled', 'voice_auto_on_alert', 'voice_wake_word',
+      'grid_overlay', 'auto_refresh'
+    ]);
+
     async function loadSettings() {
       try {
         const res = await fetch('/api/settings');
@@ -4227,19 +4433,31 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
         const groupes = {
           'Interface': ['language', 'theme', 'ui_scale', 'grid_overlay', 'glass_blur', 'auto_refresh'],
           'Télémétrie': ['telemetry_interval', 'cpu_temp_alert', 'ai_engine'],
-          'Voix & Son': ['sound_enabled', 'voice_rate', 'voice_pitch'],
+          'Voix & Son': ['sound_enabled', 'voice_rate', 'voice_pitch', 'voice_auto_on_alert', 'voice_wake_word'],
           'Whisper (STT)': ['whisper_model', 'whisper_device', 'whisper_language', 'whisper_port', 'whisper_auto_inject'],
           'Flo': ['flo_mode', 'flo_trigger_key', 'flo_guardian_autostart', 'flo_active_workflow'],
           'Lumen': ['lumen_mode', 'lumen_profile', 'lumen_stt_engine', 'lumen_auto_detect_app'],
         };
-        const connues = new Set(Object.values(groupes).flat().concat(['last_saved']));
+        const connues = new Set(Object.values(groupes).flat().concat(['last_saved', 'voice_loop_running']));
         const autres = Object.keys(s).filter(k => !connues.has(k));
         if (autres.length) groupes['Autres'] = autres;
 
-        const fmt = (v) => {
-          if (typeof v === 'boolean') return v
-            ? '<span class="text-emerald-400">● activé</span>'
-            : '<span class="text-slate-500">○ désactivé</span>';
+        // Rendu d'une valeur : toggle cliquable si bool éditable, sinon lecture seule.
+        const renderVal = (k, v) => {
+          if (typeof v === 'boolean' && SETTINGS_BOOL_EDITABLE.has(k)) {
+            const on = v === true;
+            const cls = on
+              ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50'
+              : 'bg-slate-700/40 text-slate-400 border-slate-600/50';
+            const label = on ? '● activé' : '○ désactivé';
+            return `<button onclick="postSetting('${k}', ${!on})"
+              class="px-2 py-0.5 rounded border text-[11px] mono transition hover:brightness-125 ${cls}">${label}</button>`;
+          }
+          if (typeof v === 'boolean') {
+            return v
+              ? '<span class="text-emerald-400">● activé</span>'
+              : '<span class="text-slate-500">○ désactivé</span>';
+          }
           return `<span class="text-cyan-300">${v}</span>`;
         };
 
@@ -4249,7 +4467,7 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
           const lignes = cles.filter(k => k in s).map(k => `
             <div class="flex justify-between items-center gap-3 py-1 border-b border-slate-800/60 last:border-0">
               <span class="text-[11px] text-slate-400 mono">${k}</span>
-              <span class="text-[11px] mono text-right">${fmt(s[k])}</span>
+              <span class="text-[11px] mono text-right">${renderVal(k, s[k])}</span>
             </div>`).join('');
           if (!lignes) continue;
           grid.innerHTML += `
@@ -4258,6 +4476,42 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
               ${lignes}
             </div>`;
         }
+
+        // ── Carte dédiée : Boucle vocale mains-libres (service :1270) ──
+        grid.innerHTML += `
+          <div class="glass-card p-4 rounded-xl border border-cyan-800/60">
+            <h3 class="text-sm font-bold text-slate-100 mb-2 flex items-center gap-2">
+              <i class="fa-solid fa-microphone-lines text-cyan-400"></i> Boucle vocale (mains-libres)
+            </h3>
+            <p class="text-[11px] text-slate-400 mb-3">Service <code>jarvis-voice-cockpit</code> — pilotée à la demande.</p>
+            <div id="voice-loop-status" class="text-[11px] mono text-slate-400 mb-3">état : …</div>
+            <div class="flex gap-2">
+              <button onclick="voiceLoop('start')"
+                class="flex-1 px-3 py-2 bg-emerald-600/25 hover:bg-emerald-600/45 text-emerald-300 border border-emerald-500/40 font-semibold rounded-lg text-xs flex items-center justify-center gap-2 transition">
+                <i class="fa-solid fa-play"></i> Démarrer
+              </button>
+              <button onclick="voiceLoop('stop')"
+                class="flex-1 px-3 py-2 bg-rose-600/25 hover:bg-rose-600/45 text-rose-300 border border-rose-500/40 font-semibold rounded-lg text-xs flex items-center justify-center gap-2 transition">
+                <i class="fa-solid fa-stop"></i> Arrêter
+              </button>
+            </div>
+          </div>`;
+
+        // Rafraîchit l'état vivant de la boucle (non bloquant)
+        try {
+          const st = await (await fetch('/api/voice/loop', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'status' })
+          })).json();
+          const el = document.getElementById('voice-loop-status');
+          if (el) {
+            const running = st.running === true;
+            const mode = (st.state && st.state.mode) ? st.state.mode : '—';
+            el.innerHTML = running
+              ? `<span class="text-emerald-400">● en marche</span> · service ${st.service_active} · mode ${mode}`
+              : `<span class="text-slate-500">○ arrêtée</span> · service ${st.service_active || 'inactif'}${st.stop_flag ? ' · drapeau stop posé' : ''}`;
+          }
+        } catch (e) { /* silencieux : l'état vivant est optionnel */ }
       } catch (e) {
         console.error("Erreur settings:", e);
       }
@@ -5430,7 +5684,7 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
       if (!inp || !box) return;
       const q = inp.value.trim();
       if (!q) return;
-      box.innerHTML = '<div class="text-xs text-purple-400 mono text-center py-4"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Calcul du vecteur 768D sur GTX 1660S (:11436)...</div>';
+      box.innerHTML = '<div class="text-xs text-purple-400 mono text-center py-4"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Calcul du vecteur 768D via :1300...</div>';
       try {
         const r = await fetch('/api/memory/recall', {
           method: 'POST',
@@ -6397,7 +6651,7 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
     <div class="glass-card bg-slate-900 border border-purple-500/40 p-6 rounded-2xl max-w-2xl w-full space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3">
         <h3 class="font-bold text-sm text-white flex items-center gap-2">
-          <i class="fa-solid fa-bolt text-purple-400"></i> Mémoire Action Souveraine GPU (GTX 1660S · 768D)
+          <i class="fa-solid fa-bolt text-purple-400"></i> Mémoire Action Souveraine GPU (RTX 3080/2060 · 768D)
         </h3>
         <button onclick="fermerModalMemoireAction()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
       </div>

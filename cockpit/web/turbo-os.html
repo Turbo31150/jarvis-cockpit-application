@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>TURBO OS — Compte rendu</title>
+<style>
+  :root{--bg:#0a0e17;--panel:#121a28;--border:#20304a;--gold:#e2ab55;--cyan:#38bdf8;--green:#4ade80;--red:#f87171;--muted:#93a4bd;}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:#e6edf6;font-family:ui-rounded,system-ui,"Segoe UI",sans-serif;line-height:1.55}
+  .wrap{max-width:960px;margin:0 auto;padding:34px 20px 70px}
+  .brand{font-size:34px;font-weight:800;letter-spacing:-.02em}.brand b{color:var(--gold)}
+  .sub{color:var(--muted);font-size:14px;margin:2px 0 26px}
+  .q{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--cyan);border-radius:12px;padding:16px 20px;margin:14px 0}
+  .q h2{margin:0 0 8px;font-size:16px;color:var(--cyan)}
+  .q p{margin:6px 0}
+  code{background:#0e1626;padding:1px 6px;border-radius:6px;color:var(--gold);font-size:13px}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;margin-left:6px}
+  .ok{background:rgba(74,222,128,.14);color:var(--green)} .warn{background:rgba(226,171,85,.14);color:var(--gold)} .stop{background:rgba(248,113,113,.14);color:var(--red)}
+  ul{margin:6px 0;padding-left:20px} li{margin:3px 0} .muted{color:var(--muted);font-size:13px}
+</style></head><body><div class="wrap">
+  <div class="brand">TURBO&nbsp;<b>OS</b></div>
+  <p class="sub">Compte rendu — environnement IA local souverain · JARVIS = moteur cognitif interne · relevé réel 2026-09-16</p>
+
+  <div class="q"><h2>1 · Qui es-tu ?</h2>
+    <p>Je suis <b>Turbo OS</b>, l'environnement IA local qui orchestre les moteurs, applications, outils, mémoire, modèles et automatisations du PC. <b>JARVIS</b> en est le moteur cognitif/orchestrateur — pas l'identité principale.</p>
+    <p class="muted">Composants vérifiés actifs : JARVIS core · Master Cockpit (:8600) · moteur GPU llama-server (:1234/:1235/:1300) · MCP Hub · agents · skills · mémoire · RAG · voix (Kokoro) · contrôle PC (xdotool/CDP) · Video Engine · Checkpoint · Audit. <b>25 services actifs.</b></p></div>
+
+  <div class="q"><h2>2 · Qui suis-je ?</h2>
+    <p>D'après la <b>mémoire locale</b> : <b>Franck Delmas</b> — reconversion automobile → IA/DevOps, RQTH, en recherche d'emploi (entretien Devoteam). <span class="tag warn">source : mémoire</span></p>
+    <p class="muted">Cross-check web en direct <b>disponible sur demande</b> (donnée personnelle → non exécuté automatiquement, sources conservées). Attention : 2 comptes LinkedIn homonymes — ne pas confondre le vrai profil « Franck Delmas ».</p></div>
+
+  <div class="q"><h2>3 · Qu'est-ce qui te différencie d'un LLM classique ?</h2>
+    <p>Un LLM seul ne fait que <i>générer du texte</i>. Turbo OS ajoute des couches réelles et vérifiées autour du LLM :</p>
+    <ul>
+      <li><b>Mémoire persistante</b> (40+ fiches, survit aux sessions)</li>
+      <li><b>RAG souverain auditable</b> — <b>1 110 248 vecteurs</b> (citations vérifiables en SQL, fail-closed)</li>
+      <li><b>600+ outils MCP</b> + agents + skills</li>
+      <li><b>Contrôle réel du PC</b> (xdotool, CDP navigateur, services, GPU, fichiers)</li>
+      <li><b>Checkpoint / reprise</b> après interruption</li>
+      <li><b>Voix</b> FR souveraine (Kokoro, TTS+STT)</li>
+      <li><b>Runtime 100 % local</b> — 2 GPU (RTX 3080+2060), zéro token payant, rien ne sort</li>
+    </ul>
+    <p class="muted">Un LLM classique (API) n'a aucune de ces couches ni cette localité.</p></div>
+
+  <div class="q"><h2>4 · Et par rapport à un OpenClaw local ?</h2>
+    <p><b>OpenClaw</b> (v2026.7.1, gateway <code>:18789</code>, 40 agents + 56 dynamiques, 11 crons) = un excellent <i>framework d'orchestration d'agents</i> + relais navigateur.</p>
+    <p><b>Turbo OS</b> = un <i>OS IA complet</i> où OpenClaw peut être <b>un composant parmi d'autres</b> : il ajoute par-dessus le <b>moteur GPU souverain</b> (llama-server), le <b>Cockpit web</b>, le <b>RAG à citations auditables</b>, la <b>voix</b>, le <b>contrôle PC/GPU</b>, le <b>checkpoint</b> et l'<b>audit</b> — intégrés et pilotables à la voix. <span class="tag ok">comparaison factuelle</span></p></div>
+
+  <div class="q"><h2>5 · Peux-tu envoyer le compte rendu à « xxx » ?</h2>
+    <p><span class="tag stop">RECIPIENT_NOT_FOUND</span> « xxx » n'est pas un destinataire réel.</p>
+    <p>Politique <code>EXTERNAL_ACTION</code> : le <b>brouillon du compte rendu est généré</b>, mais l'<b>envoi est BLOQUÉ</b> tant qu'un destinataire réel n'est pas fourni + confirmé. Donne-moi un nom/email réel et je cherche le contact, vérifie, puis prépare l'envoi sous confirmation.</p></div>
+
+  <p class="muted" style="margin-top:24px">▸ Reprise après interruption : <b>OUI</b> — Checkpoint Engine (STOP/PAUSE/RESUME/CANCEL/ROLLBACK) : une tâche interrompue sauvegarde son état (objectif, domino, step, tool_results, contexte) et reprend au dernier point sûr. · Anti-hallucination : tout élément non vérifié est marqué UNKNOWN/UNVERIFIED.</p>
+</div></body></html>

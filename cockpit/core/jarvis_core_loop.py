@@ -103,9 +103,113 @@ def tool_speak(text: str) -> str:
         return f"ERREUR: {e}"
 
 
+# --- outils Turbo OS : écrire du code / lister / consulter (RAG + SQL) ---
+BOARD_DB = os.path.expanduser("~/jarvis/board/board.db")
+RAG_BIN = os.path.expanduser("~/jarvis/bin/jarvis-rag")
+# écriture refusée dans les arborescences système (ActionPolicy)
+_WRITE_BLOCKED = ("/etc", "/usr", "/bin", "/sbin", "/boot", "/sys", "/proc",
+                  "/root", "/lib", "/lib64", "/var/lib")
+
+
+def tool_write_file(path: str, content: str) -> str:
+    """Écrit un fichier texte (crée les dossiers parents, backup .bak si écrasement).
+    Pour écrire du code, des configs, des notes. Refuse les chemins système."""
+    p = os.path.abspath(os.path.expanduser(path))
+    if p.startswith(_WRITE_BLOCKED) or "/.ssh" in p:
+        return "REFUSÉ (écriture dans un chemin système protégé, ActionPolicy)"
+    try:
+        os.makedirs(os.path.dirname(p) or ".", exist_ok=True)
+        backed = False
+        if os.path.exists(p):
+            try:
+                import shutil
+                shutil.copy2(p, p + ".bak")
+                backed = True
+            except Exception:
+                pass
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"écrit OK : {p} ({len(content)} caractères)" + (" [backup .bak]" if backed else "")
+    except Exception as e:
+        return f"ERREUR: {e}"
+
+
+def tool_list_dir(path: str = ".") -> str:
+    """Liste le contenu d'un dossier (fichiers + tailles, dossiers avec /)."""
+    p = os.path.abspath(os.path.expanduser(path))
+    try:
+        out = []
+        for name in sorted(os.listdir(p))[:200]:
+            fp = os.path.join(p, name)
+            out.append(f"{name}/" if os.path.isdir(fp) else f"{name} ({os.path.getsize(fp)}o)")
+        return f"{p} :\n" + "\n".join(out) if out else f"{p} : (vide)"
+    except Exception as e:
+        return f"ERREUR: {e}"
+
+
+def tool_rag_search(query: str) -> str:
+    """Consulte la bibliothèque vivante (board.db, ~1,1M passages) via le RAG local.
+    Renvoie les extraits pertinents sourcés."""
+    try:
+        r = subprocess.run([RAG_BIN, "search", query], capture_output=True,
+                           text=True, timeout=45)
+        out = (r.stdout or "").strip() or (r.stderr or "").strip()
+        return out[:2000] or "(aucun résultat)"
+    except Exception as e:
+        return f"ERREUR: {e}"
+
+
+def tool_sql_query(query: str) -> str:
+    """Interroge board.db en LECTURE SEULE (SELECT/WITH/PRAGMA). Consulter des données
+    (compteurs, experts, claims, sources). Les écritures sont refusées."""
+    q = query.strip().rstrip(";")
+    if not re.match(r"(?is)^\s*(select|with|pragma)\b", q):
+        return "REFUSÉ (lecture seule : seules SELECT/WITH/PRAGMA sont permises)"
+    if re.search(r"(?is)\b(insert|update|delete|drop|alter|create|attach|replace)\b", q):
+        return "REFUSÉ (mot-clé d'écriture détecté ; board.db est en lecture seule ici)"
+    try:
+        import sqlite3
+        con = sqlite3.connect(f"file:{BOARD_DB}?mode=ro", uri=True, timeout=8)
+        con.row_factory = sqlite3.Row
+        rows = con.execute(q).fetchmany(50)
+        con.close()
+        if not rows:
+            return "(0 ligne)"
+        cols = list(rows[0].keys())
+        lines = [" | ".join(cols)]
+        for row in rows:
+            lines.append(" | ".join(str(row[c])[:60] for c in cols))
+        return "\n".join(lines)
+    except Exception as e:
+        return f"ERREUR: {e}"
+
+
+PC_CONTROL = os.path.expanduser("~/jarvis/voice_pipeline/pc_control.py")
+def tool_pc_control(action: str, arg: str = "") -> str:
+    """Pilote le PC (X11 :1) : voir l'écran, lister fenêtres, ouvrir/focus apps, filmer.
+    Les actions destructrices (click/type) ne sont PAS exposées en auto (sécurité)."""
+    allowed = {"screenshot", "list_windows", "active_window", "open_app",
+               "focus_window", "video_record", "geometry"}
+    if action not in allowed:
+        return f"action inconnue ({action}). Choix : {', '.join(sorted(allowed))}"
+    args = ["python3", PC_CONTROL, action] + ([arg] if arg else [])
+    try:
+        r = subprocess.run(args, capture_output=True, text=True, timeout=40,
+                           env={**os.environ, "DISPLAY": ":1",
+                                "XAUTHORITY": "/run/user/1000/gdm/Xauthority"})
+        return (r.stdout or r.stderr).strip()[:1500]
+    except Exception as e:
+        return f"ERREUR: {e}"
+
+
 TOOLS = {
     "run_bash": tool_run_bash,
     "read_file": tool_read_file,
+    "pc_control": tool_pc_control,
+    "write_file": tool_write_file,
+    "list_dir": tool_list_dir,
+    "rag_search": tool_rag_search,
+    "sql_query": tool_sql_query,
     "speak": tool_speak,
     "tmux_capture": tool_tmux_capture,
 }
@@ -131,6 +235,35 @@ TOOL_SPECS = [
                        "(tmux jc-dispatch). window = bash ou python3.",
         "parameters": {"type": "object", "properties": {
             "window": {"type": "string", "enum": ["bash", "python3"]}}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "write_file",
+        "description": "Écrit/crée un fichier (code, config, note). Crée les dossiers parents, "
+                       "fait un backup .bak si le fichier existe. Refuse les chemins système.",
+        "parameters": {"type": "object", "properties": {
+            "path": {"type": "string"}, "content": {"type": "string"}},
+            "required": ["path", "content"]}}},
+    {"type": "function", "function": {
+        "name": "list_dir", "description": "Liste le contenu d'un dossier (fichiers, tailles, sous-dossiers).",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "rag_search",
+        "description": "Consulte la bibliothèque vivante (board.db, ~1,1M passages, 64 experts) via le RAG "
+                       "local et renvoie des extraits sourcés. Pour répondre avec la connaissance du système.",
+        "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {
+        "name": "sql_query",
+        "description": "Interroge board.db en LECTURE SEULE (SELECT/WITH/PRAGMA) pour consulter des données "
+                       "(compteurs, experts, claims, sources). Les écritures sont refusées.",
+        "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
+    {"type": "function", "function": {
+        "name": "pc_control",
+        "description": "Pilote le PC (écran/fenêtres/apps). action=screenshot (voir l'écran), list_windows "
+                       "(fenêtres ouvertes), active_window, open_app (arg=nom), focus_window (arg=titre), "
+                       "video_record (arg=secondes).",
+        "parameters": {"type": "object", "properties": {
+            "action": {"type": "string", "enum": ["screenshot", "list_windows", "active_window",
+                                                  "open_app", "focus_window", "video_record"]},
+            "arg": {"type": "string"}}, "required": ["action"]}}},
 ]
 
 
@@ -148,11 +281,17 @@ def _post(payload: dict) -> dict:
 # faisait dérailler qwen2.5-7b en tool-calls in-band malformés (diagnostiqué). Court =
 # tool_calls structurés propres. On garde seulement les règles indispensables.
 LOOP_SYSTEM = (
-    "Tu es JARVIS CORE, MODE EXECUTION. Outils réels : run_bash, read_file, speak, "
-    "tmux_capture. Pour agir, APPELLE l'outil — ne narre pas, ne simule pas. "
-    "Services JARVIS = services UTILISATEUR : toujours « systemctl --user … ». "
+    "Tu es TURBO OS, MODE EXECUTION (assistant IA local souverain). Outils réels : run_bash, "
+    "read_file, write_file, list_dir, rag_search, sql_query, pc_control, speak, tmux_capture. Pour agir, "
+    "APPELLE l'outil — ne narre pas, ne simule pas. Écrire du code/fichier → write_file. "
+    "Voir l'écran / lister fenêtres / ouvrir une app / filmer → pc_control. "
+    "Question de CONNAISSANCE (sens, doctrine) → rag_search. Question de COMPTAGE/CHIFFRE "
+    "(combien de domaines/experts/claims/sources/chunks) → sql_query, ex : "
+    "SELECT count(*) FROM experts (tables: domains, experts, claims, sources, chunks). "
+    "Les services système sont des services UTILISATEUR : toujours « systemctl --user … ». "
     "Commande longue/bloquante : run_bash background=true, puis tmux_capture. "
-    "Terminé : UNE phrase française naturelle (ni JSON, ni chemin, ni détail technique)."
+    "Terminé : UNE phrase française naturelle (ni JSON, ni chemin, ni détail technique). "
+    "Ne te présente JAMAIS comme « JARVIS » — ton identité est Turbo OS."
 )
 
 
@@ -244,7 +383,7 @@ def _looks_like_tool_blob(content: str) -> bool:
 # lumière des outils RÉELLEMENT exécutés. But : cohérence factuelle + langue propre
 # (aucun artefact non-français, aucun JSON/chemin/détail technique), prête pour le TTS.
 VERIFY_SYSTEM = (
-    "Tu es JARVIS VERIFY, second cerveau de contrôle qualité. On te fournit : "
+    "Tu es TURBO OS VERIFY, second cerveau de contrôle qualité. On te fournit : "
     "l'instruction de l'utilisateur, la trace des outils RÉELLEMENT exécutés "
     "(commande -> résultat réel), et la phrase finale proposée par l'exécuteur. "
     "Ta mission :\n"
@@ -301,7 +440,7 @@ def _verify(instruction: str, trace: list, proposed: str, verbose: bool = True) 
         resp = _post({"model": VERIFY_MODEL,
                       "messages": [{"role": "system", "content": VERIFY_SYSTEM},
                                    {"role": "user", "content": user}],
-                      "temperature": 0, "max_tokens": 400})
+                      "temperature": 0, "max_tokens": 1024})
         out = _clean_voice_text(resp["choices"][0]["message"].get("content") or "")
         if verbose and out:
             flag = "≠ corrigée" if out.strip() != _clean_voice_text(proposed).strip() else "= validée"
@@ -314,12 +453,26 @@ def _verify(instruction: str, trace: list, proposed: str, verbose: bool = True) 
 
 
 def run(instruction: str, speak_final: bool = True, verbose: bool = True,
-        verify: bool = VERIFY_ENABLED) -> dict:
+        verify: bool = VERIFY_ENABLED, task_id: str = None, resume: bool = False) -> dict:
+    import time as _t
+    try:
+        import checkpoint as _ck               # module voisin (checkpoint engine)
+    except Exception:
+        _ck = None
+    if task_id is None:
+        task_id = f"task-{os.getpid()}-{int(_t.time())}"
     messages = [
         {"role": "system", "content": _system_prompt()},
         {"role": "user", "content": instruction},
     ]
     trace = []
+    if resume and _ck:                          # REPRISE : restaure au dernier pas sûr
+        _s = _ck.restore(task_id)
+        if _s and _s.get("state"):
+            messages = _s["state"].get("messages", messages)
+            trace = _s["state"].get("trace", trace)
+            if verbose:
+                print(f"  ⏯️  reprise du checkpoint {task_id} (étape {_s['state'].get('step')})")
     strict_retries = 0
     sig_counts = {}   # circuit breaker : compte les appels (outil+args) identiques
 
@@ -331,8 +484,16 @@ def run(instruction: str, speak_final: bool = True, verbose: bool = True,
         return sig_counts[sig] >= 3
 
     for step in range(MAX_TOOL_LOOPS):
+        if _ck and _ck.is_cancelled(task_id):                       # CANCEL
+            return {"status": "cancelled", "answer": "Tâche annulée proprement.",
+                    "trace": trace, "task_id": task_id}
+        if _ck and _ck.is_paused(task_id):                          # PAUSE + checkpoint
+            _ck.save(task_id, {"objective": instruction, "step": step,
+                               "trace": trace, "messages": messages}, "PAUSED")
+            return {"status": "paused", "answer": "Tâche en pause — reprise possible au dernier pas.",
+                    "trace": trace, "task_id": task_id, "step": step}
         resp = _post({"model": MODEL, "messages": messages, "tools": TOOL_SPECS,
-                      "tool_choice": "auto", "temperature": 0, "max_tokens": 700})
+                      "tool_choice": "auto", "temperature": 0, "max_tokens": 4096})
         if "choices" not in resp:
             return {"status": "error", "error": str(resp)[:300], "trace": trace}
         msg = resp["choices"][0]["message"]
@@ -357,6 +518,9 @@ def run(instruction: str, speak_final: bool = True, verbose: bool = True,
                 trace.append({"tool": name, "args": args, "result": result[:500]})
                 messages.append({"role": "tool", "tool_call_id": tc.get("id", name),
                                  "name": name, "content": str(result)})
+            if _ck:                                                 # CHECKPOINT après chaque étape
+                _ck.save(task_id, {"objective": instruction, "step": step,
+                                   "trace": trace, "messages": messages}, "RUNNING")
             continue  # reboucle : le modèle lit les résultats et décide
 
         # pas de tool_call structuré -> essayer un tool call in-band (format Qwen)
@@ -425,13 +589,17 @@ def run(instruction: str, speak_final: bool = True, verbose: bool = True,
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:]]
+    args = list(sys.argv[1:])
     speak = "--no-speak" not in args
     verify = VERIFY_ENABLED and "--no-verify" not in args
-    args = [a for a in args if a not in ("--no-speak", "--no-verify")]
-    if not args:
-        print("usage: jarvis_core_loop.py [--no-speak] [--no-verify] \"<instruction>\"")
+    resume = "--resume" in args
+    task_id = None
+    if "--task" in args:
+        i = args.index("--task"); task_id = args[i + 1]; del args[i:i + 2]
+    args = [a for a in args if a not in ("--no-speak", "--no-verify", "--resume")]
+    if not args and not resume:
+        print("usage: jarvis_core_loop.py [--no-speak] [--no-verify] [--task ID] [--resume] \"<instruction>\"")
         sys.exit(2)
-    out = run(" ".join(args), speak_final=speak, verify=verify)
+    out = run(" ".join(args), speak_final=speak, verify=verify, task_id=task_id, resume=resume)
     print("\n=== RÉSULTAT ===")
     print(json.dumps(out, ensure_ascii=False, indent=2))

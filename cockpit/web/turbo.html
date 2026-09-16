@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Turbo OS</title>
+<style>
+  :root{
+    --bg:#FBFBFD; --bg-low:#F1F2FA;
+    --ink:#2C2E40; --ink-soft:#565A72; --muted:#9A9DB0; --line:#ECEDF4;
+    --blue:#5B63F5; --violet:#8E7BFF; --glow:#6B7BFF;
+    --good:#37C08A; --warn:#E8A13B; --card:#FFFFFF;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:
+      radial-gradient(120% 80% at 50% 118%, var(--bg-low) 0%, rgba(241,242,250,0) 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+    display:flex; flex-direction:column; height:100dvh;
+  }
+  .top{display:flex; align-items:center; justify-content:space-between; padding:18px 26px; flex:0 0 auto}
+  .brand{display:flex; align-items:center; gap:10px}
+  .brand .dot{width:9px; height:9px; border-radius:50%;
+    background:linear-gradient(150deg,var(--blue),var(--violet)); box-shadow:0 0 10px 1px rgba(107,123,255,.6)}
+  .brand b{font-size:13px; font-weight:600; letter-spacing:.22em; text-transform:uppercase}
+  .brand small{font-size:11px; letter-spacing:.16em; color:var(--muted); text-transform:uppercase}
+  .health{display:flex; gap:16px; font-size:11px; letter-spacing:.12em; color:var(--muted); text-transform:uppercase; font-variant-numeric:tabular-nums}
+  .health span{display:flex; align-items:center; gap:6px}
+  .health i{width:6px; height:6px; border-radius:50%; background:var(--good); box-shadow:0 0 6px var(--good); font-style:normal}
+
+  /* ── SCÈNE : carte-réponse défilante EN HAUT + orbe centré EN BAS (plus jamais de chevauchement) ── */
+  .stage{flex:1 1 auto; display:flex; flex-direction:column; align-items:center; min-height:0; padding:0 18px}
+
+  .answer{width:min(720px,92vw); margin-top:2vh; flex:0 1 auto; min-height:0;
+    max-height:46vh; overflow-y:auto; overscroll-behavior:contain;
+    background:var(--card); border:1px solid var(--line); border-radius:22px;
+    box-shadow:0 18px 40px -24px rgba(60,60,120,.35), 0 2px 8px -4px rgba(60,60,120,.15);
+    padding:20px 24px; opacity:0; transform:translateY(-8px); pointer-events:none;
+    transition:opacity .4s ease, transform .4s ease}
+  .answer.show{opacity:1; transform:none; pointer-events:auto}
+  .answer .q{color:var(--muted); font-size:13px; letter-spacing:.02em; margin-bottom:4px}
+  .answer .heard{color:var(--blue); font-size:12px; letter-spacing:.01em; margin-bottom:12px; opacity:.9}
+  .answer .heard b{font-weight:600}
+  .answer .a{color:var(--ink); font-size:clamp(15px,1.9vw,18px); line-height:1.62; white-space:pre-wrap; text-align:left}
+  .answer .a.wait{color:var(--muted)}
+  .answer .cmd{display:inline-flex; align-items:center; gap:8px; margin-top:2px; padding:6px 12px; border-radius:999px;
+    background:linear-gradient(150deg,rgba(91,99,245,.10),rgba(142,123,255,.10)); color:var(--blue); font-size:13px; font-weight:600}
+  .answer pre{background:#0F1020; color:#E8E9F5; border-radius:12px; padding:12px 14px; overflow-x:auto;
+    font-size:12.5px; line-height:1.5; margin:10px 0 0; white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .answer .warn{color:var(--warn); font-size:12.5px; margin-top:10px}
+  .answer .ok2{color:var(--good); font-size:12.5px; margin-top:8px}
+  .answer img.shot{display:block; max-width:100%; margin-top:12px; border-radius:12px; border:1px solid var(--line)}
+  .confirm{display:none; margin-top:16px; gap:10px; align-items:center; flex-wrap:wrap}
+  .confirm.show{display:flex}
+  .confirm button{height:38px; padding:0 18px; border-radius:999px; border:1px solid var(--line); background:#fff;
+    font-size:13px; font-weight:600; cursor:pointer; transition:transform .1s}
+  .confirm button:active{transform:translateY(1px)}
+  .confirm .ok{background:linear-gradient(150deg,var(--blue),var(--violet)); color:#fff; border-color:transparent}
+  .confirm .no{color:var(--ink-soft)}
+  .answer::-webkit-scrollbar{width:9px}
+  .answer::-webkit-scrollbar-thumb{background:#DDE0EE; border-radius:9px; border:2px solid var(--card)}
+  .answer::-webkit-scrollbar-thumb:hover{background:#CBCFE4}
+
+  .orb-area{flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:180px}
+  .orb-wrap{position:relative; width:clamp(140px,18vw,200px); aspect-ratio:1; display:grid; place-items:center; margin-bottom:26px; cursor:pointer; border:0; background:none; outline:none}
+  .orb-wrap:focus-visible .body{box-shadow:0 0 0 4px rgba(107,123,255,.35), inset 0 8px 22px rgba(255,255,255,.65)}
+  .glow{position:absolute; inset:-38%; border-radius:50%;
+    background:radial-gradient(circle at 50% 50%, rgba(107,123,255,.42), rgba(142,123,255,.16) 45%, transparent 68%); filter:blur(14px); animation:glow 5.5s ease-in-out infinite}
+  .body{position:relative; width:100%; height:100%; border-radius:50%; overflow:hidden;
+    background:radial-gradient(120% 120% at 50% 12%, #aeb4ff 0%, var(--blue) 34%, var(--violet) 72%, #b7a9ff 100%);
+    box-shadow:inset 0 10px 26px rgba(255,255,255,.55), inset 0 -18px 34px rgba(60,40,140,.34), 0 22px 45px -18px rgba(91,99,245,.55); animation:breathe 5.5s ease-in-out infinite}
+  .fluid{position:absolute; border-radius:50%; filter:blur(9px); mix-blend-mode:screen; opacity:.85}
+  .f1{inset:8% 30% 46% 8%; background:radial-gradient(circle,#8ea2ff,transparent 70%); animation:drift1 9s ease-in-out infinite}
+  .f2{inset:40% 10% 8% 34%; background:radial-gradient(circle,#b48cff,transparent 70%); animation:drift2 11s ease-in-out infinite}
+  .f3{inset:22% 20% 30% 30%; background:radial-gradient(circle,#dfe4ff,transparent 68%); animation:drift3 7s ease-in-out infinite}
+  .shine{position:absolute; inset:0; background:radial-gradient(60% 42% at 42% 20%, rgba(255,255,255,.85), transparent 60%)}
+  .floor{position:absolute; bottom:-4px; left:50%; transform:translateX(-50%); width:64%; height:20px; border-radius:50%; filter:blur(9px);
+    background:radial-gradient(circle,rgba(91,99,245,.24),transparent 70%); animation:floor 5.5s ease-in-out infinite}
+  .state{font-size:12px; letter-spacing:.28em; text-transform:uppercase; color:var(--muted); height:16px; transition:color .3s}
+  .state b{color:var(--blue); font-weight:600}
+  .hint{margin-top:8px; font-size:12px; color:var(--muted); letter-spacing:.02em; opacity:.8; text-align:center}
+
+  .askbar{flex:0 0 auto; display:flex; gap:10px; justify-content:center; padding:8px 20px 2px}
+  .askbar input{flex:1 1 auto; max-width:560px; height:46px; padding:0 18px; border:1px solid var(--line); border-radius:999px;
+    background:#fff; color:var(--ink); font-size:15px; font-family:var(--sans,inherit); outline:none;
+    box-shadow:0 2px 10px -6px rgba(60,60,120,.3); transition:border-color .2s, box-shadow .2s}
+  .askbar input:focus{border-color:var(--glow); box-shadow:0 0 0 3px rgba(107,123,255,.18)}
+  .askbar button{height:46px; padding:0 20px; border:0; border-radius:999px; cursor:pointer; font-size:14px; font-weight:600;
+    color:#fff; background:linear-gradient(150deg,var(--blue),var(--violet)); box-shadow:0 10px 22px -10px rgba(91,99,245,.7)}
+  .askbar button:active{transform:translateY(1px)}
+  .dock{flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:12px; padding:14px 20px 24px; flex-wrap:wrap}
+  .ctl{display:inline-flex; align-items:center; gap:8px; height:40px; padding:0 16px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink);
+    font-size:13px; font-weight:500; letter-spacing:.01em; cursor:pointer; transition:border-color .2s, transform .1s, background .2s}
+  .ctl:hover{border-color:#d7d9e6; transform:translateY(-1px)}
+  .ctl:active{transform:translateY(0)}
+  .ctl:focus-visible{outline:2px solid var(--glow); outline-offset:2px}
+  .ctl svg{width:15px; height:15px}
+  .ctl.primary{background:linear-gradient(150deg,var(--blue),var(--violet)); color:#fff; border-color:transparent; box-shadow:0 10px 22px -10px rgba(91,99,245,.7)}
+  .ctl.off{opacity:.5}
+
+  body.listening .glow{animation-duration:2.4s; background:radial-gradient(circle,rgba(75,120,255,.5),rgba(107,123,255,.2) 45%,transparent 68%)}
+  body.listening .body{animation-duration:2.4s}
+  body.thinking .body{animation:spin 3.2s linear infinite, breathe 5.5s ease-in-out infinite}
+  body.thinking .f1,body.thinking .f2,body.thinking .f3{animation-duration:3.4s}
+  body.speaking .body{animation:speak .5s ease-in-out infinite}
+  body.speaking .glow{animation-duration:.5s}
+  body.paused .body{animation-play-state:paused; filter:saturate(.4) brightness(1.05)}
+  body.paused .glow,body.paused .floor,body.paused .fluid{animation-play-state:paused; opacity:.4}
+  body.paused .state b{color:var(--warn)}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
+  @keyframes glow{0%,100%{opacity:.6; transform:scale(1)}50%{opacity:1; transform:scale(1.08)}}
+  @keyframes floor{0%,100%{opacity:.5; transform:translateX(-50%) scale(1)}50%{opacity:.85; transform:translateX(-50%) scale(1.08)}}
+  @keyframes speak{0%,100%{transform:scale(1)}25%{transform:scale(1.06)}60%{transform:scale(.99)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes drift1{0%,100%{transform:translate(0,0)}50%{transform:translate(14%,10%)}}
+  @keyframes drift2{0%,100%{transform:translate(0,0)}50%{transform:translate(-12%,-9%)}}
+  @keyframes drift3{0%,100%{transform:translate(0,0)}50%{transform:translate(8%,-12%)}}
+  @media (prefers-reduced-motion:reduce){ .glow,.body,.floor,.fluid{animation:none !important} }
+
+  /* ── CENTRE DE PILOTAGE COCKPIT ── */
+  .drawer{position:fixed; inset:0; background:rgba(10,14,23,.78); backdrop-filter:blur(8px); z-index:100; display:none; place-items:center; padding:18px}
+  .drawer.open{display:grid; animation:fadeIn .2s ease}
+  @keyframes fadeIn{from{opacity:0; transform:scale(.98)} to{opacity:1; transform:none}}
+  .drawer-card{background:#FFFFFF; width:min(900px,96vw); max-height:86vh; border-radius:24px; box-shadow:0 24px 60px -15px rgba(30,35,70,.4); border:1px solid var(--line); display:flex; flex-direction:column; overflow:hidden}
+  .drawer-header{display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid var(--line)}
+  .drawer-title{font-size:15px; font-weight:700; color:var(--ink); display:flex; align-items:center; gap:8px}
+  .drawer-close{background:none; border:none; font-size:18px; cursor:pointer; color:var(--muted); padding:4px 8px; border-radius:8px; line-height:1}
+  .drawer-close:hover{background:var(--bg-low); color:var(--ink)}
+  .drawer-body{padding:18px 22px; overflow-y:auto; display:flex; flex-direction:column; gap:18px}
+  .pilot-quick{display:flex; gap:8px; flex-wrap:wrap}
+  .pilot-btn{display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg-low); font-size:12px; font-weight:600; color:var(--ink); cursor:pointer; transition:all .15s ease}
+  .pilot-btn:hover{border-color:var(--blue); background:#FFFFFF; transform:translateY(-1px); color:var(--blue)}
+  .pilot-btn.accent{background:linear-gradient(135deg,rgba(91,99,245,.1),rgba(142,123,255,.15)); color:var(--blue); border-color:rgba(91,99,245,.3)}
+  .tile-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px}
+  .tile{background:#FFFFFF; border:1px solid var(--line); border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; gap:4px; cursor:pointer; text-align:left; transition:all .15s ease}
+  .tile:hover{border-color:var(--blue); transform:translateY(-2px); box-shadow:0 8px 20px -8px rgba(91,99,245,.25)}
+  .tile-head{display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; color:var(--ink)}
+  .tile-desc{font-size:11px; color:var(--muted); line-height:1.35}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="dot" aria-hidden="true"></span><b>Turbo&nbsp;OS</b><small>moteur&nbsp;·&nbsp;jarvis</small></div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <button class="pilot-btn accent" id="btn-open-pilot" title="Ouvrir le Centre de Pilotage Global du Cockpit">
+      🧭 Tout le Cockpit
+    </button>
+    <nav class="health" id="health" aria-label="État système">
+      <span><i></i>GPU 3080·2060</span><span><i></i>LLM :1234·:1235</span><span><i></i>RAG 1.1M</span><span><i></i>Local</span>
+    </nav>
+  </div>
+</header>
+<main class="stage">
+  <section class="answer" id="answer" aria-live="polite">
+    <div class="q" id="ans-q"></div>
+    <div class="heard" id="ans-heard"></div>
+    <div class="a" id="ans-body"></div>
+    <div class="confirm" id="ans-confirm">
+      <button class="ok" id="ans-ok">Confirmer</button>
+      <button class="no" id="ans-no">Annuler</button>
+    </div>
+  </section>
+  <div class="orb-area">
+    <button class="orb-wrap" id="orb" aria-label="Parler à Turbo OS">
+      <span class="glow" aria-hidden="true"></span>
+      <span class="body" aria-hidden="true"><span class="fluid f1"></span><span class="fluid f2"></span><span class="fluid f3"></span><span class="shine"></span></span>
+      <span class="floor" aria-hidden="true"></span>
+    </button>
+    <div class="state" id="state" aria-live="polite">Prêt</div>
+    <div class="hint" id="hint">Touchez la sphère pour parler · Entrée pour écrire</div>
+</main>
+<div class="drawer" id="pilot-drawer" role="dialog" aria-modal="true" aria-label="Centre de Pilotage Cockpit">
+  <div class="drawer-card">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <span>🧭</span> Centre de Pilotage Global du Cockpit &amp; PC
+      </div>
+      <button class="drawer-close" id="btn-close-pilot" aria-label="Fermer">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px;font-weight:700">Actions Rapides 1-Clic</div>
+        <div class="pilot-quick">
+          <button class="pilot-btn accent" onclick="fermerPilotage(); route('lis mes chantiers', false);">🔊 Lire Chantiers (Kokoro)</button>
+          <button class="pilot-btn" onclick="fermerPilotage(); route('fais une capture d\'écran', false);">📸 Capture d'Écran</button>
+          <button class="pilot-btn" onclick="fermerPilotage(); afficherFenetresPC();">🪟 Fenêtres Actives</button>
+          <button class="pilot-btn" onclick="fermerPilotage(); window.open('/modeles.html', 'turbo-modeles');">⚙️ Studio Modèles GPU</button>
+          <button class="pilot-btn" onclick="fermerPilotage(); window.open(COCKPIT, 'turbo-cockpit');">🚀 Ouvrir Cockpit Complet</button>
+          <button class="pilot-btn" onclick="fermerPilotage(); demanderAgent();">🤖 Ordre Agent (:1260)</button>
+          <button class="pilot-btn" onclick="fermerPilotage(); preparerEmail();">✉️ Rédiger E-mail</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px;font-weight:700">Toutes les Rubriques du Cockpit (Accès Direct)</div>
+        <div class="tile-grid">
+          <div class="tile" onclick="piloterRubrique('dashboard', 'Dashboard Cluster')">
+            <div class="tile-head">📊 Dashboard Cluster</div>
+            <div class="tile-desc">Télémétrie 2 GPU, VRAM, RAM, CPU, services vivants.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('avancements', 'Chantiers & Production')">
+            <div class="tile-head">🏗️ Chantiers &amp; Runs</div>
+            <div class="tile-desc">Suivi des runs de production, KPIs, progression 85%.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('plan', 'Board Plan & To-Do')">
+            <div class="tile-head">📋 Plan &amp; To-Do</div>
+            <div class="tile-desc">2129 tâches validées, file d'attente système maître.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('omega', 'OMEGA Cognitive OS')">
+            <div class="tile-head">🧬 OMEGA Cognitive OS</div>
+            <div class="tile-desc">Architecture symbiotique, orchestrateur de haut niveau.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('legion', 'Légion OMEGA')">
+            <div class="tile-head">⚔️ Légion OMEGA</div>
+            <div class="tile-desc">Supervision des agents autonomes et sentinelles.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('escouade', 'Armée d\'Agents & SSDs')">
+            <div class="tile-head">🤖 Agents &amp; SSDs</div>
+            <div class="tile-desc">Cartographie 3 SSDs et bases de données actives.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('claude', 'Claude Code Suite')">
+            <div class="tile-head">👑 Claude Code Suite</div>
+            <div class="tile-desc">Génération de code, presets et exécution automatique.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('terminal', 'Terminal & TMUX')">
+            <div class="tile-head">💻 Terminal &amp; TMUX</div>
+            <div class="tile-desc">14 fenêtres de multiplexage en direct (PTY xterm.js).</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('apps', 'Applications Bureau')">
+            <div class="tile-head">🚀 Applications Bureau</div>
+            <div class="tile-desc">Lanceur d'applications Linux (Firefox, VS Code, Fichiers...).</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('tableronde', 'Table Ronde IA')">
+            <div class="tile-head">👥 Table Ronde IA</div>
+            <div class="tile-desc">Délibération multi-modèles (Omega, Shield, Turbo).</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('studio', 'Studio Création')">
+            <div class="tile-head">🎨 Studio Création</div>
+            <div class="tile-desc">Génération LinkedIn, Articles, PRDs et scripts.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('mcps', '48 Serveurs MCP')">
+            <div class="tile-head">📦 48 Serveurs MCP</div>
+            <div class="tile-desc">600+ outils Model Context Protocol connectés.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('sql', '53 Bases SQL')">
+            <div class="tile-head">🗄️ 53 Bases SQL</div>
+            <div class="tile-desc">Explorateur et requêtes SQL en direct sur les données.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('swarm', 'Swarm & Services')">
+            <div class="tile-head">🐳 Swarm &amp; Services</div>
+            <div class="tile-desc">Supervision des conteneurs et services système.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('moisson', 'Corpus Vivant FTS5')">
+            <div class="tile-head">📚 Corpus Vivant &amp; FTS5</div>
+            <div class="tile-desc">313 000 sources et 1,1M chunks indexés en FTS5.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('swan', 'SWAN Stream 768D')">
+            <div class="tile-head">🌊 SWAN Stream 768D</div>
+            <div class="tile-desc">Flux vectoriel continu Nomic Embed (:1300).</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('iaweb', 'Hub IA Web & CDP')">
+            <div class="tile-head">🌐 Hub IA Web &amp; CDP</div>
+            <div class="tile-desc">Chrome CDP remote debugging (:9222/:9223/:9224).</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('bureau', 'Bureau GNOME & Verrous')">
+            <div class="tile-head">🖥️ Bureau &amp; Verrous</div>
+            <div class="tile-desc">Contrôle direct du serveur X, verrouillage et session.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('prospection', 'Prospection & Tunnels')">
+            <div class="tile-head">🎯 Prospection &amp; Tunnels</div>
+            <div class="tile-desc">Enrichissement gouv, qualification cibles, Rémi SOCKS5.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('benchmark', 'Multi-Benchmark Dual-GPU')">
+            <div class="tile-head">⚡ Multi-Benchmark GPU</div>
+            <div class="tile-desc">Banc de test comparatif RTX 3080 vs RTX 2060 (tok/s).</div>
+          </div>
+          <div class="tile" onclick="window.open('/presentation.html', 'turbo-pres'); fermerPilotage();">
+            <div class="tile-head">🌓 Présentation JARVIS OS</div>
+            <div class="tile-desc">Dossier système, 3 promesses tenues, Moat mesuré.</div>
+          </div>
+          <div class="tile" onclick="piloterRubrique('audit', 'Audit & Moat JARVIS')">
+            <div class="tile-head">🛰️ Audit &amp; Moat JARVIS</div>
+            <div class="tile-desc">Cahier des charges, grille d'évaluation et conformité DPO.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<form class="askbar" id="askbar" autocomplete="off">
+  <input id="ask" type="text" placeholder="Écris à Turbo OS…  (ex. « ouvre l'audit », « quelle heure est-il »)" aria-label="Écrire à Turbo OS">
+  <button type="submit" id="ask-send">Envoyer</button>
+</form>
+<footer class="dock">
+  <button class="ctl primary" id="mic">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10a7 7 0 0 1-14 0M12 17v4"/></svg>
+    Parler
+  </button>
+  <button class="ctl" id="write">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+    Écrire
+  </button>
+  <button class="ctl" id="chantiers-btn" title="Faire le point sur les chantiers (lu à voix haute)">
+    🏗️ Chantiers
+  </button>
+  <button class="ctl" id="email-btn" title="Rédiger et envoyer un e-mail via l'Agent">
+    ✉️ E-mail
+  </button>
+  <button class="ctl" id="agent-btn" title="Piloter tout le PC et le cockpit via l'Agent (:1260)">
+    🤖 Agent (:1260)
+  </button>
+  <button class="ctl accent" id="btn-pilot-dock" title="Ouvrir le Centre de Pilotage Global du Cockpit">
+    🧭 Tout le Cockpit
+  </button>
+  <button class="ctl" id="pause">
+    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+    Pause
+  </button>
+  <button class="ctl" id="stop">
+    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+    Stop
+  </button>
+  <button class="ctl" id="voice" title="Voix Turbo (Kokoro FR)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg>
+    Voix
+  </button>
+</footer>
+<script>
+(function(){
+  const body=document.body, orb=document.getElementById('orb');
+  const stateEl=document.getElementById('state'), hint=document.getElementById('hint');
+  const answer=document.getElementById('answer'), ansQ=document.getElementById('ans-q'),
+        ansHeard=document.getElementById('ans-heard'), ansBody=document.getElementById('ans-body'),
+        ansConfirm=document.getElementById('ans-confirm'), ansOk=document.getElementById('ans-ok'), ansNo=document.getElementById('ans-no');
+  let pending=null;   // action en attente de confirmation {action,payload}
+  const micBtn=document.getElementById('mic'), writeBtn=document.getElementById('write'),
+        pauseBtn=document.getElementById('pause'), stopBtn=document.getElementById('stop'), voiceBtn=document.getElementById('voice');
+  const COCKPIT='http://127.0.0.1:8600';
+  const STATES={
+    idle:{cls:'',label:'Prêt',hint:'Touchez la sphère pour parler · Entrée pour écrire'},
+    listening:{cls:'listening',label:'À l’écoute…',hint:'Parlez, je vous écoute'},
+    thinking:{cls:'thinking',label:'Turbo réfléchit…',hint:'Correction · routage · analyse locale'},
+    speaking:{cls:'speaking',label:'Turbo répond',hint:'Voix Kokoro FR (locale)'},
+    paused:{cls:'paused',label:'En pause — reprise possible',hint:'Checkpoint sauvegardé'}
+  };
+  let cur='idle', timer=null, controller=null, voiceOn=true, rec=null, recognizing=false;
+  let curInput='', lastAnswerText='';   // Checkpoint Engine : tâche courante + dernière réponse
+  let askMode='route';                  // 'route' = cockpit/voix ; 'agent' = Agent Turbo (:1260)
+  const ASK_PH_DEFAULT="Écris à Turbo OS…  (ex. « ouvre l'audit », « quelle heure est-il »)";
+  const SYS="Tu es Turbo OS, l'environnement IA local souverain. Réponds TOUJOURS en français clair et bien articulé, sans aucun mot anglais et sans symboles. Ne prononce jamais le mot JARVIS : dis toujours Turbo OS. Sois concis.";
+
+  function set(s){ cur=s; const S=STATES[s]; body.className=S.cls;
+    stateEl.innerHTML = s==='idle'?S.label:'<b>'+S.label+'</b>'; hint.textContent=S.hint;
+    pauseBtn.lastChild.textContent = s==='paused'?' Reprendre':' Pause'; }
+
+  // ── Carte-réponse défilante (le texte n'est plus jamais masqué par l'orbe) ──
+  function showCard(){ answer.classList.add('show'); }
+  function hideCard(){ answer.classList.remove('show'); }
+  function render(q, heard, bodyHtml, waiting){
+    ansQ.textContent = q ? '« '+q+' »' : '';
+    if(heard){ ansHeard.innerHTML='<b>Compris :</b> '+heard; ansHeard.style.display=''; }
+    else ansHeard.style.display='none';
+    ansBody.className='a'+(waiting?' wait':'');
+    ansBody.innerHTML = bodyHtml;
+    if(!waiting){ lastAnswerText = ansBody.textContent||''; }   // pour le checkpoint (pause)
+    ansConfirm.classList.remove('show'); pending=null;
+    showCard(); answer.scrollTop=0;
+  }
+  function askConfirm(q, heard, bodyHtml, action, payload){
+    render(q, heard, bodyHtml, false);
+    pending={action, payload};
+    ansConfirm.classList.add('show');
+  }
+
+  async function speak(text){
+    if(!voiceOn||!text) return;
+    try{ await fetch('/api/gpu/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})}); }catch{}
+  }
+
+  // Réponse « chat » classique via le moteur GPU local
+  async function chat(q, heard){
+    set('thinking'); render(q, heard, 'Turbo réfléchit…', true); controller=new AbortController();
+    try{
+      const r=await fetch('/api/gpu/chat',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,
+        body:JSON.stringify({prompt:q,port:1234,system:SYS})});
+      const d=await r.json(); const ans=d.success?d.content:('Erreur : '+(d.error||''));
+      set('speaking'); render(q, heard, esc(ans), false);
+      if(d.success) await speak(ans);
+      timer=setTimeout(()=>{ if(cur==='speaking') set('idle'); }, Math.max(4000, ans.length*45));
+    }catch(e){ if(e.name!=='AbortError'){ set('speaking'); render(q, heard, 'Erreur : '+esc(''+e), false); timer=setTimeout(()=>set('idle'),4000);} }
+  }
+
+  // Checkpoint Engine : reprendre la dernière tâche mise en pause (persistée, survit au redémarrage)
+  async function doResume(){
+    set('thinking'); render('', '', 'Reprise de la tâche en pause…', true);
+    try{
+      const d=await (await fetch('/api/checkpoint/pending')).json();
+      if(d && d.found){
+        try{ await fetch('/api/checkpoint/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:d.id,status:'resumed'})}); }catch{}
+        hint.textContent='Reprise : « '+String(d.title||d.input||'').slice(0,60)+' »';
+        return route(d.input, false);
+      }
+      set('idle'); render('', '', 'Aucune tâche en pause à reprendre.', false); timer=setTimeout(()=>hideCard(),2500);
+    }catch(e){ set('idle'); }
+  }
+
+  // Entrée unique : correction STT (selon ton langage) + routage vers TOUT le cockpit
+  async function route(raw, fromVoice){
+    const q=(raw||'').trim(); if(!q) return;
+    if(/\b(repr(ends?|ise|endre)|reprendre la t[aâ]che|continue la t[aâ]che)\b/i.test(q)){ return doResume(); }
+    curInput=q;                                   // tâche courante (reprenable si mise en pause)
+    set('thinking'); render(q, '', 'Turbo réfléchit…', true); controller=new AbortController();
+    let r;
+    try{
+      const res=await fetch('/api/voice/command',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,
+        body:JSON.stringify({text:q})});
+      r=await res.json();
+    }catch(e){ if(e.name==='AbortError') return; return chat(q,''); }
+    if(!r||!r.success){ return chat(q,''); }
+    const corr=r.corrige||q;
+    const heard=(fromVoice||corr.toLowerCase()!==q.toLowerCase())?esc(corr):'';
+
+    // ── Commandes sûres, exécution immédiate ──
+    if(r.type==='command' && r.action==='open_tab'){
+      set('speaking');
+      render(q, heard, '<span class="cmd">🧭 Ouverture du cockpit : '+esc(r.cible)+'</span>', false);
+      try{ window.open(COCKPIT+'/#'+encodeURIComponent(r.cible),'turbo-cockpit'); }catch{}
+      await speak(r.dire||('J\'ouvre '+r.cible+'.'));
+      timer=setTimeout(()=>set('idle'),3500); return;
+    }
+    if(r.type==='command' && r.action==='load_model'){
+      set('speaking');
+      render(q, heard, '<span class="cmd">⚙️ Chargement du modèle : '+esc(r.cible)+'</span>', false);
+      try{ await fetch('/api/gpu/models/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:r.cible})}); }catch{}
+      await speak(r.dire||('Je charge '+r.cible+'.'));
+      timer=setTimeout(()=>set('idle'),3500); return;
+    }
+    if(r.type==='command' && r.action==='launch_app'){
+      set('speaking');
+      render(q, heard, '<span class="cmd">🚀 Lancement de l’application : '+esc(r.cible)+'</span>', false);
+      try{ await fetch('/api/apps/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({exec:r.cible})}); }catch{}
+      await speak(r.dire||('J\'ouvre '+r.cible+'.'));
+      timer=setTimeout(()=>set('idle'),3500); return;
+    }
+
+    // ── PC Control : capture d'écran (affiche l'image) ──
+    if(r.type==='command' && r.action==='screenshot'){
+      set('thinking'); render(q, heard, '<span class="cmd">📸 Capture…</span>', true);
+      try{
+        const res=await fetch('/api/pc/screenshot',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        const d=await res.json();
+        if(d.success){ set('speaking'); render(q, heard, '<span class="cmd">📸 Capture d’écran</span><img class="shot" src="'+d.url+'?t='+Date.now()+'" alt="capture">', false); await speak('Voici la capture d\'écran.'); }
+        else { set('speaking'); render(q, heard, '<div class="warn">Capture impossible : '+esc(d.error||'')+'</div>', false); }
+      }catch(e){ set('speaking'); render(q, heard, '<div class="warn">Erreur : '+esc(''+e)+'</div>', false); }
+      timer=setTimeout(()=>set('idle'),6000); return;
+    }
+    // ── PC Control : lister les fenêtres ──
+    if(r.type==='command' && r.action==='list_windows'){
+      set('thinking'); render(q, heard, 'Fenêtres ouvertes…', true);
+      try{
+        const res=await fetch('/api/pc/windows',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        const d=await res.json();
+        const items=(d.windows||[]).map(w=>'• '+w.name).join('\n')||'(aucune)';
+        set('speaking'); render(q, heard, '<span class="cmd">🪟 '+(d.count||0)+' fenêtre(s)</span>\n\n'+esc(items), false);
+        await speak((d.count||0)+' fenêtres ouvertes.');
+      }catch(e){ set('speaking'); render(q, heard, '<div class="warn">Erreur : '+esc(''+e)+'</div>', false); }
+      timer=setTimeout(()=>set('idle'),6000); return;
+    }
+    // ── PC Control : mettre une fenêtre au premier plan ──
+    if(r.type==='command' && r.action==='focus_window'){
+      set('speaking'); render(q, heard, '<span class="cmd">🪟 Premier plan : '+esc(r.cible)+'</span>', false);
+      let ok=false;
+      try{ const res=await fetch('/api/pc/window',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'focus',target:r.cible})}); const d=await res.json(); ok=d.success; if(!ok) render(q, heard, '<div class="warn">'+esc(d.error||'fenêtre introuvable')+'</div>', false); }catch{}
+      await speak(ok?(r.dire||'Fenêtre au premier plan.'):'Fenêtre introuvable.');
+      timer=setTimeout(()=>set('idle'),3500); return;
+    }
+
+    // ── Chantiers & Avancements (vocal + visuel) ──
+    if(r.type==='command' && r.action==='read_chantiers'){
+      set('speaking');
+      render(q, heard, '<span class="cmd">🏗️ Chantiers & Avancements</span>\n\n'+esc(r.payload||r.dire), false);
+      if(r.dire) await speak(r.dire);
+      timer=setTimeout(()=>set('idle'), 7000); return;
+    }
+
+    // ── Consultation de la base (lecture seule → immédiat) ──
+    if(r.type==='consult'){
+      set('thinking'); render(q, heard, 'Consultation de la base de connaissances…', true);
+      let txt='';
+      try{
+        const res=await fetch('/api/rag/ask',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,
+          body:JSON.stringify({question:r.payload||corr, mode:'consensus', k:10})});
+        const d=await res.json();
+        txt=d.answer||d.response||d.content||d.text||(d.result&&(d.result.answer||d.result.text))||'';
+        if(!d.success && !txt) txt='';
+      }catch(e){ if(e.name==='AbortError') return; }
+      if(!txt){ return chat(r.payload||corr, heard); }   // repli : réponse LLM directe
+      set('speaking'); render(q, heard, '<span class="cmd">📚 Base de connaissances</span>\n\n'+esc(txt), false);
+      await speak(txt);
+      timer=setTimeout(()=>{ if(cur==='speaking') set('idle'); }, Math.max(4000, txt.length*45)); return;
+    }
+
+    // ── Actions puissantes : CONFIRMATION obligatoire ──
+    if(r.type==='confirm'){
+      set('idle');
+      if(r.action==='exec'){
+        askConfirm(q, heard, '<span class="cmd">⚡ Exécuter cette commande ?</span><pre>'+esc(r.payload)+'</pre>', 'exec', r.payload);
+      } else if(r.action==='code'){
+        askConfirm(q, heard, '<span class="cmd">💻 Écrire / modifier du code ?</span><pre>'+esc(r.payload)+'</pre>'
+          +'<div class="warn">Claude va agir sur les fichiers. Vérifie l\'instruction avant de confirmer.</div>', 'code', r.payload);
+      } else if(r.action==='email'){
+        askConfirm(q, heard, '<span class="cmd">✉️ E-mail préparé</span><pre>'+esc(r.payload)+'</pre>'
+          +'<div class="warn">Aucun envoi automatique. En confirmant, l\'e-mail est seulement préparé — l\'envoi réel reste à faire manuellement (destinataire réel requis).</div>', 'email', r.payload);
+      } else if(r.action==='close_window'){
+        askConfirm(q, heard, '<span class="cmd">🗙 Fermer la fenêtre : '+esc(r.cible)+' ?</span>'
+          +'<div class="warn">Les données non enregistrées de cette fenêtre peuvent être perdues.</div>', 'close_window', r.cible);
+      }
+      await speak(r.dire||'À confirmer.');
+      return;
+    }
+
+    // ── Sinon : discussion normale, avec le texte corrigé ──
+    return chat(corr, heard);
+  }
+
+  // Exécute l'action APRÈS confirmation explicite de l'utilisateur
+  async function doAction(action, payload){
+    if(action==='exec'){
+      set('thinking'); render('', '', '<span class="cmd">⚡ Exécution…</span><pre>'+esc(payload)+'</pre>', true);
+      try{
+        const res=await fetch('/api/command/exec',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:payload})});
+        const d=await res.json();
+        const out=((d.stdout||'')+(d.stderr?('\n'+d.stderr):'')).trim()||'(aucune sortie)';
+        const rc=(d.returncode!=null)?d.returncode:(d.success?0:1);
+        set('speaking');
+        render('', '', '<span class="cmd">⚡ '+esc(payload)+'</span><pre>'+esc(out)+'</pre>'
+          +(rc===0?'<div class="ok2">✓ terminé (code 0)</div>':'<div class="warn">code de retour '+rc+'</div>'), false);
+        await speak(rc===0?'Commande exécutée.':'Commande terminée avec des erreurs.');
+      }catch(e){ set('speaking'); render('', '', '<div class="warn">Erreur : '+esc(''+e)+'</div>', false); }
+      timer=setTimeout(()=>set('idle'),4000); return;
+    }
+    if(action==='code'){
+      set('thinking'); render('', '', '<span class="cmd">💻 Claude écrit le code…</span><pre>'+esc(payload)+'</pre>', true);
+      try{
+        const res=await fetch('/api/claude/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:payload})});
+        const d=await res.json();
+        const out=(d.output||d.result||d.content||d.stdout||d.error||'(pas de sortie)');
+        set('speaking');
+        render('', '', '<span class="cmd">💻 '+esc(payload)+'</span><pre>'+esc(typeof out==='string'?out:JSON.stringify(out,null,2))+'</pre>', false);
+        await speak(d.success!==false?'Code généré.':'Le générateur de code a rencontré une erreur.');
+      }catch(e){ set('speaking'); render('', '', '<div class="warn">Erreur : '+esc(''+e)+'</div>', false); }
+      timer=setTimeout(()=>set('idle'),5000); return;
+    }
+    if(action==='email'){
+      set('thinking'); render('', '', '<span class="cmd">✉️ Envoi / Traitement e-mail via l\'Agent…</span><pre>'+esc(payload)+'</pre>', true);
+      try{
+        const parts = payload.split('|').map(p=>p.trim());
+        const to = parts[0] || '';
+        const subject = parts[1] || 'Message depuis Turbo OS';
+        const body = parts.slice(2).join('\n') || payload;
+        const res = await fetch('/api/emails/envoyer', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({to, subject, body, send_now: true})
+        });
+        const d = await res.json();
+        const out = d.result || d.error || JSON.stringify(d);
+        set('speaking');
+        render('', '', '<span class="cmd">✉️ Traitement e-mail terminé</span><pre>'+esc(out)+'</pre>', false);
+        await speak(d.success ? 'E-mail traité avec succès.' : 'Erreur sur le traitement de l\'e-mail.');
+      }catch(e){ set('speaking'); render('', '', '<div class="warn">Erreur e-mail : '+esc(''+e)+'</div>', false); }
+      timer=setTimeout(()=>set('idle'),6000); return;
+    }
+    if(action==='agent'){
+      set('thinking'); render('', '', '<span class="cmd">🤖 Agent Turbo (:1260) en action…</span><pre>'+esc(payload)+'</pre>', true);
+      try{
+        const res = await fetch('/api/agent', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({message: payload, speak: voiceOn})
+        });
+        const d = await res.json();
+        const ans = d.answer || d.error || JSON.stringify(d);
+        const traceStr = (d.trace||[]).map(t=>`[${t.tool}] -> ${typeof t.result==='string'?t.result.slice(0,140):JSON.stringify(t.result).slice(0,140)}`).join('\n');
+        set('speaking');
+        render('', '', '<span class="cmd">🤖 Réponse Agent</span>\n\n'+esc(ans)+(traceStr ? '\n\n<span class="cmd">🛠️ Traces d\'outils :</span>\n<pre>'+esc(traceStr)+'</pre>' : ''), false);
+        if(!voiceOn && d.answer) await speak(d.answer);
+      }catch(e){ set('speaking'); render('', '', '<div class="warn">Erreur Agent : '+esc(''+e)+'</div>', false); }
+      timer=setTimeout(()=>set('idle'),7000); return;
+    }
+    if(action==='close_window'){
+      set('speaking');
+      let out='';
+      try{ const res=await fetch('/api/pc/window',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'close',target:payload})});
+        const d=await res.json();
+        out=d.success?('<div class="ok2">✓ Fenêtre « '+esc(d.window)+' » fermée.</div>'):('<div class="warn">'+esc(d.error||'fenêtre introuvable')+'</div>');
+      }catch(e){ out='<div class="warn">Erreur : '+esc(''+e)+'</div>'; }
+      render('', '', '<span class="cmd">🗙 Fermeture</span>'+out, false);
+      await speak('Fenêtre fermée.');
+      timer=setTimeout(()=>set('idle'),3500); return;
+    }
+  }
+
+  function esc(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  const askEl=document.getElementById('ask'), askForm=document.getElementById('askbar');
+  function write(){ if(askEl){ askEl.focus(); askEl.select&&askEl.select(); } }   // « Écrire » = focus le champ inline (pas de dialogue bloquant)
+  // Prépare le champ inline pour un mode donné (remplace les window.prompt bloqués en --app)
+  function askFor(mode, placeholder, prefill){
+    askMode = mode || 'route';
+    if(askEl){ askEl.placeholder = placeholder || ASK_PH_DEFAULT; askEl.value = prefill || ''; askEl.focus();
+      try{ askEl.setSelectionRange(askEl.value.length, askEl.value.length); }catch{} }
+  }
+  if(askForm){ askForm.addEventListener('submit', e=>{ e.preventDefault();
+    const v=(askEl.value||'').trim(); if(!v) return; askEl.value='';
+    const m=askMode; askMode='route'; askEl.placeholder=ASK_PH_DEFAULT;
+    if(m==='agent') doAction('agent', v); else route(v, false);
+  }); }
+
+  // ── STT LOCAL souverain (MediaRecorder → /api/stt/transcribe → faster-whisper GPU, CPU banni) ──
+  let mediaRec=null, chunks=[], micStream=null, recTimer=null;
+  function blobToB64(blob){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(blob); }); }
+  function cleanupMic(){ try{ micStream&&micStream.getTracks().forEach(t=>t.stop()); }catch{} micStream=null; }
+  function stopRec(){ clearTimeout(recTimer); try{ mediaRec&&mediaRec.state!=='inactive'&&mediaRec.stop(); }catch{} }
+  // Repli : écoute DIRECTE par le cockpit (micro du PC) si le micro navigateur est indisponible
+  async function serverListen(){
+    set('listening'); hint.textContent='Écoute par le PC (micro du cockpit)…';
+    render('', '', 'Écoute directe par le cockpit…', true);
+    try{
+      const d=await (await fetch('/api/stt/listen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seconds:6})})).json();
+      if(d && d.success && d.text){ return route(d.text, true); }
+      set('idle'); hideCard(); hint.textContent='Rien entendu (micro PC) — utilisez Écrire';
+    }catch(e){ set('idle'); hideCard(); return write(); }
+  }
+  async function listen(){
+    if(recognizing){ stopRec(); return; }                 // 2e clic = terminer + transcrire
+    if(!navigator.mediaDevices||!window.MediaRecorder){ return serverListen(); }
+    try{ micStream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+    catch(e){ return serverListen(); }                     // micro navigateur bloqué → cockpit
+    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+              : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+    chunks=[]; mediaRec = mime ? new MediaRecorder(micStream,{mimeType:mime}) : new MediaRecorder(micStream);
+    mediaRec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    mediaRec.onstop=onRecStop;
+    recognizing=true; set('listening'); hint.textContent='Parlez, puis touchez la sphère pour terminer';
+    mediaRec.start();
+    recTimer=setTimeout(()=>{ if(recognizing) stopRec(); }, 15000);   // garde-fou 15 s
+  }
+  async function onRecStop(){
+    recognizing=false; cleanupMic();
+    const type=(mediaRec&&mediaRec.mimeType)||'audio/webm';
+    const blob=new Blob(chunks,{type});
+    if(!blob.size){ set('idle'); return; }
+    set('thinking'); render('', '', 'Transcription locale (GPU)…', true);
+    try{
+      const b64=await blobToB64(blob);
+      const res=await fetch('/api/stt/transcribe',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({audio_b64:b64, mime:type.split(';')[0]})});
+      const d=await res.json();
+      if(d.success && d.text){ route(d.text, true); }
+      else { set('idle'); hideCard(); hint.textContent='Rien entendu — réessayez ou Écrire'; if(d && d.error) console.log('STT:', d.error); }
+    }catch(e){ set('idle'); hideCard(); hint.textContent='STT indisponible — utilisez Écrire'; }
+  }
+
+  ansOk.addEventListener('click', ()=>{ if(!pending) return; const p=pending; ansConfirm.classList.remove('show'); pending=null; doAction(p.action, p.payload); });
+  ansNo.addEventListener('click', ()=>{ ansConfirm.classList.remove('show'); pending=null; set('idle'); render('', '', 'Annulé.', false); timer=setTimeout(()=>hideCard(),1500); });
+  orb.addEventListener('click', ()=>{ if(cur==='paused') set('idle'); else if(cur==='listening'){ stopRec(); } else listen(); });
+  micBtn.addEventListener('click', listen);
+  writeBtn.addEventListener('click', write);
+  const chantiersBtn = document.getElementById('chantiers-btn');
+  const emailBtn = document.getElementById('email-btn');
+  const agentBtn = document.getElementById('agent-btn');
+  if(chantiersBtn) chantiersBtn.addEventListener('click', ()=> route('lis mes chantiers', false));
+  if(emailBtn) emailBtn.addEventListener('click', ()=>{
+    askFor('route', 'Décris l\'e-mail : destinataire, objet, message… (validation avant tout envoi)', 'envoie un e-mail à ');
+  });
+  if(agentBtn) agentBtn.addEventListener('click', ()=>{
+    askFor('agent', 'Ordre pour l\'Agent Turbo (:1260) : analyse un fichier, crée un script, pilote le cockpit…', '');
+  });
+
+  // ── PILOTAGE GLOBAL COCKPIT ──
+  const pilotDrawer = document.getElementById('pilot-drawer');
+  const btnOpenPilot = document.getElementById('btn-open-pilot');
+  const btnPilotDock = document.getElementById('btn-pilot-dock');
+  const btnClosePilot = document.getElementById('btn-close-pilot');
+
+  function ouvrirPilotage(){ if(pilotDrawer) pilotDrawer.classList.add('open'); }
+  function fermerPilotage(){ if(pilotDrawer) pilotDrawer.classList.remove('open'); }
+
+  if(btnOpenPilot) btnOpenPilot.addEventListener('click', ouvrirPilotage);
+  if(btnPilotDock) btnPilotDock.addEventListener('click', ouvrirPilotage);
+  if(btnClosePilot) btnClosePilot.addEventListener('click', fermerPilotage);
+  if(pilotDrawer) pilotDrawer.addEventListener('click', e => { if(e.target === pilotDrawer) fermerPilotage(); });
+
+  window.ouvrirPilotage = ouvrirPilotage;
+  window.fermerPilotage = fermerPilotage;
+  window.piloterRubrique = function(tab, label){
+    fermerPilotage();
+    route('ouvre ' + label, false);
+  };
+  window.demanderAgent = function(){
+    askFor('agent', 'Ordre pour l\'Agent Turbo (:1260) : analyse un fichier, crée un script, pilote le cockpit…', '');
+  };
+  window.preparerEmail = function(){
+    fermerPilotage && fermerPilotage();
+    askFor('route', 'Décris l\'e-mail : destinataire, objet, message… (validation avant tout envoi)', 'envoie un e-mail à ');
+  };
+
+  window.afficherFenetresPC = async function(){
+    set('thinking'); render('Fenêtres ouvertes', '', 'Recherche des fenêtres actives sur le bureau…', true);
+    try {
+      const res = await fetch('/api/pc/windows', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+      const d = await res.json();
+      if (!d.success || !d.windows || !d.windows.length) {
+        set('speaking'); render('Fenêtres PC', '', 'Aucune fenêtre détectée.', false);
+        return;
+      }
+      let html = `<span class="cmd">🪟 ${d.count} Fenêtre(s) active(s)</span>\n\n<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">`;
+      d.windows.forEach(w => {
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-low);padding:8px 12px;border-radius:10px;border:1px solid var(--line)">
+          <span style="font-size:12px;font-weight:600;word-break:break-word;color:var(--ink)">${esc(w.name)}</span>
+          <button class="pilot-btn accent" style="padding:4px 10px;font-size:11px" onclick="basculerFenetre('${esc(w.name).replace(/'/g, "\\'")}')">Basculer ➔</button>
+        </div>`;
+      });
+      html += '</div>';
+      set('speaking'); render('Fenêtres PC', '', html, false);
+      await speak(`${d.count} fenêtres ouvertes.`);
+    } catch(e) {
+      set('speaking'); render('Fenêtres PC', '', '<div class="warn">Erreur : ' + esc(''+e) + '</div>', false);
+    }
+  };
+
+  window.basculerFenetre = async function(nom){
+    try {
+      const res = await fetch('/api/pc/window', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({op:'focus', target: nom})
+      });
+      const d = await res.json();
+      if (d.success) {
+        await speak(`Je bascule vers ${nom}`);
+      } else {
+        await speak("Impossible de basculer vers cette fenêtre.");
+      }
+    } catch(e) {}
+  };
+
+  stopBtn.addEventListener('click', ()=>{ controller&&controller.abort(); stopRec(); cleanupMic(); clearTimeout(timer); ansConfirm.classList.remove('show'); pending=null; hideCard(); set('idle'); });
+  pauseBtn.addEventListener('click', async ()=>{
+    if(cur==='paused'){ return doResume(); }                 // Reprendre = relancer la tâche en pause
+    if(cur!=='idle' && curInput){
+      clearTimeout(timer); controller&&controller.abort(); stopRec(); cleanupMic(); set('paused');
+      try{ await fetch('/api/checkpoint/save',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({kind:'task', title:curInput.slice(0,80), input:curInput, status:'paused', result:lastAnswerText})}); }catch{}
+      hint.textContent='Tâche en pause (sauvegardée) — « Reprendre » ou dis « reprends »';
+    }
+  });
+  voiceBtn.addEventListener('click', ()=>{ voiceOn=!voiceOn; voiceBtn.classList.toggle('off',!voiceOn); voiceBtn.lastChild.textContent = voiceOn?' Voix':' Muet'; });
+  window.addEventListener('keydown',e=>{
+    const typing = e.target && (e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA');
+    if(typing) return;                        // laisser le champ inline gérer sa saisie (Entrée = envoyer)
+    if(e.key==='Enter'&&(cur==='idle'||cur==='speaking')){ e.preventDefault(); write(); }
+    if(e.key==='Escape') stopBtn.click();
+    if(e.key===' '&&e.target===document.body){ e.preventDefault(); (cur==='idle')?listen():pauseBtn.click(); }
+  });
+  async function health(){ try{ const r=await fetch('/api/gpu/models'); const d=await r.json();
+    document.querySelectorAll('#health i').forEach(i=>i.style.background=(d&&d.success)?'var(--good)':'var(--warn)'); }catch{} }
+  health(); setInterval(health,20000);
+  // Checkpoint Engine : au lancement, proposer de reprendre une tâche laissée en pause
+  (async function resumeBanner(){
+    try{
+      const d=await (await fetch('/api/checkpoint/pending')).json();
+      if(d && d.found){
+        render('', '', '<span class="cmd">⏸ Tâche en pause</span>\n\n'+esc(String(d.title||d.input||''))
+          +'\n\nClique « Reprendre » ou dis « reprends » pour la relancer.', false);
+        set('paused');
+      }
+    }catch{}
+  })();
+})();
+</script>
+</body>
+</html>

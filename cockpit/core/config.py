@@ -75,8 +75,8 @@ LOGS_DB = os.path.join(LOGS_DIR, "jarvis_logs.db")
 ETOILE_DB = os.path.join(DATA_DIR, "etoile.db")
 SQL_CACHE = os.path.join(COCKPIT_DIR, ".sql-cache.tsv")
 
-# Cluster Network Endpoints & LM Studio GPU (rebranché sur tether 192.168.42.241:1234 et loopback)
-LMSTUDIO_HOST = os.environ.get("JARVIS_LMSTUDIO_HOST", "192.168.42.241")
+# Serveur d'inférence local — rig 'mining' (llama-server non-AVX2 + CUDA en loopback, remplace LM Studio mort AVX2)
+LMSTUDIO_HOST = os.environ.get("JARVIS_LMSTUDIO_HOST", "127.0.0.1")
 LMSTUDIO_PORT = int(os.environ.get("JARVIS_LMSTUDIO_PORT", "1234"))
 LMSTUDIO_URL = os.environ.get("JARVIS_LMSTUDIO_URL", f"http://{LMSTUDIO_HOST}:{LMSTUDIO_PORT}")
 
@@ -91,14 +91,13 @@ REMI_ASUS_HOST = "100.113.121.61"
 REMI_TOUR_HOST = "100.124.69.1"
 REMI_OLLAMA_URL = f"http://{REMI_ASUS_HOST}:11434"
 
-# ── LLM local — machine "mining" (MàJ 2026-09-10 SOIR, GPU RÉPARÉ) ─────────
-# CPU = Intel Core i5-3450 (4 cœurs, SANS AVX2) — 31 Go RAM. GPU LOCAUX =
-# RTX 2060 12 Go (idx0) + RTX 3080 10 Go (idx1), pilote NVIDIA 595.84 OK.
-# → Ollama local sur :11434 tourne en 100 % GPU (CUDA, Vulkan off, num_gpu:999),
-#   1 seule instance dual-GPU (units systemd user, cf. ollama.service).
-# ⚠️ LM Studio (:1234) ne peut PAS piloter le GPU ici (AVX2 requis) → il tourne
-#   en CPU et ne sert que de REPLI. Doctrine : JAMAIS CPU, TOUJOURS GPU → la
-#   cascade tape Ollama GPU en premier (voir core/inference.py).
+# ── LLM local — machine "mining" (MàJ 2026-09-16, MOTEUR REMPLACÉ) ─────────
+# CPU = Intel Core i5-3470 (4 cœurs, SANS AVX2) — 32 Go RAM. GPU LOCAUX =
+# EXACTEMENT 2 : RTX 3080 10 Go + RTX 2060 12 Go = 22 Go VRAM, pilote 595.91.
+# ⚠️ LM Studio MORT ici (runtimes + CLI `lms` = AVX2 → SIGILL). Le daemon Ollama
+#   (:11434) n'existe plus. Moteur RÉEL = llama-server bundlé Ollama (non-AVX2 +
+#   CUDA, API OpenAI /v1/) : :1234 qwen2.5-7b (3080), :1235 qwen3-8b (2060),
+#   :1300 nomic-embed-text-v1.5 (embeddings 768d). Services systemd jarvis-llm-*.
 #
 # DUO 2 PC (optionnel) : pose JARVIS_GPU_NODE_HOST=<ip du 2e PC "turbo2"> pour
 # ajouter ses cartes à la cascade (Ollama y écoute en OLLAMA_HOST=0.0.0.0).
@@ -114,13 +113,17 @@ if GPU_NODE_HOST:
     OLLAMA_URL       = OLLAMA_3080_URL                  # chat principal = RTX 3080 (distant)
     OLLAMA_AUX_URL   = CPU_LOCAL_URL                    # léger / fallback = CPU local
 else:
-    # 2e PC absent → tout sur l'unique instance CPU locale :11434
-    OLLAMA_3080_URL = OLLAMA_2060_URL = OLLAMA_EMBED_URL = OLLAMA_URL = OLLAMA_AUX_URL = CPU_LOCAL_URL
+    # Rig unique 'mining' → llama-server bundlé Ollama, API OpenAI /v1/ (services jarvis-llm-*)
+    OLLAMA_3080_URL  = "http://127.0.0.1:1234"   # qwen2.5-7b (GPU 3080)
+    OLLAMA_2060_URL  = "http://127.0.0.1:1235"   # qwen3-8b (GPU 2060)
+    OLLAMA_EMBED_URL = "http://127.0.0.1:1300"   # nomic-embed-text-v1.5 (768d)
+    OLLAMA_URL       = "http://127.0.0.1:1234"
+    OLLAMA_AUX_URL   = "http://127.0.0.1:1235"
 
 OLLAMA_PORT = 11434                                   # instance locale dual-GPU (CUDA)
 CHAT_MODEL_3080  = "qwen3:8b"
 CHAT_MODEL_2060  = "qwen2.5:7b"
-EMBED_MODEL      = "nomic-embed-text"
+EMBED_MODEL      = "nomic-embed-text-v1.5"
 
 # ── Fournisseurs cloud externes (câblés — actifs uniquement si joignables/clé posée) ──
 # Décharge le CPU 2 cœurs vers le cloud (API texte = léger sur le tether). Les clés
