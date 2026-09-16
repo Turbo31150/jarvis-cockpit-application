@@ -371,17 +371,57 @@ class TestSousProcessus(unittest.TestCase):
 
 
 class TestTerminaux(unittest.TestCase):
+    def test_default_terminal_helpers(self):
+        clsid = pc.default_terminal_clsid()
+        self.assertIsInstance(pc.wt_hosts_new_consoles(), bool)
+        if WIN:
+            self.assertTrue(clsid is None or (clsid.startswith("{") and clsid.endswith("}") and clsid == clsid.upper()), clsid)
+        else:
+            self.assertIsNone(clsid)
+            self.assertFalse(pc.wt_hosts_new_consoles())
+
+    @unittest.skipUnless(WIN, "console Windows")
+    def test_console_argv_windows(self):
+        exe = r"C:\Program Files\Outil X\outil.exe"
+        argv, kw = pc._console_argv([exe, "a b", "%TEMP%"], title='Cl & "aude" |x', keep_open=True)
+        self.assertTrue(kw["creationflags"] & subprocess.CREATE_NEW_CONSOLE)
+        self.assertIsNone(kw["stdin"])
+        self.assertNotIn("wt.exe", subprocess.list2cmdline(argv).lower())
+        if pc.win_shell_kind() == "cmd":
+            self.assertEqual(argv[:3], ["cmd.exe", "/d", "/k"])
+            self.assertEqual(kw["env"]["JV_TERM_TITLE"], "Cl  aude x")
+            # chemin avec espaces cité, %TEMP% déjà développé
+            self.assertEqual(kw["env"]["JV_TERM_CMD"], f'"{exe}" "a b" {os.environ["TEMP"]}')
+            # aucun guillemet à imbriquer : la ligne finale n'en contient pas
+            self.assertNotIn('"', subprocess.list2cmdline(argv))
+            a2, _ = pc._console_argv("echo x", title="T", keep_open=False)
+            self.assertEqual(a2[2], "/c")
+        a3, k3 = pc._console_argv(None, title="It's", keep_open=True)
+        self.assertIn("-NoExit", a3)
+        self.assertIn("WindowTitle = 'It''s'", a3[-1])
+
     def test_terminal_argv(self):
         argv, kw = pc.terminal_argv("echo hi", title="T1", cwd=pc.tmp_dir())
         if WIN:
             self.assertIsNotNone(argv)
             self.assertNotIn("bash.exe", os.path.basename(argv[0]).lower())
-            if pc.which("wt"):
+            if pc.which("wt") and not pc.wt_hosts_new_consoles():
                 self.assertEqual(os.path.basename(argv[0]).lower(), "wt.exe")
                 self.assertIn("new-tab", argv)
                 self.assertIn("--title", argv)
                 self.assertEqual(argv[argv.index("--title") + 1], "T1")
                 self.assertIn("-d", argv)
+            else:
+                # Console classique hébergée par le terminal par défaut : jamais wt.exe,
+                # handles standard conservés, CREATE_NEW_CONSOLE.
+                self.assertNotEqual(os.path.basename(argv[0]).lower(), "wt.exe")
+                self.assertTrue(kw["creationflags"] & subprocess.CREATE_NEW_CONSOLE)
+                self.assertIsNone(kw["stdin"]); self.assertIsNone(kw["stdout"]); self.assertIsNone(kw["stderr"])
+                if pc.win_shell_kind() == "cmd":
+                    self.assertEqual(argv[:2], ["cmd.exe", "/d"])
+                    self.assertEqual(kw["env"]["JV_TERM_TITLE"], "T1")
+                    self.assertEqual(kw["env"]["JV_TERM_CMD"], "echo hi")
+                    self.assertTrue(any(k.upper() == "SYSTEMROOT" for k in kw["env"]))
             self.assertIn("creationflags", kw)
             self.assertEqual(kw["cwd"], pc.tmp_dir())
             argv2, kw2 = pc.terminal_argv(None, title="Shell")

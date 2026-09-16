@@ -1047,6 +1047,71 @@ def _command_to_string(command) -> str:
     return subprocess.list2cmdline(list(command)) if IS_WINDOWS else shlex.join(list(command))
 
 
+# Terminal par défaut de Windows 11 (Paramètres › Système › Pour les développeurs ›
+# Terminal, ou Windows Terminal › Paramètres › Démarrage), lu dans
+# HKCU\Console\%%Startup\DelegationTerminal. Une console fraîchement créée
+# (CREATE_NEW_CONSOLE) est alors hébergée par ce terminal, sans passer par wt.exe.
+_WT_DEFTERM_CLSIDS = frozenset({
+    "{E12CFF52-A866-4C77-9A90-F570A7AA2C6B}",   # Windows Terminal
+    "{86633F1F-6454-40EC-89CE-DA4EBA977EE2}",   # Windows Terminal Preview
+})
+_LET_WINDOWS_DECIDE = "{00000000-0000-0000-0000-000000000000}"
+_CMD_TITLE_META = re.compile(r'[&|<>^"%]')
+
+
+def default_terminal_clsid() -> str | None:
+    """CLSID (majuscules) du « terminal par défaut » Windows, ou None si la
+    valeur est absente (= « Laisser Windows décider ») ou hors Windows."""
+    if not IS_WINDOWS:
+        return None
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Console\%%Startup") as k:
+            val, _ = winreg.QueryValueEx(k, "DelegationTerminal")
+        return str(val).strip().upper() or None
+    except OSError:
+        return None
+
+
+def wt_hosts_new_consoles() -> bool:
+    """True si une console créée avec CREATE_NEW_CONSOLE s'ouvre d'elle-même
+    dans Windows Terminal : WT est le terminal par défaut, ou « Windows
+    décide » sur Windows 11 22H2+ avec wt.exe installé."""
+    if not IS_WINDOWS:
+        return False
+    clsid = default_terminal_clsid()
+    if clsid in _WT_DEFTERM_CLSIDS:
+        return True
+    if clsid in (None, _LET_WINDOWS_DECIDE):
+        return bool(which("wt")) and sys.getwindowsversion().build >= 22621
+    return False
+
+
+def _console_argv(command: str | list[str] | None, title: str,
+                  keep_open: bool) -> tuple[list[str], dict]:
+    """Console Windows classique : CREATE_NEW_CONSOLE, handles standard NON
+    redirigés (sinon cmd.exe lit EOF sur NUL et sort aussitôt) ; le titre est
+    posé par le shell. Pour cmd.exe la commande transite par %JV_TERM_CMD% :
+    aucun guillemet à imbriquer dans `/k "…"`, les chemins avec espaces déjà
+    cités par list2cmdline restent intacts (%VAR% pré-développés en Python)."""
+    title = _CMD_TITLE_META.sub("", title or "").strip() or "JARVIS"
+    kwargs = {"stdin": None, "stdout": None, "stderr": None,
+              **popen_detached_kwargs(new_console=True)}
+    ps_title = title.replace("'", "''")
+    if command is None:
+        return default_shell() + ["-Command", f"$Host.UI.RawUI.WindowTitle = '{ps_title}'"], kwargs
+    cmd_str = _command_to_string(command)
+    shell_argv = shell_wrap(cmd_str, keep_open=keep_open)
+    exe = os.path.basename(shell_argv[0]).lower()
+    if exe.startswith("cmd"):
+        kwargs["env"] = dict(os.environ, JV_TERM_TITLE=title,
+                             JV_TERM_CMD=os.path.expandvars(cmd_str))
+        return ["cmd.exe", "/d", shell_argv[2], "title", "%JV_TERM_TITLE%&%JV_TERM_CMD%"], kwargs
+    if exe.startswith("bash"):
+        return shell_argv[:-1] + [f"printf '\\033]0;{title}\\a'; {shell_argv[-1]}"], kwargs
+    return shell_argv[:-1] + [f"$Host.UI.RawUI.WindowTitle = '{ps_title}'; {shell_argv[-1]}"], kwargs
+
+
 def terminal_argv(command: str | list[str] | None = None, title: str = "JARVIS",
                   cwd: str | None = None, keep_open: bool = True,
                   login_shell: bool = False) -> tuple[list[str] | None, dict]:
@@ -1054,22 +1119,27 @@ def terminal_argv(command: str | list[str] | None = None, title: str = "JARVIS",
     si aucun émulateur. Exposé pour les tests ; open_terminal l'exécute."""
     title = title or "JARVIS"
     if IS_WINDOWS:
-        if command is None:
-            shell_argv = default_shell()
-        else:
-            shell_argv = shell_wrap(_command_to_string(command), keep_open=keep_open)
         wt = which("wt")
-        if wt:
+        if wt and not wt_hosts_new_consoles():
+            # WT installé mais PAS terminal par défaut : onglet dans la dernière
+            # fenêtre WT. (Si le profil WT apparié à cmd.exe/pwsh a `elevate: true`,
+            # WT relance une instance admin en re-sérialisant la commande entre
+            # guillemets — `-- "cmd.exe /d /k …"` — et échoue avec 0x80070002 :
+            # bug WT, cf. NewTerminalArgs::ToCommandline. Rien à faire ici.)
+            if command is None:
+                shell_argv = default_shell()
+            else:
+                shell_argv = shell_wrap(_command_to_string(command), keep_open=keep_open)
             argv = [wt, "-w", "0", "new-tab", "--title", title, "-d", cwd or HOME] + shell_argv
             return argv, {"cwd": cwd or None, **popen_detached_kwargs()}
-        # Repli : console classique (title posé via la commande interne)
-        if command is None:
-            argv = shell_argv
-        elif shell_argv[0].lower().startswith("cmd"):
-            argv = ["cmd.exe", "/d", shell_argv[2], f"title {title} & {shell_argv[3]}"]
-        else:
-            argv = shell_argv
-        return argv, {"cwd": cwd or None, **popen_detached_kwargs(new_console=True)}
+        # WT terminal par défaut (Windows 11) ou absent : console classique.
+        # Windows la confie lui-même à WT, sans élévation (GH#12370 : une
+        # console déléguée n'est jamais auto-élevée) ni re-sérialisation de la
+        # commande — c'est ce qui cassait `wt.exe new-tab` sur ce poste
+        # (profils WT tous en `elevate: true`, mesuré le 2026-09-16).
+        argv, kwargs = _console_argv(command, title, keep_open)
+        kwargs["cwd"] = cwd or None
+        return argv, kwargs
     term = _linux_terminal()
     if not term:
         return None, {}
@@ -1117,8 +1187,10 @@ def open_terminal(command: str | list[str] | None = None, title: str = "JARVIS",
     Linux : gnome-terminal / x-terminal-emulator / xterm --title T -- bash -lc
     '<cmd>; exec bash -i' (login_shell=True ⇒ bash -ic pour les alias ttx/agy…).
     WSL : repli transparent vers Windows Terminal (wt.exe) ou cmd.exe si aucun terminal X11.
-    Windows : wt.exe -w 0 new-tab --title T -d cwd <shell_wrap(cmd)> ; repli
-    cmd.exe /k dans une nouvelle console. NE LÈVE JAMAIS : Popen (truthy) ou None."""
+    Windows : console classique (cmd.exe /k, CREATE_NEW_CONSOLE) que le terminal par
+    défaut — Windows Terminal sur Windows 11 — héberge lui-même ; wt.exe -w 0 new-tab
+    seulement si WT est installé sans être le terminal par défaut (voir terminal_argv).
+    NE LÈVE JAMAIS : Popen (truthy) ou None."""
     if hold is not None:
         keep_open = hold
     try:
@@ -1127,8 +1199,11 @@ def open_terminal(command: str | list[str] | None = None, title: str = "JARVIS",
         if not argv:
             _log_err("open_terminal : aucun émulateur de terminal disponible")
             return None
-        return subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL, **kwargs)
+        # Les handles standard restent ceux de la nouvelle console quand
+        # terminal_argv les fixe à None (console Windows) ; DEVNULL sinon.
+        popen_kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+                    "stderr": subprocess.DEVNULL, **kwargs}
+        return subprocess.Popen(argv, **popen_kw)
     except Exception as e:
         _log_err(f"open_terminal({command!r}) : {type(e).__name__}: {e}")
         return None
