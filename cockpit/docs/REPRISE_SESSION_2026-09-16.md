@@ -7,6 +7,33 @@
 > mémoire Claude Code (`jarvis-cockpit-windows-port`), et **page de reprise** :
 > https://claude.ai/artifact/AX6i51uh6FdPGzaoZpbdLr (privée ; `/artifacts` dans Claude Code).
 
+## ✅ 0-bis. Reprise du 16/09 soir (20:20–20:50) — terminaux réparés, commit `5ddebee`
+
+- **Symptôme user** : chaque bouton « terminal » du cockpit → onglet Windows Terminal en erreur
+  `[erreur 2147942402 (0x80070002) lors du lancement de \`"cmd.exe /d /k C:\Users\clair\.local\bin\claude.EXE"']`.
+- **Cause mesurée** (pas un bug du cockpit au départ) : les profils WT du poste (Preview 1.25 *et* stable 1.24,
+  `settings.json`) ont **tous `"elevate": true`**. `wt.exe -w 0 new-tab … cmd.exe /d /k <exe>` est apparié
+  au profil « Invite de commandes » → WT relance une instance **admin** via `elevate-shim.exe` en re-sérialisant
+  la commande entre guillemets (`NewTerminalArgs::ToCommandline` → `-- "cmd.exe /d /k …"`) → relue comme un seul
+  exécutable → 0x80070002. Reproduit depuis un `pythonw` non-admin lancé par l'Explorateur ; **invisible depuis WSL**
+  (processus déjà admin → pas de relance). Preuve : `Win32_Process` PID 19140 = `WindowsTerminal.exe --profile
+  "{0caa0dad-…}" --startingDirectory "C:\Users\clair\jarvis" --title "Claude Code" -- "cmd.exe /d /k …claude.EXE"`.
+- **Correctif** `platform_compat.py` : `default_terminal_clsid()` / `wt_hosts_new_consoles()` (registre
+  `HKCU\Console\%%Startup\DelegationTerminal` = WT Preview `{86633F1F-…}` ici) ; `terminal_argv()` Windows →
+  **console classique `CREATE_NEW_CONSOLE`** quand WT est le terminal par défaut (Windows la confie lui-même à WT,
+  sans élévation — GH#12370 — ni re-sérialisation) ; `wt.exe new-tab` gardé seulement si WT est installé sans être
+  le terminal par défaut. `_console_argv()` : handles standard non redirigés, titre posé par le shell, commande
+  transmise à `cmd.exe` via `%JV_TERM_CMD%` (chemins avec espaces intacts). `open_terminal()` : kwargs prioritaires.
+- **Validation** : `tests_platform_compat` **56/56** ; sondes réelles non-admin (`explorer.exe … .cmd` → `pythonw`) :
+  `/c`, `/k` (reste ouvert), chemin avec espaces, commande texte avec `&` → fichiers témoins OK.
+- **À faire user** : **relancer le cockpit** (le `pythonw` de 20:13 garde l'ancien code). Optionnel : retirer
+  `"elevate": true` des profils WT (config perso, hors dépôt) — le correctif n'en dépend plus.
+- `agy` (PID 558) : bloqué sur quota Gemini 429 depuis 19:23, n'édite plus ; à fermer.
+- Inventaire PCI demandé (message tronqué « …port PCI malgré réglage BIOS pas d… ») : seul périphérique présent en
+  erreur = **Contrôleur de bus SM Intel 8 Series (DEV_8C22) `CM_PROB_FAILED_INSTALL`** (INF chipset manquant) ;
+  GTX 1660 SUPER OK ; les NVMe Crucial P5 / Micron 2400, RTX 3050 Laptop, AX201, HM570… sont des **fantômes de
+  l'ancien PC** (absents). Question posée au user : quel périphérique / quel slot ?
+
 ## ⚠ 0. DEUX AGENTS SUR LE MÊME DÉPÔT — à trancher au redémarrage
 
 Pendant cette session, **`agy` (Antigravity CLI, Gemini, mode YOLO auto-approuvé, session brain `a0b74978-1d6d-486e-8405-1235d69987cd`, PID 1376 dans WSL)** a reçu à 17:54 la **même mission** (« répare le cockpit, les terminaux doivent être intégrés dedans, erreur à chaque ouverture, teste backend/frontend ») et a édité en parallèle :
@@ -22,11 +49,11 @@ Les 54 tests `tests_platform_compat` passent avec ses modifications (vérifié 1
 | Élément | État |
 |---|---|
 | Dépôt | `C:\Users\clair\jarvis-cockpit-application` (= `/mnt/c/...` sous WSL), remote `Turbo31150/jarvis-cockpit-application`, base `main@96e143f` |
-| Portage Windows | **entièrement non committé jusqu'à ce point** → commit WIP sur branche `portage-windows` |
+| Portage Windows | branche `portage-windows` = `d4975b4` → `39331f8` → `6865733` → `2651786` → **`5ddebee`** (terminaux/defterm, 16/09 20:50) |
 | Venv | `.venv` (Python 3.13.7, PyQt6, textual, psutil, requests) |
 | Symptôme réparé | « rien ne s'ouvre, les terminaux » = `Popen(["gnome-terminal", …])` en dur → `FileNotFoundError [WinError 2]` (log `C:\Users\clair\jarvis\logs\cockpit_gui.log`) |
 | Corrigé (session du 16/09) | `tab_iaweb.py`, `tab_swarm.py`, `tab_moisson.py` routés par `platform_compat.open_terminal()` + boutons grisés si cible absente ; `agy` retiré de `LINUX_ONLY_TOOLS` + chemin `%LOCALAPPDATA%\agy\bin\agy.exe` ; candidats `browseros` |
-| Validation | `tests_platform_compat` 54 OK (Python Windows) ; smoke PyQt6 offscreen des 3 onglets OK |
+| Validation | `tests_platform_compat` **56** OK (Python Windows) ; smoke PyQt6 offscreen des 3 onglets OK ; sondes terminaux non-admin OK |
 | Déjà porté avant | `tab_hud`, `tab_apps`, `tab_terminal`, `terminal_manager`, `claude_engine`, `apps_registry`, `platform_compat` |
 
 ## 2. Audit exhaustif — ARRÊTÉ à 30/48 fichiers (sur demande, pour reprise au démarrage)
