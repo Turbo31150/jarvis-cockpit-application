@@ -1028,17 +1028,10 @@ def open_chrome_app(url_or_file: str, width: int = 450, height: int = 600) -> su
 # ── terminaux graphiques ────────────────────────────────────────────────────
 
 def _linux_terminal() -> str | None:
-    for t in ("gnome-terminal", "x-terminal-emulator", "xterm", "xfce4-terminal",
-              "konsole", "tilix", "alacritty", "kitty", "foot"):
-        found = shutil.which(t)
-        if found:
-            return found
-    if IS_WSL:
-        for t in ("wt.exe", "cmd.exe"):
-            found = shutil.which(t)
-            if found:
-                return found
-    return None
+    return (shutil.which("gnome-terminal") or shutil.which("x-terminal-emulator")
+            or shutil.which("xterm") or shutil.which("xfce4-terminal")
+            or shutil.which("konsole") or shutil.which("tilix")
+            or shutil.which("alacritty") or shutil.which("kitty"))
 
 
 def _command_to_string(command) -> str:
@@ -1073,23 +1066,6 @@ def terminal_argv(command: str | list[str] | None = None, title: str = "JARVIS",
     term = _linux_terminal()
     if not term:
         return None, {}
-    base_t = os.path.basename(term).lower()
-    if base_t in ("wt.exe", "wt"):
-        cmd_str = _command_to_string(command) if command else None
-        if not cmd_str:
-            wsl_argv = ["wsl.exe", "-e", "bash", "-il"]
-        else:
-            wsl_argv = ["wsl.exe", "-e", "bash", "-ic", f"{cmd_str}; exec bash -i" if keep_open else cmd_str]
-        argv = [term, "-w", "0", "new-tab", "--title", title] + wsl_argv
-        return argv, {"cwd": cwd or None, **popen_detached_kwargs()}
-    elif base_t in ("cmd.exe", "cmd"):
-        cmd_str = _command_to_string(command) if command else None
-        if not cmd_str:
-            wsl_argv = "wsl.exe -e bash -il"
-        else:
-            wsl_argv = f"wsl.exe -e bash -ic \"{cmd_str}; exec bash -i\"" if keep_open else f"wsl.exe -e bash -c \"{cmd_str}\""
-        argv = [term, "/k", f"title {title} & {wsl_argv}"]
-        return argv, {"cwd": cwd or None, **popen_detached_kwargs()}
     if command is None:
         shell_argv = default_shell()
     elif isinstance(command, str):
@@ -1098,7 +1074,7 @@ def terminal_argv(command: str | list[str] | None = None, title: str = "JARVIS",
         shell_argv = shell_wrap(shlex.join(list(command)), keep_open=True, interactive=login_shell)
     else:
         shell_argv = list(command)
-    if base_t == "xterm":
+    if os.path.basename(term) == "xterm":
         argv = [term, "-T", title, "-e"] + shell_argv
     else:
         argv = [term, "--title", title, "--"] + shell_argv
@@ -1112,8 +1088,41 @@ def open_terminal(command: str | list[str] | None = None, title: str = "JARVIS",
     None → shell interactif) et la laisse ouverte ensuite (keep_open/hold).
     Linux : gnome-terminal / x-terminal-emulator / xterm --title T -- bash -lc
     '<cmd>; exec bash -i' (login_shell=True ⇒ bash -ic pour les alias ttx/agy…).
+    WSL : repli transparent vers Windows Terminal (wt.exe) ou cmd.exe si aucun terminal X11.
     Windows : wt.exe -w 0 new-tab --title T -d cwd <shell_wrap(cmd)> ; repli
     cmd.exe /k dans une nouvelle console. NE LÈVE JAMAIS : Popen (truthy) ou None."""
+    if hold is not None:
+        keep_open = hold
+    try:
+        argv, kwargs = terminal_argv(command, title=title, cwd=cwd, keep_open=keep_open,
+                                     login_shell=login_shell)
+        if not argv and IS_WSL:
+            wt = shutil.which("wt.exe") or shutil.which("wt")
+            cmd_str = _command_to_string(command) if command else None
+            if wt:
+                if not cmd_str:
+                    wsl_cmd = ["wsl.exe", "-e", "bash", "-il"]
+                else:
+                    wsl_cmd = ["wsl.exe", "-e", "bash", "-ic", f"{cmd_str}; exec bash -i" if keep_open else cmd_str]
+                argv = [wt, "-w", "0", "new-tab", "--title", title, "-d", cwd or HOME] + wsl_cmd
+                kwargs = {"cwd": cwd or None, **popen_detached_kwargs()}
+            else:
+                cmd_exe = shutil.which("cmd.exe")
+                if cmd_exe:
+                    if not cmd_str:
+                        wsl_cmd = "wsl.exe -e bash -il"
+                    else:
+                        wsl_cmd = f"wsl.exe -e bash -ic \"{cmd_str}; exec bash -i\"" if keep_open else f"wsl.exe -e bash -c \"{cmd_str}\""
+                    argv = [cmd_exe, "/k", f"title {title} & {wsl_cmd}"]
+                    kwargs = {"cwd": cwd or None, **popen_detached_kwargs()}
+        if not argv:
+            _log_err("open_terminal : aucun émulateur de terminal disponible")
+            return None
+        return subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, **kwargs)
+    except Exception as e:
+        _log_err(f"open_terminal({command!r}) : {type(e).__name__}: {e}")
+        return None
     if hold is not None:
         keep_open = hold
     try:
