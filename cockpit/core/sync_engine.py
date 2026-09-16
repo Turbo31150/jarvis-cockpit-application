@@ -23,16 +23,18 @@ JARVIS_DIR = os.path.join(HOME, "jarvis")
 PROD_DB = os.path.join(JARVIS_DIR, "data", "production.db")
 MASTER_DB = os.path.join(JARVIS_DIR, "jarvis_master.db")
 BOARD_DB = os.path.join(JARVIS_DIR, "board", "board.db")
+PROSPECT_DB = os.path.join(JARVIS_DIR, "data", "prospection_reelle.db")
 LOGS_DIR = os.path.join(JARVIS_DIR, "logs")
 TASK_RESULTS_DIR = os.path.join(JARVIS_DIR, "data", "task_results")
+
 
 
 def get_git_status() -> list:
     """Récupère l'état de synchronisation des dépôts Git principaux de JARVIS."""
     repos = [
         {"name": "jarvis-core", "path": JARVIS_DIR},
-        {"name": "jarvis-linux", "path": os.path.join(HOME, "Workspaces", "jarvis-linux")},
-        {"name": "jarvis-cockpit", "path": os.path.join(HOME, "jarvis-cockpit")}
+        {"name": "jarvis-cockpit-app", "path": os.path.join(HOME, "MOISSON", "github-repos", "jarvis-cockpit-application")},
+        {"name": "pamerys-m4-cockpit", "path": os.path.join(HOME, "cockpit-app")}
     ]
     results = []
     for r in repos:
@@ -208,6 +210,16 @@ def get_avancements_data() -> dict:
             con_m.close()
         except Exception:
             pass
+
+    contacts_prospectes = 0
+    if os.path.exists(PROSPECT_DB):
+        try:
+            con_p = sqlite3.connect(f"file:{PROSPECT_DB}?mode=ro", uri=True, timeout=2.0)
+            c_p = con_p.cursor()
+            contacts_prospectes = c_p.execute("SELECT COUNT(*) FROM contacts_moissonnes").fetchone()[0]
+            con_p.close()
+        except Exception:
+            pass
             
     return {
         "success": True,
@@ -221,7 +233,8 @@ def get_avancements_data() -> dict:
             "bloque_taches": bloque_taches_all,
             "global_progress": global_progress,
             "master_tasks_pending": master_tasks_pending,
-            "master_tasks_done": master_tasks_done
+            "master_tasks_done": master_tasks_done,
+            "contacts_prospectes": contacts_prospectes
         },
         "runs": runs,
         "journal": journal,
@@ -244,7 +257,7 @@ def trigger_synchronisation(auto_git_commit: bool = False, message_commit: str =
     
     actions_done = []
     
-    dbs_to_checkpoint = [PROD_DB, MASTER_DB, BOARD_DB]
+    dbs_to_checkpoint = [PROD_DB, MASTER_DB, BOARD_DB, PROSPECT_DB]
     for db in dbs_to_checkpoint:
         if os.path.exists(db):
             try:
@@ -254,6 +267,7 @@ def trigger_synchronisation(auto_git_commit: bool = False, message_commit: str =
                 con.close()
                 actions_done.append(f"WAL Checkpoint: {os.path.basename(db)}")
             except Exception as e:
+
                 actions_done.append(f"WAL Checkpoint échoué ({os.path.basename(db)}): {e}")
 
     now_str = datetime.now().strftime("%Y%m%d_%H%M%S")

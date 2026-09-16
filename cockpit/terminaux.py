@@ -45,7 +45,7 @@ HOME = os.path.expanduser("~")
 
 # Fenêtre de sortie conservée par session. Au-delà, on rogne le début : c'est
 # un terminal, pas un journal — l'historique long vit dans les logs des apps.
-TAILLE_TAMPON = 512 * 1024
+TAILLE_TAMPON = int(os.environ.get("COCKPIT_TERM_BUFFER_KO", "4096")) * 1024  # 4 Mo (un scan verbeux dépasse vite 512 Ko et perdait ses 1res lignes) ; tmux garde de toute façon tout le scrollback
 MAX_SESSIONS = 12
 # Une session morte reste lisible un moment : l'utilisateur doit pouvoir lire
 # le message d'erreur d'une app qui a quitté aussitôt.
@@ -486,6 +486,40 @@ class Gestionnaire:
     def __init__(self):
         self.sessions = {}
         self._verrou = threading.Lock()
+        # Reconstruction au démarrage : après un redémarrage du cockpit (avec
+        # KillMode=process côté systemd, le serveur tmux et les apps survivent),
+        # on ré-adopte les sessions d'app tmux jc-* toujours debout — l'onglet
+        # retrouve son scan intact au lieu d'apparaître rouge/perdu.
+        try:
+            self._restaurer_persistantes()
+        except Exception:
+            pass
+
+    def _restaurer_persistantes(self):
+        if not TMUX or os.environ.get("COCKPIT_TERM_RESTORE", "1") == "0":
+            return
+        try:
+            r = subprocess.run([TMUX, "ls", "-F", "#{session_name}"],
+                               capture_output=True, text=True, timeout=5)
+        except Exception:
+            return
+        if r.returncode != 0:
+            return
+        for nom in (l.strip() for l in r.stdout.splitlines() if l.strip()):
+            if not nom.startswith(PREFIXE_APP):        # que les sessions d'app jc-*, pas les vues jetables
+                continue
+            app_id = nom[len(PREFIXE_APP):]
+            app = APPS_PAR_ID.get(app_id)
+            if not app:
+                continue
+            if any(getattr(s, "tmux_nom", None) == nom for s in self.sessions.values()):
+                continue
+            try:
+                cmd, tmux_nom = _cmd_app(app, 120, 32)   # -A : réattache la session existante, idempotent
+                s = Session(app["id"], app["nom"], cmd, cols=120, rows=32, tmux_nom=tmux_nom)
+                self.sessions[s.id] = s
+            except Exception:
+                continue
 
     def _purger(self):
         purger_vues_orphelines()

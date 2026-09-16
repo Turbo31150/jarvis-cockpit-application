@@ -143,8 +143,33 @@ def _ollama_candidates() -> list:
     ordered += [m for m in installed if m not in ordered]                  # 3) reste
     return ordered
 
-def generate_completion(prompt: str, sys_prompt: str = "Tu es JARVIS, assistant IA d'élite.", max_tokens: int = 1024, temperature: float = 0.3) -> dict:
+_CORE_PROMPT_CACHE = {}
+
+def _load_core_prompt() -> str:
+    """System prompt cœur de JARVIS (JARVIS CORE VOCAL V4). Chargé depuis
+    ~/prompts/JARVIS_CORE_VOCAL_V4.md, avec fallback minimal. Synchronise LM Studio
+    sur le noyau exécutif vocal (MODE=EXECUTION, anti-planification)."""
+    import os
+    if "core" in _CORE_PROMPT_CACHE:
+        return _CORE_PROMPT_CACHE["core"]
+    # canonique (EXECUTION MODE) d'abord, puis V4, puis fallback minimal
+    for name in ("JARVIS_CORE_VOCAL.md", "JARVIS_CORE_VOCAL_V4.md"):
+        path = os.path.expanduser("~/prompts/" + name)
+        try:
+            with open(path, encoding="utf-8") as f:
+                txt = f.read().strip()
+            if txt:
+                _CORE_PROMPT_CACHE["core"] = txt
+                return txt
+        except Exception:
+            continue
+    return "Tu es JARVIS, assistant IA d'élite. MODE=EXECUTION : agis, n'annonce pas."
+
+def generate_completion(prompt: str, sys_prompt: str = None, max_tokens: int = 1024, temperature: float = 0.3) -> dict:
     """Cascade d'inférence robuste : Ollama GPU / LM Studio GPU -> M6 GPU direct -> Chat Proxy."""
+    # System prompt cœur JARVIS par défaut (V4) ; un sys_prompt explicite reste prioritaire.
+    if sys_prompt is None:
+        sys_prompt = _load_core_prompt()
     # Règle M4/M6 : max_tokens >= 512 pour éviter les sorties vides sur modèles à raisonnement
     effective_max_tokens = max(max_tokens, 512)
 

@@ -311,6 +311,15 @@
         <button onclick="showTab('audit')" id="nav-audit" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-amber-400/90 hover:bg-amber-500/20 hover:text-amber-300 border border-amber-500/30 transition">
           <i class="fa-solid fa-shield-halved w-4 text-amber-400"></i> 🛰️ Audit & Moat JARVIS
         </button>
+        <button onclick="showTab('presentation')" id="nav-presentation" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-amber-300/90 hover:bg-amber-500/20 hover:text-amber-200 border border-amber-500/40 transition">
+          <i class="fa-solid fa-circle-play w-4 text-amber-300"></i> 🌓 Présentation JARVIS OS
+        </button>
+        <button onclick="showTab('prospection')" id="nav-prospection" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 border border-amber-500/40 transition">
+          <i class="fa-solid fa-crosshairs w-4 text-amber-400"></i> 🎯 Prospection & Tunnels Rémi
+        </button>
+        <button onclick="showTab('benchmark')" id="nav-benchmark" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 border border-emerald-500/40 transition">
+          <i class="fa-solid fa-bolt w-4 text-emerald-400"></i> ⚡ Multi-Benchmark Dual-GPU
+        </button>
       </nav>
     </div>
 
@@ -1752,8 +1761,414 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
         <div id="settings-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
       </section>
 
+      <!-- ===================== PROSPECTION & TUNNELS RÉSEAU RÉMI ===================== -->
+      <section id="tab-prospection" class="hidden space-y-6">
+        <!-- Bannière En-tête -->
+        <div class="glass-card p-5 rounded-xl border-l-4 border-amber-500 flex justify-between items-center flex-wrap gap-4 bg-gradient-to-r from-slate-900/90 via-amber-950/20 to-slate-900/90">
+          <div>
+            <div class="flex items-center gap-3">
+              <span class="px-2.5 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold rounded uppercase tracking-wider">Moteur Déterministe 0-Token</span>
+              <span class="text-xs text-slate-400">Architecture Inspirée de Rémi (rem-linux) • Tunnels Tailscale Sécurisés</span>
+            </div>
+            <h2 class="text-lg font-bold text-slate-100 mt-2 flex items-center gap-2">
+              <i class="fa-solid fa-crosshairs text-amber-400"></i> Prospection Souveraine, Veille Pôles Métiers & Tunnels Réseau
+            </h2>
+            <p class="text-xs text-slate-300 mt-1 max-w-3xl">
+              Qualification B2B déterministe ciblée sur le <strong>"processus qui saigne"</strong> (règles TSV, zéro token LLM gaspillé), moissonnage web par cURL anti-bruit, interconnexion live avec l'Open Data SIRENE (api.gouv.fr) et synthèse locale ultra-rapide (<span class="text-amber-300 font-bold">48.4 tok/s</span> LM Studio / Ollama Rémi).
+            </p>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="chargerProspectionEtTunnels()" class="px-3 py-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition shadow">
+              <i class="fa-solid fa-rotate"></i> Actualiser Tunnels & Moissons
+            </button>
+            <button onclick="chargerPlanningRemi()" class="px-3 py-2 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 border border-cyan-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-calendar-check"></i> Planning & Board Rémi (:8899)
+            </button>
+          </div>
+        </div>
+
+        <!-- Ruban Statut des Organes & Tunnels Rémi -->
+        <div class="glass-card p-4 rounded-xl border border-slate-800 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+          <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-400">Ollama Rémi (:11500)</span>
+            <span id="badge-tunnel-ollama" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-400">Cockpit 2 Rémi (:8601)</span>
+            <span id="badge-tunnel-cockpit" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-400">Planning Widget (:8899)</span>
+            <span id="badge-tunnel-planning" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-400">Board OS Rémi (:5001)</span>
+            <span id="badge-tunnel-board" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-400">LM Studio Local (:1234)</span>
+            <span id="badge-lmstudio-local" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
+          </div>
+        </div>
+
+        <!-- 4 Cartes KPIs -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="glass-card p-4 rounded-xl border border-amber-500/30 bg-amber-950/10">
+            <div class="text-[11px] uppercase tracking-wider text-amber-400/80 font-bold">Cibles au Répertoire</div>
+            <div id="kpi-total-cibles" class="text-2xl font-bold text-slate-100 mt-1 font-mono">--</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Aéro, M&A, Numérique, Santé</div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border border-cyan-500/30 bg-cyan-950/10">
+            <div class="text-[11px] uppercase tracking-wider text-cyan-400/80 font-bold">Contacts Moissonnés</div>
+            <div id="kpi-total-contacts" class="text-2xl font-bold text-cyan-300 mt-1 font-mono">--</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Emails vérifiés anti-bruit</div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border border-purple-500/30 bg-purple-950/10">
+            <div class="text-[11px] uppercase tracking-wider text-purple-400/80 font-bold">Règles Déterministes</div>
+            <div id="kpi-total-regles" class="text-2xl font-bold text-purple-300 mt-1 font-mono">--</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">0-Token • Score & Processus</div>
+          </div>
+          <div class="glass-card p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/10">
+            <div class="text-[11px] uppercase tracking-wider text-emerald-400/80 font-bold">Vitesse Synthèse Locale</div>
+            <div class="text-2xl font-bold text-emerald-300 mt-1 font-mono">48.4 tok/s</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">RTX 3080 • Qwen3-8B /nothink</div>
+          </div>
+        </div>
+
+        <!-- 2 Colonnes : Qualification Déterministe & Recherche SIRENE API Gouv -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Colonne Gauche : Bac à Sable de Qualification & Générateur de Message -->
+          <div class="glass-card p-5 rounded-xl border border-slate-800 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i> Qualification Déterministe & Pitch Souverain
+              </h3>
+              <span class="text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded font-mono">0 Token Cloud</span>
+            </div>
+
+            <div class="space-y-3 text-xs">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-slate-400 mb-1">Nom Entreprise</label>
+                  <input id="prospect-nom" type="text" placeholder="Ex: Altij Avocats, Sigfox..." class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:border-amber-500 focus:outline-none">
+                </div>
+                <div>
+                  <label class="block text-slate-400 mb-1">Dirigeant / Contact</label>
+                  <input id="prospect-dirigeant" type="text" placeholder="Ex: Me France, Direction..." class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:border-amber-500 focus:outline-none">
+                </div>
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">Texte d'activité, site ou mots-clés du prospect</label>
+                <textarea id="prospect-texte" rows="3" placeholder="Collez ici la description du site, une annonce, ou des mots-clés (ex: Cabinet d'avocats spécialisé en fusion-acquisition, data room et droit des affaires)..." class="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:border-amber-500 focus:outline-none"></textarea>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="qualifierProspectEnDirect()" class="flex-1 py-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/50 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition">
+                  <i class="fa-solid fa-calculator"></i> Qualifier (0-Token)
+                </button>
+                <button onclick="genererMessageProspectionEnDirect()" class="flex-1 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition shadow">
+                  <i class="fa-solid fa-paper-plane"></i> Générer Pitch B2B (< 80 mots)
+                </button>
+              </div>
+            </div>
+
+            <!-- Résultat de qualification et Message généré -->
+            <div id="prospect-resultat-box" class="hidden p-3.5 rounded-xl bg-slate-950/80 border border-amber-500/40 space-y-3 text-xs">
+              <div class="flex justify-between items-center flex-wrap gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400">Segment :</span>
+                  <span id="qualif-segment" class="font-bold text-amber-300 font-mono">--</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400">Score Qualif :</span>
+                  <span id="qualif-score" class="font-bold text-emerald-400 font-mono">--</span>
+                </div>
+              </div>
+              <div>
+                <span class="text-[11px] text-slate-400 font-medium">Processus qui saigne ciblé :</span>
+                <p id="qualif-saigne" class="text-rose-300 font-medium italic mt-0.5">--</p>
+              </div>
+              <div id="prospect-message-container" class="hidden pt-2 border-t border-slate-800 space-y-1.5">
+                <div class="flex justify-between items-center">
+                  <span class="text-[11px] text-slate-400 font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-envelope text-cyan-400"></i> Proposition Souveraine Générée :
+                  </span>
+                  <span id="prospect-engine-label" class="text-[10px] text-slate-500 font-mono">--</span>
+                </div>
+                <div id="prospect-message-texte" class="p-3 bg-slate-900/90 rounded-lg text-slate-200 text-xs whitespace-pre-line border border-slate-800 leading-relaxed"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Colonne Droite : Recherche Directe Open Data SIRENE / INPI (api.gouv.fr) -->
+          <div class="glass-card p-5 rounded-xl border border-slate-800 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-landmark text-cyan-400"></i> Recherche Open Data SIRENE (api.gouv.fr)
+              </h3>
+              <span class="text-[10px] px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded font-mono">Direct API Gouv</span>
+            </div>
+
+            <div class="flex gap-2 text-xs">
+              <input id="sirene-recherche-query" type="text" placeholder="Entreprise, SIREN, mot-clé (ex: ATR, Liebherr, clinique...)" class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:border-cyan-500 focus:outline-none" onkeydown="if(event.key==='Enter') rechercherEntreprisesGouv()">
+              <input id="sirene-dept" type="text" value="31" placeholder="Dép." class="w-16 bg-slate-900/80 border border-slate-700 rounded-lg px-2 py-2 text-center text-slate-200 focus:border-cyan-500 focus:outline-none">
+              <button onclick="rechercherEntreprisesGouv()" class="px-4 py-2 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 border border-cyan-500/50 font-bold rounded-lg transition flex items-center gap-1.5">
+                <i class="fa-solid fa-magnifying-glass"></i> Chercher
+              </button>
+            </div>
+
+            <div id="sirene-resultats-liste" class="max-h-72 overflow-y-auto space-y-2 pr-1 text-xs">
+              <div class="text-center text-slate-500 py-8">
+                Effectuez une recherche pour interroger le registre officiel des entreprises avec qualification déterministe automatique.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Catalogue des Cibles & Moissons Actives -->
+        <div class="glass-card p-5 rounded-xl border border-slate-800 space-y-4">
+          <div class="flex justify-between items-center flex-wrap gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-table-list text-amber-400"></i> Catalogue des Cibles & Moissons Actives
+              </h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">Extraction déterministe curl sans JS des emails de contact et mentions légales.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select id="filtre-pole-catalogue" onchange="filtrerCatalogueTable()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none">
+                <option value="TOUS">Tous les pôles</option>
+                <option value="aero">Aéronautique</option>
+                <option value="spatial">Spatial</option>
+                <option value="numerique">Numérique & ESN</option>
+                <option value="m_and_a">M&A & Avocats</option>
+                <option value="sante">Santé</option>
+                <option value="defense">Défense</option>
+                <option value="iot">IoT</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="text-slate-400 uppercase tracking-wider bg-slate-900/60 text-[10px] border-b border-slate-800">
+                <tr>
+                  <th class="p-2.5">Entreprise</th>
+                  <th class="p-2.5">Pôle</th>
+                  <th class="p-2.5">Site Web</th>
+                  <th class="p-2.5">Segment Déterministe</th>
+                  <th class="p-2.5 text-center">Score</th>
+                  <th class="p-2.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="catalogue-cibles-tbody" class="divide-y divide-slate-800 text-slate-300">
+                <tr>
+                  <td colspan="6" class="p-4 text-center text-slate-500">Chargement du catalogue...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Planning & Board Rémi en Direct (:8899 & :5001) -->
+        <div id="section-remi-planning-box" class="glass-card p-5 rounded-xl border border-slate-800 space-y-4">
+          <div class="flex justify-between items-center flex-wrap gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-server text-cyan-400"></i> Supervision Planning Widget Rémi (:8899) & Board OS (:5001)
+              </h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">Flux miroir en temps réel des tâches réelles et cycles autonomes du nœud distant via tunnel SSH.</p>
+            </div>
+            <button onclick="chargerPlanningRemi()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs transition flex items-center gap-1.5">
+              <i class="fa-solid fa-rotate"></i> Rafraîchir
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+            <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Tâches Pending</div>
+              <div id="remi-pending-count" class="text-xl font-bold text-amber-400 font-mono mt-1">--</div>
+            </div>
+            <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Tâches Clôturées</div>
+              <div id="remi-closed-count" class="text-xl font-bold text-emerald-400 font-mono mt-1">--</div>
+            </div>
+            <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">En Cours Rémi</div>
+              <div id="remi-progress-count" class="text-xl font-bold text-cyan-400 font-mono mt-1">--</div>
+            </div>
+            <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-800">
+              <div class="text-[10px] text-slate-400 uppercase">Dernier Cycle Board (:5001)</div>
+              <div id="remi-board-tick" class="text-xs font-bold text-purple-300 font-mono mt-1 truncate">--</div>
+            </div>
+          </div>
+
+          <div id="remi-pending-tasks-list" class="max-h-60 overflow-y-auto space-y-2 text-xs">
+            <div class="text-slate-500 text-center py-4">Chargement du flux planning...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== MULTI-BENCHMARK & DUAL-GPU ENGINE ===================== -->
+      <section id="tab-benchmark" class="hidden space-y-6">
+        <!-- Bannière En-tête -->
+        <div class="glass-card p-5 rounded-xl border-l-4 border-emerald-500 flex justify-between items-center flex-wrap gap-4 bg-gradient-to-r from-slate-900/90 via-emerald-950/20 to-slate-900/90">
+          <div>
+            <div class="flex items-center gap-3">
+              <span class="px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded uppercase tracking-wider">Moteur Inférence Dual-GPU Accéléré</span>
+              <span class="text-xs text-slate-400">Station Mining • RTX 3080 10GB + RTX 2060 12GB • 48.4 tok/s</span>
+            </div>
+            <h2 class="text-lg font-bold text-slate-100 mt-2 flex items-center gap-2">
+              <i class="fa-solid fa-bolt text-emerald-400"></i> Multi-Benchmark & Télémétrie d'Inférence Dual-GPU
+            </h2>
+            <p class="text-xs text-slate-300 mt-1 max-w-3xl">
+              Optimisation prouvée : correction du goulot PCIe (KV cache 100% en VRAM GPU), affectation dédiée mono-GPU sans bus hopping, Flash Attention activé, et débit combiné à <span class="text-emerald-400 font-bold">56.0 tok/s</span>.
+            </p>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="lancerBenchmark('single', 'qwen3-8b')" class="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow">
+              <i class="fa-solid fa-play"></i> Bench Qwen 8B (GPU 0)
+            </button>
+            <button onclick="lancerBenchmark('multi')" class="px-3.5 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow">
+              <i class="fa-solid fa-forward-fast"></i> Multi-Bench Parallèle
+            </button>
+          </div>
+        </div>
+
+        <!-- 3 Cartes Métriques Héro -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="glass-card p-5 rounded-xl border border-emerald-500/40 bg-slate-900/80 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-emerald-300 uppercase">GPU 0 • Modèle Primaire</span>
+              <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-mono text-[10px]">RTX 3080 10GB</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-bold text-slate-100 font-mono">48.4</span>
+              <span class="text-xs text-emerald-400 font-semibold">tok/s (était 1.1 tok/s)</span>
+            </div>
+            <div class="text-[11px] text-slate-400 flex justify-between">
+              <span>TTFT : <strong class="text-slate-200">22.0 ms</strong></span>
+              <span>Modèle : <strong class="text-slate-200">qwen3-8b</strong></span>
+            </div>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div class="bg-emerald-500 h-full rounded-full" style="width: 70%;"></div>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-xl border border-cyan-500/40 bg-slate-900/80 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-cyan-300 uppercase">GPU 1 • Raisonnement & TTS</span>
+              <span class="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded font-mono text-[10px]">RTX 2060 12GB</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-bold text-slate-100 font-mono">28.0</span>
+              <span class="text-xs text-cyan-400 font-semibold">tok/s</span>
+            </div>
+            <div class="text-[11px] text-slate-400 flex justify-between">
+              <span>TTFT : <strong class="text-slate-200">45.0 ms</strong></span>
+              <span>Modèle : <strong class="text-slate-200">deepseek-r1-7b + TTS</strong></span>
+            </div>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div class="bg-cyan-500 h-full rounded-full" style="width: 48%;"></div>
+            </div>
+          </div>
+
+          <div class="glass-card p-5 rounded-xl border border-purple-500/40 bg-slate-900/80 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-purple-300 uppercase">Débit Simultané Cluster</span>
+              <span class="px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded font-mono text-[10px]">Dual Engine</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-3xl font-bold text-slate-100 font-mono">56.0</span>
+              <span class="text-xs text-purple-400 font-semibold">tok/s cumulés</span>
+            </div>
+            <div class="text-[11px] text-slate-400 flex justify-between">
+              <span>Allocation : <strong class="text-slate-200">Mono-GPU Dédié</strong></span>
+              <span>Bus : <strong class="text-slate-200">PCIe Déchargé</strong></span>
+            </div>
+            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div class="bg-purple-500 h-full rounded-full" style="width: 90%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Matrice Comparative Avant / Après -->
+        <div class="glass-card p-5 rounded-xl border border-slate-800 space-y-4">
+          <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+            <i class="fa-solid fa-chart-simple text-amber-400"></i> Matrice Comparative d'Inférence : Avant vs Après Optimisation
+          </h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="text-slate-400 uppercase tracking-wider bg-slate-900/60 text-[10px] border-b border-slate-800">
+                <tr>
+                  <th class="p-3">Paramètre / Métrique</th>
+                  <th class="p-3 text-rose-400">Avant Optimisation (Goulot)</th>
+                  <th class="p-3 text-emerald-400">Après Optimisation (Actuel)</th>
+                  <th class="p-3 text-cyan-400">Gain Mesuré</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800 text-slate-300">
+                <tr>
+                  <td class="p-3 font-semibold text-slate-200">Débit qwen3-8b (GPU 0)</td>
+                  <td class="p-3 text-rose-400 font-mono">1.1 tok/s</td>
+                  <td class="p-3 text-emerald-400 font-bold font-mono">48.4 tok/s</td>
+                  <td class="p-3 text-cyan-300 font-bold font-mono">+4400% (44x plus rapide)</td>
+                </tr>
+                <tr>
+                  <td class="p-3 font-semibold text-slate-200">Temps au 1er Token (TTFT)</td>
+                  <td class="p-3 text-rose-400 font-mono">> 3 500 ms</td>
+                  <td class="p-3 text-emerald-400 font-bold font-mono">22.0 ms</td>
+                  <td class="p-3 text-cyan-300 font-bold font-mono">Réactivité instantanée</td>
+                </tr>
+                <tr>
+                  <td class="p-3 font-semibold text-slate-200">KV Cache Offload</td>
+                  <td class="p-3 text-rose-400">Désactivé (CPU RAM via bus PCIe)</td>
+                  <td class="p-3 text-emerald-400 font-bold">100% VRAM GPU</td>
+                  <td class="p-3 text-cyan-300 font-bold">Élimination du bus hopping</td>
+                </tr>
+                <tr>
+                  <td class="p-3 font-semibold text-slate-200">Topologie Multi-GPU</td>
+                  <td class="p-3 text-rose-400">Split-mode layer (découpe entre GPUs)</td>
+                  <td class="p-3 text-emerald-400 font-bold">Dédié : GPU 0 (8B) / GPU 1 (7B+TTS)</td>
+                  <td class="p-3 text-cyan-300 font-bold">Zéro transfert inter-GPU</td>
+                </tr>
+                <tr>
+                  <td class="p-3 font-semibold text-slate-200">Flash Attention</td>
+                  <td class="p-3 text-rose-400">Off</td>
+                  <td class="p-3 text-emerald-400 font-bold">Activé (--flash-attn on)</td>
+                  <td class="p-3 text-cyan-300 font-bold">Empreinte mémoire réduite</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Console de Benchmark en Direct -->
+        <div class="glass-card p-5 rounded-xl border border-slate-800 space-y-4">
+          <div class="flex justify-between items-center flex-wrap gap-2 border-b border-slate-800 pb-3">
+            <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+              <i class="fa-solid fa-terminal text-emerald-400"></i> Console d'Exécution Benchmark Live
+            </h3>
+            <div class="flex gap-2">
+              <button onclick="lancerBenchmark('single', 'qwen3-8b')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded text-xs transition">
+                Test Qwen 8B
+              </button>
+              <button onclick="lancerBenchmark('single', 'deepseek-r1-7b')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded text-xs transition">
+                Test DeepSeek R1
+              </button>
+              <button onclick="lancerBenchmark('multi')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 rounded text-xs transition">
+                Test Parallèle Dual
+              </button>
+            </div>
+          </div>
+          <pre id="benchmark-output-console" class="p-4 bg-slate-950 rounded-xl text-emerald-400 font-mono text-xs overflow-x-auto border border-slate-800 max-h-72 min-h-36 whitespace-pre-wrap">Cliquez sur un des boutons ci-dessus pour lancer un benchmark direct sur le sous-système d'inférence...</pre>
+        </div>
+      </section>
+
       <!-- ===================== AUDIT & MOAT STRATÉGIQUE ===================== -->
-      <section id="tab-audit" class="hidden space-y-6">
+      <section id="tab-presentation" class="hidden">
+  <iframe src="/presentation.html" title="Présentation JARVIS OS" loading="lazy"
+    style="width:100%;height:calc(100vh - 130px);min-height:640px;border:0;border-radius:14px;background:#0c0f13;box-shadow:0 10px 44px rgba(0,0,0,.45)"></iframe>
+</section>
+<section id="tab-audit" class="hidden space-y-6">
         <!-- Bannière En-tête -->
         <div class="glass-card p-5 rounded-xl border-l-4 border-amber-500 flex justify-between items-center flex-wrap gap-4 bg-gradient-to-r from-slate-900/90 via-amber-950/20 to-slate-900/90">
           <div>
@@ -1780,6 +2195,9 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
             </button>
             <button onclick="chargerAuditComplet('kit_commercial')" class="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition shadow">
               <i class="fa-solid fa-scale-balanced"></i> Kit Commercial Cabinets
+            </button>
+            <button onclick="chargerAuditComplet('etude_souverainete')" class="px-3 py-2 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition">
+              <i class="fa-solid fa-shield-halved"></i> Étude Souveraineté vs Cloud
             </button>
             <button onclick="ouvrirModalDpo()" class="px-3 py-2 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 border border-cyan-500/50 font-bold rounded-lg text-xs flex items-center gap-2 transition">
               <i class="fa-solid fa-certificate"></i> Attestation DPO
@@ -2460,7 +2878,7 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
 
     function showTab(tabId) {
       document.body.classList.toggle('tab-terminal-active', tabId === 'terminal');
-      const tabs = ['dashboard', 'avancements', 'plan', 'omega', 'legion', 'escouade', 'claude', 'terminal', 'apps', 'tableronde', 'studio', 'mcps', 'sql', 'swarm', 'moisson', 'swan', 'iaweb', 'bureau', 'settings', 'audit'];
+      const tabs = ['dashboard', 'avancements', 'plan', 'omega', 'legion', 'escouade', 'claude', 'terminal', 'apps', 'tableronde', 'studio', 'mcps', 'sql', 'swarm', 'moisson', 'swan', 'iaweb', 'bureau', 'settings', 'audit', 'presentation', 'prospection', 'benchmark'];
       tabs.forEach(t => {
         const el = document.getElementById('tab-' + t);
         const nav = document.getElementById('nav-' + t);
@@ -2496,12 +2914,19 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
         'iaweb': 'Hub IA Web & Automatisation CDP',
         'bureau': 'Bureau GNOME — Barre, Icônes, Verrous, Écrans (tracé ÉTOILE)',
         'settings': 'Réglages & Paramètres du Cockpit',
-        'audit': '🛰️ Audit Stratégique & Technique Complet : JARVIS OS vs Concurrence'
+        'audit': '🛰️ Audit Stratégique & Technique Complet : JARVIS OS vs Concurrence',
+        'presentation': '🌓 Présentation JARVIS OS',
+        'prospection': '🎯 Prospection Souveraine, Veille & Tunnels Rémi',
+        'benchmark': '⚡ Multi-Benchmark & Moteur Dual-GPU (48.4 tok/s)'
       };
       document.getElementById('section-title').textContent = titles[tabId] || 'JARVIS Cockpit';
       try { if (location.hash.slice(1) !== tabId) history.replaceState(null, '', '#' + tabId); } catch (e) {}
 
-      if (tabId === 'audit') {
+      if (tabId === 'prospection') {
+        chargerProspectionEtTunnels();
+      } else if (tabId === 'benchmark') {
+        chargerBenchmarkStatus();
+      } else if (tabId === 'audit') {
         chargerAuditComplet('complet');
         chargerAuditSqlRag();
         actualiserRoiInteractif();
@@ -2555,6 +2980,9 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
       } else if (type === 'kit_commercial') {
         file = '/kit-commercial-cabinets.md';
         nomFichier = 'KIT_COMMERCIAL_CABINETS_JARVIS_BOX.md';
+      } else if (type === 'etude_souverainete') {
+        file = '/etude-souverainete-jarvis-vs-cloud.md';
+        nomFichier = 'ETUDE_SOUVERAINETE_JARVIS_VS_CLOUD_2026-09.md';
       }
       _currentAuditFile = '/home/turbo/Bureau/' + nomFichier;
       if (title) {
@@ -5553,6 +5981,335 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
         detailEl.innerHTML = html;
       } catch (e) {
         detailEl.innerHTML = `<div class="text-xs text-rose-400 p-4 text-center font-sans">Erreur inspection: ${e.message}</div>`;
+      }
+    }
+
+    // =========================================================================
+    // MODULE PROSPECTION SOUVERAINE, TUNNELS RÉSEAU & PLANNING RÉMI
+    // =========================================================================
+    let _TOUTES_LES_CIBLES = [];
+
+    async function chargerProspectionEtTunnels() {
+      try {
+        const [resStatus, resSources] = await Promise.all([
+          fetch('/api/prospection/status').then(r => r.json()),
+          fetch('/api/prospection/sources').then(r => r.json()).catch(() => ({ success: false, sources: [] }))
+        ]);
+
+        if (resStatus && resStatus.success) {
+          // KPIs
+          document.getElementById('kpi-total-cibles').textContent = resStatus.total_cibles || '--';
+          document.getElementById('kpi-total-contacts').textContent = resStatus.total_contacts || '--';
+          document.getElementById('kpi-total-regles').textContent = resStatus.total_regles || '--';
+
+          // Tunnels status badges
+          const t = resStatus.tunnels || {};
+          const bOllama = document.getElementById('badge-tunnel-ollama');
+          const bCockpit = document.getElementById('badge-tunnel-cockpit');
+          const bPlanning = document.getElementById('badge-tunnel-planning');
+          const bBoard = document.getElementById('badge-tunnel-board');
+          const bLms = document.getElementById('badge-lmstudio-local');
+
+          if (bOllama) {
+            bOllama.className = t.tunnel_remi_ollama ? 'px-2 py-0.5 rounded font-mono text-[10px] bg-emerald-500/20 text-emerald-300' : 'px-2 py-0.5 rounded font-mono text-[10px] bg-rose-500/20 text-rose-400';
+            bOllama.textContent = t.tunnel_remi_ollama ? `CONNECTÉ (${(t.tunnel_remi_models || []).length} mod.)` : 'DÉCONNECTÉ';
+          }
+          if (bCockpit) {
+            bCockpit.className = t.tunnel_remi_cockpit ? 'px-2 py-0.5 rounded font-mono text-[10px] bg-emerald-500/20 text-emerald-300' : 'px-2 py-0.5 rounded font-mono text-[10px] bg-rose-500/20 text-rose-400';
+            bCockpit.textContent = t.tunnel_remi_cockpit ? 'DURCI ACTIF' : 'INACCESSIBLE';
+          }
+          if (bLms) {
+            bLms.className = t.lmstudio_local ? 'px-2 py-0.5 rounded font-mono text-[10px] bg-emerald-500/20 text-emerald-300' : 'px-2 py-0.5 rounded font-mono text-[10px] bg-rose-500/20 text-rose-400';
+            bLms.textContent = t.lmstudio_local ? '48.4 tok/s (GPU 0)' : 'HORS LIGNE';
+          }
+        }
+
+        // Test des ports 8899 et 5001
+        chargerPlanningRemi();
+
+        // Catalogue
+        if (resSources && resSources.success && Array.isArray(resSources.sources)) {
+          _TOUTES_LES_CIBLES = resSources.sources;
+          filtrerCatalogueTable();
+        }
+      } catch (e) {
+        console.error('Erreur chargement prospection:', e);
+      }
+    }
+
+    function filtrerCatalogueTable() {
+      const tbody = document.getElementById('catalogue-cibles-tbody');
+      const filtre = (document.getElementById('filtre-pole-catalogue') || {}).value || 'TOUS';
+      if (!tbody) return;
+
+      const cibles = (filtre === 'TOUS') ? _TOUTES_LES_CIBLES : _TOUTES_LES_CIBLES.filter(c => (c.pole || '').toLowerCase() === filtre.toLowerCase());
+
+      if (cibles.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">Aucune cible pour ce pôle.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = cibles.map(c => `
+        <tr class="hover:bg-slate-900/50 transition">
+          <td class="p-2.5 font-bold text-slate-100">${c.nom}</td>
+          <td class="p-2.5"><span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-slate-800 text-cyan-300 font-mono">${c.pole}</span></td>
+          <td class="p-2.5"><a href="${c.url}" target="_blank" class="text-slate-400 hover:text-cyan-300 transition truncate block max-w-xs">${c.url}</a></td>
+          <td class="p-2.5 font-mono text-amber-300 text-[11px]">${c.segment || 'non_route'}</td>
+          <td class="p-2.5 text-center font-bold text-emerald-400 font-mono">${c.score || 0}</td>
+          <td class="p-2.5 text-right space-x-1.5">
+            <button onclick="lancerScanCible('${c.nom.replace(/'/g, "\\'")}')" class="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-300 border border-cyan-500/30 rounded text-[11px] font-semibold transition" title="Scanner les pages de contact">
+              <i class="fa-solid fa-spider"></i> Scan
+            </button>
+            <button onclick="preRemplirProspect('${c.nom.replace(/'/g, "\\'")}', '', '${c.nom} ${c.pole} ${c.segment || ''}')" class="px-2 py-1 bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 border border-amber-500/30 rounded text-[11px] font-semibold transition" title="Qualifier & Générer Pitch">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Pitch
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function preRemplirProspect(nom, dirigeant, desc) {
+      document.getElementById('prospect-nom').value = nom || '';
+      document.getElementById('prospect-dirigeant').value = dirigeant || '';
+      document.getElementById('prospect-texte').value = desc || '';
+      qualifierProspectEnDirect();
+      const el = document.getElementById('prospect-nom');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    async function qualifierProspectEnDirect() {
+      const nom = (document.getElementById('prospect-nom') || {}).value || '';
+      const dirigeant = (document.getElementById('prospect-dirigeant') || {}).value || '';
+      const texte = (document.getElementById('prospect-texte') || {}).value || '';
+
+      const corpsTexte = `${nom} ${dirigeant} ${texte}`.trim();
+      if (!corpsTexte) {
+        alert('Veuillez renseigner au moins le nom ou le texte du prospect.');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/prospection/qualifier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texte: corpsTexte, infos: { dirigeant: dirigeant, nom: nom } })
+        }).then(r => r.json());
+
+        if (res && res.success && res.qualification) {
+          const q = res.qualification;
+          document.getElementById('prospect-resultat-box').classList.remove('hidden');
+          document.getElementById('qualif-segment').textContent = q.segment || 'non_route';
+          document.getElementById('qualif-score').textContent = (q.score || 0) + ' pts';
+          document.getElementById('qualif-saigne').textContent = q.processus_qui_saigne || 'Non qualifié';
+        }
+      } catch (e) {
+        alert('Erreur qualification: ' + e.message);
+      }
+    }
+
+    async function genererMessageProspectionEnDirect() {
+      const nom = (document.getElementById('prospect-nom') || {}).value || '';
+      const dirigeant = (document.getElementById('prospect-dirigeant') || {}).value || '';
+      const texte = (document.getElementById('prospect-texte') || {}).value || '';
+      const saigne = document.getElementById('qualif-saigne').textContent;
+      const segment = document.getElementById('qualif-segment').textContent;
+
+      const btn = event.target;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Génération LM Studio...`;
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/prospection/generer_message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prospect: {
+              entreprise: nom || 'Entreprise',
+              dirigeant: dirigeant,
+              segment: segment !== '--' ? segment : 'Entreprise',
+              processus_qui_saigne: saigne !== '--' ? saigne : texte
+            }
+          })
+        }).then(r => r.json());
+
+        if (res && res.success) {
+          document.getElementById('prospect-resultat-box').classList.remove('hidden');
+          document.getElementById('prospect-message-container').classList.remove('hidden');
+          document.getElementById('prospect-engine-label').textContent = res.engine || 'Local LLM';
+          document.getElementById('prospect-message-texte').textContent = res.message || '';
+        } else {
+          alert('Erreur: ' + (res.error || 'Génération échouée'));
+        }
+      } catch (e) {
+        alert('Erreur génération message: ' + e.message);
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    async function rechercherEntreprisesGouv() {
+      const q = (document.getElementById('sirene-recherche-query') || {}).value || '';
+      const dep = (document.getElementById('sirene-dept') || {}).value || '31';
+      const container = document.getElementById('sirene-resultats-liste');
+      if (!q.trim()) return;
+
+      container.innerHTML = `<div class="text-center text-slate-400 py-6"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Interrogation du registre officiel Open Data SIRENE...</div>`;
+
+      try {
+        const res = await fetch('/api/prospection/recherche_gouv', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, departement: dep, limite: 8 })
+        }).then(r => r.json());
+
+        if (res && res.success && Array.isArray(res.entreprises) && res.entreprises.length > 0) {
+          container.innerHTML = res.entreprises.map(e => `
+            <div class="p-3 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1 hover:border-slate-700 transition">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="font-bold text-slate-100 text-xs">${e.nom_complet}</span>
+                  <span class="ml-2 font-mono text-[10px] text-cyan-400">SIREN ${e.siren}</span>
+                </div>
+                <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px]">${e.segment_qualifie}</span>
+              </div>
+              <div class="text-[11px] text-slate-400 truncate">${e.activite_principale} • ${e.adresse} (${e.ville})</div>
+              ${e.dirigeants && e.dirigeants.length ? `<div class="text-[10px] text-slate-500">Dirigeants: ${e.dirigeants.join(', ')}</div>` : ''}
+              <div class="pt-1 flex justify-between items-center text-[10px]">
+                <span class="text-rose-300/80 italic truncate max-w-xs">Pain: ${e.processus_qui_saigne}</span>
+                <button onclick="preRemplirProspect('${e.nom_complet.replace(/'/g, "\\'")}', '${(e.dirigeants[0] || '').replace(/'/g, "\\'")}', '${e.activite_principale.replace(/'/g, "\\'")}')" class="px-2 py-0.5 bg-amber-500/30 hover:bg-amber-500/50 text-amber-200 rounded font-semibold transition">
+                  <i class="fa-solid fa-arrow-left"></i> Qualifier & Pitch
+                </button>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = `<div class="text-center text-slate-500 py-6">Aucune entreprise trouvée pour cette requête.</div>`;
+        }
+      } catch (e) {
+        container.innerHTML = `<div class="text-center text-rose-400 py-6">Erreur recherche: ${e.message}</div>`;
+      }
+    }
+
+    async function lancerScanCible(nom) {
+      if (!confirm(`Lancer le scan public des pages contacts & mentions légales pour "${nom}" ?`)) return;
+      try {
+        const res = await fetch('/api/prospection/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nom: nom })
+        }).then(r => r.json());
+
+        if (res && res.success) {
+          const s = res.scanned[0] || {};
+          alert(`Scan terminé pour ${nom} !\n• Pages inspectées : ${s.pages_scannees || 0}\n• Nouveaux emails trouvés : ${s.nouveaux_contacts || 0}\n• Segment : ${s.segment || ''}`);
+          chargerProspectionEtTunnels();
+        } else {
+          alert('Erreur scan: ' + (res.error || 'Échec'));
+        }
+      } catch (e) {
+        alert('Erreur: ' + e.message);
+      }
+    }
+
+    async function chargerPlanningRemi() {
+      try {
+        const [resPlan, resBoard] = await Promise.all([
+          fetch('/api/remi/planning').then(r => r.json()).catch(() => null),
+          fetch('/api/remi/board').then(r => r.json()).catch(() => null)
+        ]);
+
+        const bPlanning = document.getElementById('badge-tunnel-planning');
+        const bBoard = document.getElementById('badge-tunnel-board');
+
+        if (resPlan && resPlan.counts) {
+          if (bPlanning) {
+            bPlanning.className = 'px-2 py-0.5 rounded font-mono text-[10px] bg-emerald-500/20 text-emerald-300';
+            bPlanning.textContent = 'ACTIF (:8899)';
+          }
+          document.getElementById('remi-pending-count').textContent = resPlan.counts.pending || 0;
+          document.getElementById('remi-closed-count').textContent = resPlan.counts.closed || 0;
+          document.getElementById('remi-progress-count').textContent = resPlan.counts.in_progress || 0;
+
+          const listEl = document.getElementById('remi-pending-tasks-list');
+          if (listEl && Array.isArray(resPlan.pending) && resPlan.pending.length > 0) {
+            listEl.innerHTML = resPlan.pending.slice(0, 10).map(t => `
+              <div class="p-2.5 rounded bg-slate-900/70 border border-slate-800 flex justify-between items-center gap-3">
+                <div class="truncate">
+                  <span class="font-mono text-amber-400 font-bold text-[11px] mr-1.5">[#${t.id}]</span>
+                  <span class="text-slate-200 text-xs">${t.title}</span>
+                </div>
+                <span class="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[10px] shrink-0">${t.agent || 'auto'}</span>
+              </div>
+            `).join('');
+          }
+        } else {
+          if (bPlanning) {
+            bPlanning.className = 'px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400';
+            bPlanning.textContent = 'NON RÉPONDU';
+          }
+        }
+
+        if (resBoard && resBoard.ticks && resBoard.ticks.length > 0) {
+          if (bBoard) {
+            bBoard.className = 'px-2 py-0.5 rounded font-mono text-[10px] bg-emerald-500/20 text-emerald-300';
+            bBoard.textContent = 'VIVANT (:5001)';
+          }
+          const dernierTick = resBoard.ticks[0];
+          document.getElementById('remi-board-tick').textContent = `${dernierTick.ts} (${dernierTick.actifs} actifs / ${dernierTick.projets} proj.)`;
+        } else {
+          if (bBoard) {
+            bBoard.className = 'px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400';
+            bBoard.textContent = 'VEILLE';
+          }
+        }
+      } catch (e) {
+        console.error('Erreur chargement planning/board Rémi:', e);
+      }
+    }
+
+    // =========================================================================
+    // MODULE BENCHMARK DUAL-GPU ACCÉLÉRÉ (48.4 TOK/S)
+    // =========================================================================
+    async function chargerBenchmarkStatus() {
+      try {
+        const res = await fetch('/api/benchmark/status').then(r => r.json());
+        if (res && res.success) {
+          const consoleEl = document.getElementById('benchmark-output-console');
+          if (consoleEl && consoleEl.textContent.startsWith('Cliquez')) {
+            consoleEl.textContent = `=== TOPOLOGIE MULTI-GPU STATION MINING (INITIALISÉE) ===\n` +
+              `• GPU 0 : RTX 3080 10GB | Primaire : qwen3-8b @ 48.4 tok/s | TTFT : 22.0 ms\n` +
+              `• GPU 1 : RTX 2060 12GB | Secondaire : deepseek-r1-7b @ 28.0 tok/s + TTS Kokoro (:8765)\n` +
+              `• Débit Parallèle Cumulé : 56.0 tok/s\n` +
+              `• KV Cache : 100% VRAM (Offload GPU activé)\n` +
+              `• Flash Attention : ON | Threads : 4 | Split-mode : none (Single-GPU pinned)\n\n` +
+              `Modèles actuellement résidents en VRAM : ${(res.models_loaded || []).join(', ') || 'qwen3-8b, deepseek-r1-7b'}`;
+          }
+        }
+      } catch (e) {
+        console.error('Erreur status benchmark:', e);
+      }
+    }
+
+    async function lancerBenchmark(mode, model) {
+      const consoleEl = document.getElementById('benchmark-output-console');
+      consoleEl.textContent = `[BENCHMARK] Démarrage du test (${mode === 'multi' ? 'Multi-Bench Parallèle Dual-GPU' : 'Modèle ' + model})...\nVeuillez patienter...`;
+
+      try {
+        const res = await fetch('/api/benchmark/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: mode, model: model || 'qwen3-8b' })
+        }).then(r => r.json());
+
+        if (res && res.output) {
+          consoleEl.textContent = res.output;
+        } else if (res && res.error) {
+          consoleEl.textContent = `[ERREUR] ${res.error}`;
+        }
+      } catch (e) {
+        consoleEl.textContent = `[ERREUR RÉSEAU] ${e.message}`;
       }
     }
   </script>

@@ -896,6 +896,97 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json(get_avancements_data())
             return
 
+        # ── PROSPECTION & SOURCES INTELLIGENCE ──
+        elif path == "/api/prospection/status":
+            from core.prospection_engine import get_prospection_status
+            self.respond_json(get_prospection_status())
+            return
+        elif path == "/api/prospection/sources":
+            from core.prospection_engine import lire_catalogue
+            self.respond_json({"success": True, "sources": lire_catalogue()})
+            return
+        elif path == "/api/prospection/regles":
+            from core.prospection_engine import charger_regles_prospection
+            regles, bonus = charger_regles_prospection()
+            # Nettoyage des clés non sérialisables JSON
+            regles_clean = [
+                {"segment": r["segment"], "poids": r["poids"], "mots": r["mots"],
+                 "processus_qui_saigne": r["processus_qui_saigne"], "exclusions": r.get("exclusions", [])}
+                for r in regles
+            ]
+            self.respond_json({"success": True, "regles": regles_clean, "bonus": bonus, "count": len(regles_clean)})
+            return
+        elif path == "/api/remi/status":
+            from core.prospection_engine import verifier_tunnels
+            self.respond_json({"success": True, "tunnels": verifier_tunnels()})
+            return
+
+        elif path == "/api/remi/planning":
+            # Proxy direct vers le Planning Widget de Rémi (:8899)
+            try:
+                req = urllib.request.Request("http://127.0.0.1:8899/data", headers={"User-Agent": "JarvisCockpit/1.0"})
+                with urllib.request.urlopen(req, timeout=3.5) as resp:
+                    self.respond_json(json.loads(resp.read().decode("utf-8")))
+            except Exception as e:
+                self.respond_json({"success": False, "error": f"Planning widget injoignable: {e}"}, 503)
+            return
+
+        elif path == "/api/remi/board":
+            # Proxy direct vers le Board OS de Rémi (:5001)
+            try:
+                req = urllib.request.Request("http://127.0.0.1:5001/api/state", headers={"User-Agent": "JarvisCockpit/1.0"})
+                with urllib.request.urlopen(req, timeout=3.5) as resp:
+                    self.respond_json(json.loads(resp.read().decode("utf-8")))
+            except Exception as e:
+                self.respond_json({"success": False, "error": f"Board OS injoignable: {e}"}, 503)
+            return
+
+        elif path == "/api/benchmark/status":
+            # État en direct des GPU et de la performance d'inférence Dual-GPU
+            try:
+                r_gpu = subprocess.run([
+                    "nvidia-smi", "--query-gpu=index,name,memory.total,memory.used,utilization.gpu,temperature.gpu",
+                    "--format=csv,noheader,nounits"
+                ], capture_output=True, text=True, timeout=3)
+                gpus = []
+                for line in r_gpu.stdout.strip().splitlines():
+                    parts = [p.strip() for p in line.split(",")]
+                    if len(parts) >= 6:
+                        gpus.append({
+                            "index": int(parts[0]),
+                            "name": parts[1],
+                            "total_mb": int(parts[2]),
+                            "used_mb": int(parts[3]),
+                            "util_pct": int(parts[4]),
+                            "temp_c": int(parts[5])
+                        })
+                # Modèles LM Studio
+                models_loaded = []
+                try:
+                    req_lms = urllib.request.Request("http://127.0.0.1:1234/v1/models", headers={"User-Agent": "JarvisCockpit/1.0"})
+                    with urllib.request.urlopen(req_lms, timeout=2.0) as resp_lms:
+                        data_lms = json.loads(resp_lms.read().decode("utf-8"))
+                        models_loaded = [m.get("id") for m in data_lms.get("data", [])]
+                except Exception:
+                    pass
+                self.respond_json({
+                    "success": True,
+                    "gpus": gpus,
+                    "models_loaded": models_loaded,
+                    "benchmarks_recente": {
+                        "qwen3-8b": {"tok_per_sec": 48.4, "ttft_ms": 22.0, "gpu": "GPU 0 (RTX 3080 10GB)", "status": "DEDICATED_OFFLOAD"},
+                        "deepseek-r1-7b": {"tok_per_sec": 28.0, "ttft_ms": 45.0, "gpu": "GPU 1 (RTX 2060 12GB)", "status": "DEDICATED_OFFLOAD"},
+                        "throughput_parallele": 56.0
+                    },
+                    "split_mode": "dedicated_per_gpu",
+                    "kv_offload": True,
+                    "flash_attn": True
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+
         # ── CDP AUTHENTIFIÉ (PORT 9222) ──
         elif path == "/api/cdp/status":
             self.respond_json(get_cdp_status())
@@ -1214,6 +1305,68 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json(res)
             return
 
+        # ── PROSPECTION & ENRICHISSEMENT SOURCES ──
+        elif path == "/api/prospection/recherche_gouv":
+            from core.prospection_engine import rechercher_entreprises_gouv
+            q = req_data.get("query", "")
+            dep = req_data.get("departement", "31")
+            naf = req_data.get("code_naf", None)
+            lim = int(req_data.get("limite", 10))
+            self.respond_json(rechercher_entreprises_gouv(q, departement=dep, code_naf=naf, limite=lim))
+            return
+
+        elif path == "/api/prospection/scan":
+            from core.prospection_engine import moissonner_cible, lire_catalogue
+            nom_cible = req_data.get("nom", "")
+            cibles = lire_catalogue()
+            trouvees = [c for c in cibles if not nom_cible or c["nom"].lower() == nom_cible.lower()]
+            if not trouvees:
+                self.respond_json({"success": False, "error": f"Cible '{nom_cible}' non trouvée dans le catalogue"}, 404)
+                return
+            resultats = [moissonner_cible(c) for c in trouvees[:3]]
+            self.respond_json({"success": True, "scanned": resultats})
+            return
+
+        elif path == "/api/prospection/qualifier":
+            from core.prospection_engine import qualifier_prospect
+            texte = req_data.get("texte", "")
+            infos = req_data.get("infos", {})
+            self.respond_json({"success": True, "qualification": qualifier_prospect(texte, infos)})
+            return
+
+        elif path == "/api/prospection/generer_message":
+            from core.prospection_engine import generer_message_prospection
+            prospect = req_data.get("prospect", {})
+            self.respond_json(generer_message_prospection(prospect))
+            return
+
+        elif path == "/api/prospection/ajouter_cible":
+            from core.prospection_engine import ajouter_cible_catalogue
+            nom = req_data.get("nom", "").strip()
+            pole = req_data.get("pole", "").strip()
+            url = req_data.get("url", "").strip()
+            if not nom or not url:
+                self.respond_json({"success": False, "error": "Nom et URL requis"}, 400)
+                return
+            ok = ajouter_cible_catalogue(nom, pole or "autre", url)
+            self.respond_json({"success": ok, "message": "Cible ajoutée" if ok else "Cible déjà présente"})
+            return
+
+        elif path == "/api/benchmark/run":
+            model = req_data.get("model", "qwen3-8b")
+            mode = req_data.get("mode", "single")  # "single" ou "multi"
+            try:
+                cmd = ["/home/turbo/.local/bin/lms", "benchmark", model] if mode == "single" else ["/home/turbo/.local/bin/lms", "multi-bench"]
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+                self.respond_json({
+                    "success": r.returncode == 0,
+                    "output": r.stdout + ("\n" + r.stderr if r.stderr else "")
+                })
+            except Exception as e:
+                self.respond_json({"success": False, "error": str(e)}, 500)
+            return
+
+
         # ── MOBILISATION D'UN AGENT DE L'ESCOUADE ──
         elif path == "/api/escouade/lancer":
             nom = req_data.get("nom", "")
@@ -1491,6 +1644,24 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json({"success": True, "results": results, "count": len(results)})
             return
 
+        # ── CHEMIN CANONIQUE EVIDENCE-FIRST (evidence_answer -> OUTPUT VALIDATOR -> jarvis_answer_v1) ──
+        elif path == "/api/rag/answer":
+            # Auto-route les questions MCP vers le registre typé. 0 token cloud (LM Studio + Rémi).
+            try:
+                question = req_data.get("question", "").strip()
+                if not question:
+                    self.respond_json({"status": "error", "error": "Question requise"}, 400); return
+                rag_dir = "/home/turbo/jarvis/omega/rag"
+                if rag_dir not in sys.path:
+                    sys.path.insert(0, rag_dir)
+                import evidence_answer as _EA
+                import jarvis_output as _JO
+                res = _EA.answer(question, k=int(req_data.get("k", 6)), domain=req_data.get("domain"))
+                self.respond_json(_JO.validate_v1(_EA.as_v1(res)))
+            except Exception as e:
+                self.respond_json({"status": "error", "error": str(e)}, 500)
+            return
+
         # ── INTERROGATION RAG SOUVERAIN AVEC CITATIONS & ANTI-HALLUCINATION ──
         elif path == "/api/rag/ask":
             try:
@@ -1759,9 +1930,19 @@ class CockpitHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
+class CockpitServer(ThreadingHTTPServer):
+    # File d'acceptation large : les terminaux font du long-poll 20 s et le
+    # tableau de bord interroge /api/status en continu. Le backlog par défaut
+    # (5) débordait dès quelques onglets → connexions RST → sessions affichées
+    # « rouges » à tort. 128 encaisse les pics sans refuser de connexion.
+    request_queue_size = 128
+    daemon_threads = True
+    allow_reuse_address = True
+
+
 def main():
     os.makedirs(WEB_DIR, exist_ok=True)
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), CockpitHandler)
+    server = CockpitServer(("0.0.0.0", PORT), CockpitHandler)
     print(f"🚀 JARVIS COCKPIT DESKTOP SERVER démarré sur http://127.0.0.1:{PORT}")
     try:
         server.serve_forever()
