@@ -178,6 +178,8 @@ def qualifier_prospect(texte: str, infos: dict = None) -> dict:
             "score": 0,
             "occurrences": [],
             "processus_qui_saigne": "la gestion administrative manuelle et le manque d'automatisation des flux métiers récurrents",
+            "priorite": "🌱 VEILLE",
+            "action_recommandee": "Recherche complémentaire SIRENE ou ré-assignation manuelle",
             "qualifie": False
         }
         
@@ -188,6 +190,16 @@ def qualifier_prospect(texte: str, infos: dict = None) -> dict:
         score += bonus.get("site_web", 5)
     if infos.get("siret") or infos.get("siren"):
         score += bonus.get("siret_connu", 8)
+
+    if score >= 90:
+        priorite = "🔥 CHAUD"
+        action = "Appel direct ou démo on-premise dédiée"
+    elif score >= 60:
+        priorite = "⚡ TIÈDE"
+        action = "Email d'accroche ciblé sur le processus qui saigne"
+    else:
+        priorite = "🌱 VEILLE"
+        action = "Veille concurrentielle & enrichissement SIRENE"
         
     return {
         "segment": meilleur["segment"],
@@ -195,6 +207,8 @@ def qualifier_prospect(texte: str, infos: dict = None) -> dict:
         "occurrences": touches_gagnantes,
         "processus_qui_saigne": meilleur["processus_qui_saigne"],
         "poids_base": meilleur["poids"],
+        "priorite": priorite,
+        "action_recommandee": action,
         "qualifie": True
     }
 
@@ -486,10 +500,14 @@ def moissonner_cible(cible: dict, timeout: int = 10):
     }
 
 
-def generer_message_prospection(prospect: dict) -> dict:
+def generer_message_prospection(prospect: dict, style: str = "accroche") -> dict:
     """
-    Génère un message d'approche B2B percutant, respectueux et non-intrusif (< 80 mots)
+    Génère un message d'approche B2B percutant, respectueux et non-intrusif
     en s'appuyant sur le 'processus qui saigne' qualifié.
+    Supporte 3 styles :
+      - 'accroche' : premier contact (< 80 mots), 1 question concrète sur le processus qui saigne
+      - 'relance'  : relance polie à J+3 sans pression avec retour d'expérience
+      - 'linkedin' : InMail direct et concis (< 45 mots)
     Utilise exclusivement les moteurs locaux (LM Studio ou Rémi via tunnel). 0 token cloud.
     """
     nom = prospect.get("entreprise") or prospect.get("nom") or "Madame, Monsieur"
@@ -497,7 +515,22 @@ def generer_message_prospection(prospect: dict) -> dict:
     saigne = prospect.get("processus_qui_saigne") or "l'automatisation de vos flux récurrents"
     dirigeant = prospect.get("dirigeant") or ""
     
-    prompt = f"""Tu es Franck, fondateur d'une solution d'automatisation et d'IA souveraine locale à Toulouse (JARVIS).
+    if style == "relance":
+        prompt = f"""Tu es Franck, fondateur d'une solution d'IA souveraine locale à Toulouse (JARVIS).
+Rédige un email de relance doux et poli (J+3) sans pression pour :
+- Entreprise : {nom}
+- Interlocuteur : {dirigeant or 'Direction'}
+- Sujet : {saigne}
+Contraintes : 3 phrases maximum, moins de 60 mots. Demande simplement si le sujet fait écho à leurs priorités actuelles."""
+    elif style == "linkedin":
+        prompt = f"""Tu es Franck (JARVIS Toulouse, IA souveraine on-premise).
+Rédige un message LinkedIn / InMail direct et ultra-court pour :
+- Entreprise : {nom}
+- Interlocuteur : {dirigeant or 'Bonjour'}
+- Sujet : {saigne}
+Contraintes : 2 à 3 phrases maximum, moins de 45 mots. Zéro formule pompeuse."""
+    else:
+        prompt = f"""Tu es Franck, fondateur d'une solution d'automatisation et d'IA souveraine locale à Toulouse (JARVIS).
 Rédige un message d'approche B2B direct, humble, professionnel et sans jargon marketing pour cette entreprise :
 - Entreprise : {nom}
 - Interlocuteur : {dirigeant or 'Direction'}
@@ -508,8 +541,8 @@ Contraintes strictes :
 1. Maximum 4 phrases. Moins de 80 mots.
 2. Pose une question directe et concrète sur {saigne}.
 3. Propose un simple échange technique de 10 minutes ou une démo locale sur machine dédiée sans engagement.
-4. Zéro flatterie, zéro promesse magique, ton franc et technique.
-"""
+4. Zéro flatterie, zéro promesse magique, ton franc et technique."""
+
     # 1. Essai LM Studio local (:1234)
     payload = {
         "model": "qwen3-8b",
@@ -530,9 +563,8 @@ Contraintes strictes :
         with urllib.request.urlopen(req, timeout=15.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             content = data["choices"][0]["message"]["content"].strip()
-            # Nettoyer d'éventuelles balises think
             content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-            return {"success": True, "engine": "LM Studio Local (qwen3-8b · 48.4 tok/s)", "message": content}
+            return {"success": True, "engine": "LM Studio Local (qwen3-8b · 48.4 tok/s)", "style": style, "message": content}
     except Exception:
         pass
 
@@ -551,7 +583,7 @@ Contraintes strictes :
         with urllib.request.urlopen(req, timeout=15.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             content = data.get("response", "").strip()
-            return {"success": True, "engine": "Ollama Rémi (:11500)", "message": content}
+            return {"success": True, "engine": "Ollama Rémi (:11500)", "style": style, "message": content}
     except Exception as e:
         # 3. Modèle déterministe de secours si aucun LLM actif
         salut = f"Bonjour {dirigeant.split('(')[0].strip()}," if dirigeant else "Bonjour,"
@@ -564,4 +596,48 @@ Contraintes strictes :
             f"Seriez-vous ouvert à un retour d'expérience direct de 10 minutes cette semaine ?\n\n"
             f"Bien cordialement,\nFranck — JARVIS Toulouse"
         )
-        return {"success": True, "engine": "Modèle Déterministe Secours", "message": modele_secours, "note": str(e)}
+        return {"success": True, "engine": "Modèle Déterministe Secours", "style": style, "message": modele_secours, "note": str(e)}
+
+
+def router_batch_donnees(lignes: list[dict]) -> dict:
+    """
+    Routage déterministe par lot (CSV / JSON), inspiré du route-batch de Rémi.
+    Traite chaque entrée, calcule le segment, le score et l'action recommandée.
+    """
+    resultats = []
+    stats_segments = {}
+    
+    for l in lignes:
+        ent = l.get("entreprise") or l.get("nom") or l.get("company") or "Inconnu"
+        ville = l.get("ville") or l.get("city") or ""
+        pole = l.get("pole") or l.get("secteur") or ""
+        dirigeant = l.get("dirigeant") or l.get("contact") or ""
+        site = l.get("site_web") or l.get("url") or l.get("website") or ""
+        
+        texte = f"{ent} {ville} {pole} {site}".strip()
+        qualif = qualifier_prospect(texte, {"dirigeant": dirigeant, "url": site, "nom": ent})
+        
+        seg = qualif["segment"]
+        stats_segments[seg] = stats_segments.get(seg, 0) + 1
+        
+        resultats.append({
+            "entreprise": ent,
+            "ville": ville,
+            "pole": pole,
+            "dirigeant": dirigeant,
+            "site_web": site,
+            "segment": seg,
+            "score": qualif["score"],
+            "processus_qui_saigne": qualif["processus_qui_saigne"],
+            "priorite": qualif.get("priorite", "🌱 VEILLE"),
+            "action_recommandee": qualif.get("action_recommandee", ""),
+            "occurrences": qualif.get("occurrences", [])
+        })
+        
+    return {
+        "success": True,
+        "total": len(lignes),
+        "segments": stats_segments,
+        "cibles": sorted(resultats, key=lambda x: x["score"], reverse=True)
+    }
+

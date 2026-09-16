@@ -916,6 +916,45 @@ class CockpitHandler(BaseHTTPRequestHandler):
             ]
             self.respond_json({"success": True, "regles": regles_clean, "bonus": bonus, "count": len(regles_clean)})
             return
+
+        elif path == "/api/prospection/cibles_postgres":
+            # Lecture des cibles depuis la Tour (100.124.69.1) via ssh jarvis-dva, fallback local
+            SQL = "SELECT id, entreprise, ville, segment, score, processus_qui_saigne, dirigeant, statut FROM prospection.cibles ORDER BY score DESC LIMIT 100;"
+            source = "tour"
+            out = None
+            try:
+                # Tenter d'abord via la Tour (données réelles)
+                out = subprocess.check_output([
+                    "ssh", "-o", "ConnectTimeout=4", "-o", "BatchMode=yes",
+                    "jarvis-dva",
+                    f"ssh -o ConnectTimeout=4 -o BatchMode=yes root@100.124.69.1 "
+                    f"\"docker exec jarvis-postgres psql -U jarvis -d jarvis_main -t -A -F $'\\t' -c '{SQL}'\""
+                ], text=True, timeout=8)
+            except Exception:
+                source = "local"
+                try:
+                    out = subprocess.check_output([
+                        "docker", "exec", "-i", "jarvis-postgres", "psql", "-U", "jarvis", "-d", "jarvis_main",
+                        "-t", "-A", "-F", "\t", "-c", SQL
+                    ], text=True, timeout=4)
+                except Exception as e:
+                    self.respond_json({"success": False, "error": str(e), "cibles": [], "source": "erreur"})
+                    return
+            cibles = []
+            for line in (out or "").strip().splitlines():
+                p = line.split("\t")
+                if len(p) >= 8:
+                    try:
+                        cibles.append({
+                            "id": p[0], "entreprise": p[1], "ville": p[2], "segment": p[3],
+                            "score": int(p[4] or 0), "processus_qui_saigne": p[5],
+                            "dirigeant": p[6], "statut": p[7]
+                        })
+                    except Exception:
+                        continue
+            self.respond_json({"success": True, "count": len(cibles), "cibles": cibles, "source": source})
+            return
+
         elif path == "/api/remi/status":
             from core.prospection_engine import verifier_tunnels
             self.respond_json({"success": True, "tunnels": verifier_tunnels()})
@@ -1337,7 +1376,14 @@ class CockpitHandler(BaseHTTPRequestHandler):
         elif path == "/api/prospection/generer_message":
             from core.prospection_engine import generer_message_prospection
             prospect = req_data.get("prospect", {})
-            self.respond_json(generer_message_prospection(prospect))
+            style = req_data.get("style", "accroche")
+            self.respond_json(generer_message_prospection(prospect, style=style))
+            return
+
+        elif path == "/api/prospection/route_batch":
+            from core.prospection_engine import router_batch_donnees
+            lignes = req_data.get("lignes", [])
+            self.respond_json(router_batch_donnees(lignes))
             return
 
         elif path == "/api/prospection/ajouter_cible":

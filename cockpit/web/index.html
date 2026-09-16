@@ -1861,12 +1861,27 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
                 <label class="block text-slate-400 mb-1">Texte d'activité, site ou mots-clés du prospect</label>
                 <textarea id="prospect-texte" rows="3" placeholder="Collez ici la description du site, une annonce, ou des mots-clés (ex: Cabinet d'avocats spécialisé en fusion-acquisition, data room et droit des affaires)..." class="w-full bg-slate-900/80 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:border-amber-500 focus:outline-none"></textarea>
               </div>
+              <div class="flex items-center gap-4 text-slate-300 text-[11px] pt-1">
+                <span class="text-slate-400 font-semibold">Format :</span>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="pitch-style" value="accroche" checked class="text-amber-500 focus:ring-0">
+                  <span>Accroche (< 80 mots)</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="pitch-style" value="relance" class="text-amber-500 focus:ring-0">
+                  <span>Relance J+3</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="pitch-style" value="linkedin" class="text-amber-500 focus:ring-0">
+                  <span>LinkedIn (< 45 mots)</span>
+                </label>
+              </div>
               <div class="flex gap-2">
                 <button onclick="qualifierProspectEnDirect()" class="flex-1 py-2 bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/50 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition">
                   <i class="fa-solid fa-calculator"></i> Qualifier (0-Token)
                 </button>
                 <button onclick="genererMessageProspectionEnDirect()" class="flex-1 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition shadow">
-                  <i class="fa-solid fa-paper-plane"></i> Générer Pitch B2B (< 80 mots)
+                  <i class="fa-solid fa-paper-plane"></i> Générer Pitch Souverain
                 </button>
               </div>
             </div>
@@ -1878,10 +1893,14 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
                   <span class="text-slate-400">Segment :</span>
                   <span id="qualif-segment" class="font-bold text-amber-300 font-mono">--</span>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-slate-400">Score Qualif :</span>
+                <div class="flex items-center gap-2.5">
+                  <span id="qualif-priorite" class="px-2 py-0.5 rounded font-mono text-[10px] bg-amber-500/20 text-amber-300 font-bold">--</span>
                   <span id="qualif-score" class="font-bold text-emerald-400 font-mono">--</span>
                 </div>
+              </div>
+              <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800 flex items-start gap-2 text-[11px]">
+                <span class="text-cyan-400 font-bold shrink-0">👉 Action conseillée :</span>
+                <span id="qualif-action" class="text-slate-200 font-medium">--</span>
               </div>
               <div>
                 <span class="text-[11px] text-slate-400 font-medium">Processus qui saigne ciblé :</span>
@@ -1933,7 +1952,13 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
               </h3>
               <p class="text-[11px] text-slate-400 mt-0.5">Extraction déterministe curl sans JS des emails de contact et mentions légales.</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="chargerCiblesPostgres()" class="px-2.5 py-1.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-database"></i> Cibles Postgres (Tour/Rémi)
+              </button>
+              <button onclick="exporterCiblesCSV()" class="px-2.5 py-1.5 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-file-csv"></i> Export CSV CRM
+              </button>
               <select id="filtre-pole-catalogue" onchange="filtrerCatalogueTable()" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none">
                 <option value="TOUS">Tous les pôles</option>
                 <option value="aero">Aéronautique</option>
@@ -6101,6 +6126,17 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
           document.getElementById('qualif-segment').textContent = q.segment || 'non_route';
           document.getElementById('qualif-score').textContent = (q.score || 0) + ' pts';
           document.getElementById('qualif-saigne').textContent = q.processus_qui_saigne || 'Non qualifié';
+          const pEl = document.getElementById('qualif-priorite');
+          if (pEl) {
+            pEl.textContent = q.priorite || '🌱 VEILLE';
+            pEl.className = (q.priorite || '').includes('CHAUD')
+              ? 'px-2 py-0.5 rounded font-mono text-[10px] bg-rose-500/20 text-rose-300 font-bold'
+              : ((q.priorite || '').includes('TIÈDE')
+                ? 'px-2 py-0.5 rounded font-mono text-[10px] bg-amber-500/20 text-amber-300 font-bold'
+                : 'px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400 font-bold');
+          }
+          const aEl = document.getElementById('qualif-action');
+          if (aEl) aEl.textContent = q.action_recommandee || 'Veille active';
         }
       } catch (e) {
         alert('Erreur qualification: ' + e.message);
@@ -6113,10 +6149,11 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
       const texte = (document.getElementById('prospect-texte') || {}).value || '';
       const saigne = document.getElementById('qualif-saigne').textContent;
       const segment = document.getElementById('qualif-segment').textContent;
+      const style = (document.querySelector('input[name="pitch-style"]:checked') || {}).value || 'accroche';
 
       const btn = event.target;
       const originalText = btn.innerHTML;
-      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Génération LM Studio...`;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Génération ${style}...`;
       btn.disabled = true;
 
       try {
@@ -6124,6 +6161,7 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            style: style,
             prospect: {
               entreprise: nom || 'Entreprise',
               dirigeant: dirigeant,
@@ -6136,7 +6174,7 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
         if (res && res.success) {
           document.getElementById('prospect-resultat-box').classList.remove('hidden');
           document.getElementById('prospect-message-container').classList.remove('hidden');
-          document.getElementById('prospect-engine-label').textContent = res.engine || 'Local LLM';
+          document.getElementById('prospect-engine-label').textContent = `${res.engine || 'Local LLM'} • Style: ${res.style || style}`;
           document.getElementById('prospect-message-texte').textContent = res.message || '';
         } else {
           alert('Erreur: ' + (res.error || 'Génération échouée'));
@@ -6147,6 +6185,46 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
         btn.innerHTML = originalText;
         btn.disabled = false;
       }
+    }
+
+    async function chargerCiblesPostgres() {
+      const tbody = document.getElementById('catalogue-cibles-tbody');
+      tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-cyan-300"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Chargement des cibles depuis jarvis_main Postgres...</td></tr>`;
+      try {
+        const res = await fetch('/api/prospection/cibles_postgres').then(r => r.json());
+        if (res && res.success && Array.isArray(res.cibles) && res.cibles.length > 0) {
+          _TOUTES_LES_CIBLES = res.cibles.map(c => ({
+            nom: c.entreprise,
+            pole: (c.segment || '').split('_')[0] || 'autre',
+            url: c.ville ? `${c.ville} (FR)` : 'Local / FR',
+            segment: c.segment,
+            score: c.score,
+            processus_qui_saigne: c.processus_qui_saigne
+          }));
+          filtrerCatalogueTable();
+        } else {
+          alert('Aucune cible trouvée dans la table Postgres prospection.cibles');
+        }
+      } catch (e) {
+        alert('Erreur Postgres: ' + e.message);
+      }
+    }
+
+    function exporterCiblesCSV() {
+      if (!_TOUTES_LES_CIBLES || _TOUTES_LES_CIBLES.length === 0) {
+        alert('Aucune cible à exporter.');
+        return;
+      }
+      let csv = 'Entreprise;Pole;Site_Web_Ou_Ville;Segment;Score;Processus_Qui_Saigne\n';
+      _TOUTES_LES_CIBLES.forEach(c => {
+        const clean = t => (t || '').replace(/;/g, ',').replace(/\n/g, ' ');
+        csv += `${clean(c.nom)};${clean(c.pole)};${clean(c.url)};${clean(c.segment)};${c.score || 0};"${clean(c.processus_qui_saigne)}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `jarvis-cibles-prospection-${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
     }
 
     async function rechercherEntreprisesGouv() {
