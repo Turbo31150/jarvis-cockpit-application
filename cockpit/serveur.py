@@ -1130,6 +1130,12 @@ class CockpitHandler(BaseHTTPRequestHandler):
         path = parsed.path
         params = parse_qs(parsed.query)
 
+        # ── SÉCURITÉ APPLIANCE P0 (Défense en profondeur) ──
+        # Loopback (127.0.0.1 / ::1) : libre sans friction.
+        # Accès réseau distant (LAN / WAN / Tailscale) : Bearer Token requis (403 si absent).
+        if not self.local_seulement():
+            return
+
         if self.router_terminal(path, params=params):
             return
         if self.router_orbe(path, params=params):
@@ -2407,6 +2413,12 @@ class CockpitHandler(BaseHTTPRequestHandler):
         except Exception:
             req_data = {}
 
+        # ── SÉCURITÉ APPLIANCE P0 (Défense en profondeur) ──
+        # Loopback (127.0.0.1 / ::1) : libre sans friction.
+        # Accès réseau distant (LAN / WAN / Tailscale) : Bearer Token requis (403 si absent).
+        if not self.local_seulement():
+            return
+
         if self.router_terminal(path, req_data=req_data):
             return
         if self.router_orbe(path, req_data=req_data):
@@ -2791,6 +2803,16 @@ class CockpitHandler(BaseHTTPRequestHandler):
             exec_cmd = cmd_map.get(action)
             if not exec_cmd:
                 self.respond_json({"success": False, "error": f"Action inconnue: {action}"}, 400)
+                return
+            script_bin = os.path.expanduser(exec_cmd.split()[0])
+            if not os.path.exists(script_bin):
+                self.respond_json({
+                    "success": False,
+                    "error": "not_implemented",
+                    "reason": f"Brique de production absente : {script_bin}",
+                    "action": action,
+                    "run_id": run_id
+                }, 501)
                 return
             p = subprocess.run(["bash", "-lc", exec_cmd], capture_output=True, text=True, timeout=30)
             self.respond_json({
