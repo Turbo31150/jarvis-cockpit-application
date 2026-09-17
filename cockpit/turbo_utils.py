@@ -85,3 +85,87 @@ def pct(a: int, b: int) -> float:
 
 def clamp(v, lo, hi):
     return lo if v < lo else hi if v > hi else v
+
+
+# ── Run massif #2 — engines V4 (vidéo / OCR / navigateur / PC control) ──
+import unicodedata
+
+
+def parse_duration(s: str) -> int:
+    parts = [int(x) for x in str(s).split(":")]
+    if len(parts) == 1:
+        return parts[0]
+    if len(parts) == 2:
+        return parts[0] * 60 + parts[1]
+    return parts[0] * 3600 + parts[1] * 60 + parts[2]
+
+
+def clean_ocr_text(t: str) -> str:
+    return re.sub(r"\s+", " ", t or "").strip()
+
+
+def extract_urls(text: str) -> list:
+    return re.findall(r"https?://\S+", text or "")
+
+
+def slugify(text: str) -> str:
+    t = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode().lower()
+    t = re.sub(r"[^a-z0-9]+", "-", t).strip("-")
+    return t
+
+
+def key_combo(s: str) -> str:
+    return "+".join(p.strip().lower() for p in (s or "").split("+"))
+
+
+def format_duration(sec: int) -> str:
+    h, r = divmod(int(sec), 3600)
+    m, s = divmod(r, 60)
+    return f"{h}h {m:02d}m {s:02d}s"
+
+
+def is_safe_path(p: str) -> bool:
+    return ".." not in (p or "").split("/")
+
+
+def build_ffmpeg_x11grab(display: str, size: str, out: str) -> str:
+    return f"ffmpeg -y -f x11grab -video_size {size} -i {display}.0 {out}"
+
+
+# ── Run massif #3 — utilitaires produit (facturation / identité / moat) ──
+def parse_bool(s: str) -> bool:
+    return str(s).strip().lower() in {"oui", "o", "true", "1", "yes", "vrai"}
+
+
+def format_euro(cents: int) -> str:
+    return f"{cents / 100:.2f} €".replace(".", ",")
+
+
+def cerfa_num(text: str) -> str:
+    m = re.search(r"cerfa\s*(\d{4,5}\*?\d{0,2})", text or "", re.I)
+    return m.group(1) if m else ""
+
+
+def siret_valid(s: str) -> bool:
+    return bool(re.fullmatch(r"\d{14}", s or ""))
+
+
+def word_count(text: str) -> int:
+    return len((text or "").split())
+
+
+def redact_email(e: str) -> str:
+    if "@" not in (e or ""):
+        return "***"
+    local, dom = e.split("@", 1)
+    return f"{local[:1]}***@{dom}"
+
+
+def normalize_phone(s: str) -> str:
+    s = s or ""
+    digits = re.sub(r"\D", "", s)
+    return ("+" + digits) if s.strip().startswith("+") else digits
+
+
+def ratio_grounded(sup: int, weak: int, total: int) -> float:
+    return round((sup + weak) / total * 100, 1) if total else 0.0
