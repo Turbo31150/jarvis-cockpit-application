@@ -140,16 +140,48 @@ class TestTurboOS(unittest.TestCase):
             os.path.join(repo_root, "bin", "jarvis-cockpit-app"),
             os.path.join(repo_root, "bin", "jarvis-cockpit.sh"),
             os.path.join(repo_root, "bin", "jarvis-planning-widget.py"),
+            os.path.join(repo_root, "bin", "jarvis-cockpit-vhdx"),
+            os.path.join(repo_root, "bin", "jarvis-cockpit-exporter"),
+            os.path.join(repo_root, "bin", "ttx"),
             os.path.join(repo_root, "bin", "swarm-watch.sh"),
             os.path.join(repo_root, "bin", "m6-watch.sh"),
+            os.path.join(repo_root, "cockpit", "terminaux.py"),
+            os.path.join(repo_root, "cockpit", "launch_gui.sh"),
+            os.path.join(repo_root, "cockpit", "install-cockpit.sh"),
             os.path.join(repo_root, "scripts", "planning_mega_m4.py"),
             os.path.join(repo_root, "VERSION"),
             os.path.join(repo_root, "CHANGELOG.md"),
         ]
         for f in required_files:
             self.assertTrue(os.path.exists(f), f"Fichier de packaging requis absent: {f}")
-            if f.endswith((".sh", ".py", "jarvis-cockpit-app")):
+            if f.endswith((".sh", "jarvis-cockpit-app", "ttx", "planning-widget.py", "planning_mega_m4.py")):
                 self.assertTrue(os.access(f, os.X_OK), f"Fichier non exécutable: {f}")
+
+        # 3. Validation CLI help & exécution sans blocage
+        cli_help_checks = [
+            ["bash", os.path.join(repo_root, "cockpit", "install-cockpit.sh"), "--help"],
+            ["bash", os.path.join(repo_root, "bin", "jarvis-cockpit.sh"), "--help"],
+            ["bash", os.path.join(repo_root, "bin", "m6-watch.sh"), "--help"],
+            ["bash", os.path.join(repo_root, "bin", "swarm-watch.sh"), "--help"],
+            [sys.executable, os.path.join(repo_root, "bin", "jarvis-planning-widget.py"), "--help"],
+            [sys.executable, os.path.join(repo_root, "scripts", "planning_mega_m4.py"), "--help"],
+        ]
+        for cmd in cli_help_checks:
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+            self.assertEqual(res.returncode, 0, f"Échec CLI help sur {cmd[1]}: {res.stderr.decode()}")
+
+        # 4. Mode ponctuel --once et dry run
+        res_m6 = subprocess.run(["bash", os.path.join(repo_root, "bin", "m6-watch.sh"), "--once"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+        self.assertEqual(res_m6.returncode, 0)
+
+        res_swarm = subprocess.run(["bash", os.path.join(repo_root, "bin", "swarm-watch.sh"), "--once"],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+        self.assertEqual(res_swarm.returncode, 0)
+
+        res_planning = subprocess.run([sys.executable, os.path.join(repo_root, "scripts", "planning_mega_m4.py"), "--dry"],
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+        self.assertEqual(res_planning.returncode, 0)
 
 
 if __name__ == "__main__":

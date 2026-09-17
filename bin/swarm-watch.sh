@@ -4,9 +4,29 @@
 # =============================================================================
 set -u
 
-INTERVAL="${1:-3}"
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    echo "Usage: $(basename "$0") [INTERVAL] [--once]"
+    echo "Supervise les services Docker Swarm, conteneurs et ports locaux."
+    echo "  INTERVAL  Intervalle en secondes (défaut: 3)"
+    echo "  --once    Exécute une seule sonde et quitte"
+    exit 0
+fi
 
-echo "🐳 [JARVIS] Surveillance Docker Swarm & Conteneurs (rafraîchissement ${INTERVAL}s)..."
+ONCE=0
+INTERVAL=3
+
+for arg in "$@"; do
+    case "$arg" in
+        --once) ONCE=1 ;;
+        [0-9]*) INTERVAL="$arg" ;;
+    esac
+done
+
+if [ "$ONCE" = "1" ]; then
+    echo "🐳 [JARVIS] Sonde ponctuelle Docker Swarm & Conteneurs..."
+else
+    echo "🐳 [JARVIS] Surveillance Docker Swarm & Conteneurs (rafraîchissement ${INTERVAL}s)..."
+fi
 
 while true; do
     clear 2>/dev/null || true
@@ -33,7 +53,7 @@ while true; do
         done
     fi
 
-    if [ "${1:-}" = "--once" ] || [ "${2:-}" = "--once" ]; then
+    if [ "$ONCE" = "1" ]; then
         break
     fi
     sleep "$INTERVAL"

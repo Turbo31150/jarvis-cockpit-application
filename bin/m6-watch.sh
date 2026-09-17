@@ -4,10 +4,30 @@
 # =============================================================================
 set -u
 
-M6_HOST="${M6_HOST:-10.42.0.230}"
-INTERVAL="${1:-3}"
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    echo "Usage: $(basename "$0") [INTERVAL] [--once]"
+    echo "Supervise le nœud distant GPU M6 (10.42.0.230)."
+    echo "  INTERVAL  Intervalle en secondes (défaut: 3)"
+    echo "  --once    Exécute une seule sonde et quitte"
+    exit 0
+fi
 
-echo "🖥  [JARVIS] Surveillance du nœud M6 ($M6_HOST) (rafraîchissement ${INTERVAL}s)..."
+M6_HOST="${M6_HOST:-10.42.0.230}"
+ONCE=0
+INTERVAL=3
+
+for arg in "$@"; do
+    case "$arg" in
+        --once) ONCE=1 ;;
+        [0-9]*) INTERVAL="$arg" ;;
+    esac
+done
+
+if [ "$ONCE" = "1" ]; then
+    echo "🖥  [JARVIS] Sonde ponctuelle du nœud M6 ($M6_HOST)..."
+else
+    echo "🖥  [JARVIS] Surveillance du nœud M6 ($M6_HOST) (rafraîchissement ${INTERVAL}s)..."
+fi
 
 while true; do
     clear 2>/dev/null || true
@@ -40,7 +60,7 @@ while true; do
         echo "  Vérifiez le câble direct ou le bail DHCP/IP statique."
     fi
 
-    if [ "${1:-}" = "--once" ] || [ "${2:-}" = "--once" ]; then
+    if [ "$ONCE" = "1" ]; then
         break
     fi
     sleep "$INTERVAL"

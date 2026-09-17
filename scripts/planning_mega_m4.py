@@ -276,6 +276,9 @@ def ready_cmd(title: str, dom: str) -> str:
 
 # ─────────────────────── insertion ───────────────────────
 def main(argv: list[str]) -> int:
+    if "-h" in argv or "--help" in argv:
+        print(__doc__.strip())
+        return 0
     dry = "--dry" in argv
     preload = "--no-preload" not in argv
 

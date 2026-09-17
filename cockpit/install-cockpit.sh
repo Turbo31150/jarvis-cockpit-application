@@ -29,6 +29,11 @@ while [ $# -gt 0 ]; do
     --sans-service)  AVEC_SERVICE=0 ;;
     --port-widget)   PORT_WIDGET="$2"; shift ;;
     --port-cockpit)  PORT_COCKPIT="$2"; shift ;;
+    -h|--help)
+      echo "Usage: ./install-cockpit.sh [--sans-service] [--port-widget N] [--port-cockpit N]"
+      echo "Installe le JARVIS Master Cockpit et le planning widget."
+      exit 0
+      ;;
     *) echo "option inconnue : $1"; exit 2 ;;
   esac
   shift
@@ -63,9 +68,25 @@ poser(){  # poser <relatif-depot> <destination>
 poser cockpit/serveur.py            "$DST/cockpit/serveur.py"
 poser cockpit/app.py                "$DST/cockpit/app.py"
 poser cockpit/gui_app.py            "$DST/cockpit/gui_app.py"
-for f in index.html manifest.json sw.js icone.png; do
-  poser "cockpit/web/$f"            "$DST/cockpit/web/$f"
+poser cockpit/terminaux.py          "$DST/cockpit/terminaux.py"
+poser cockpit/launch_gui.sh         "$DST/cockpit/launch_gui.sh"
+poser cockpit/launch_web_cockpit.sh "$DST/cockpit/launch_web_cockpit.sh"
+for sh_file in "$SRC"/cockpit/*.sh; do
+  [ -f "$sh_file" ] || continue
+  bsh="$(basename "$sh_file")"
+  [ "$bsh" = "install-cockpit.sh" ] && continue
+  poser "cockpit/$bsh" "$DST/cockpit/$bsh"
 done
+for f in index.html turbo.html turbo-os.html modeles.html presentation.html \
+         carte-mentale.html audit-chantier.html manifest.json sw.js \
+         icone.png icone-192.png qr.png; do
+  [ -e "$SRC/cockpit/web/$f" ] && poser "cockpit/web/$f" "$DST/cockpit/web/$f"
+done
+if [ -d "$SRC/cockpit/web/vendor" ]; then
+  mkdir -p "$DST/cockpit/web/vendor"
+  cp -a "$SRC/cockpit/web/vendor/"* "$DST/cockpit/web/vendor/" 2>/dev/null || true
+  ok "cockpit/web/vendor -> $DST/cockpit/web/vendor"
+fi
 if [ ! -L "$DST/cockpit" ]; then
   if [ -d "$SRC/cockpit/core" ]; then
     mkdir -p "$DST/cockpit/core"
@@ -77,10 +98,18 @@ if [ ! -L "$DST/cockpit" ]; then
     cp -a "$SRC/cockpit/ui/"* "$DST/cockpit/ui/" 2>/dev/null || true
     ok "cockpit/ui -> $DST/cockpit/ui"
   fi
+  if [ -d "$SRC/cockpit/web" ]; then
+    mkdir -p "$DST/cockpit/web"
+    cp -a "$SRC/cockpit/web/"* "$DST/cockpit/web/" 2>/dev/null || true
+    ok "cockpit/web -> $DST/cockpit/web"
+  fi
 fi
 poser bin/jarvis-cockpit-app        "$DST/bin/jarvis-cockpit-app"
 poser bin/jarvis-cockpit.sh         "$DST/bin/jarvis-cockpit.sh"
 poser bin/jarvis-planning-widget.py "$DST/bin/jarvis-planning-widget.py"
+poser bin/jarvis-cockpit-vhdx       "$DST/bin/jarvis-cockpit-vhdx"
+poser bin/jarvis-cockpit-exporter   "$DST/bin/jarvis-cockpit-exporter"
+poser bin/ttx                       "$DST/bin/ttx"
 poser bin/ttx                       "$HOME/bin/ttx"
 poser bin/swarm-watch.sh            "$DST/bin/swarm-watch.sh"
 poser bin/m6-watch.sh               "$DST/bin/m6-watch.sh"

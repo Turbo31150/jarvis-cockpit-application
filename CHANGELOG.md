@@ -35,3 +35,9 @@ Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/)
 - **Chantiers** : Renvoi explicite de 501 Not Implemented sur `/api/chantiers/action` en l'absence physique des binaires de production, éliminant tout faux succès silencieux.
 - **Voix / Audio** : Élimination de la double parole vocale concurrente dans l'UI cognitive OMEGA au profit d'une voix unique d'arbitrage.
 - **Archivage des Doublons (C16)** : Isolation et archivage des 6 copies divergentes et obsolètes de `serveur.py` vers l'armoire de sauvegarde `legacy_serveur_copies/` avec `README_MIGRATED.txt`.
+- **CLI & Packaging Robuste (C17/C18)** :
+  - Prise en charge standard de `-h` et `--help` sur tous les outils (`install-cockpit.sh`, `planning_mega_m4.py`, `m6-watch.sh`, `swarm-watch.sh`).
+  - Éradication du bogue d'insertion involontaire de tâches dans `jarvis_master.db` lors d'un appel d'aide sur `scripts/planning_mega_m4.py`.
+  - Élimination des blocages en boucle infinie sur `bin/m6-watch.sh` et `bin/swarm-watch.sh` lors du passage d'arguments non numériques.
+  - Enrichissement de `install-cockpit.sh` pour garantir la copie de `cockpit/terminaux.py`, `cockpit/launch_gui.sh`, des scripts tmux/vecto et de tous les fichiers web (`turbo.html`, `vendor/`), validé sur environnement hôte vierge isolé.
+  - Nettoyage des 6 fichiers résiduels de 0 octet (`--help`, `-help`, etc.) dans `cockpit/`.
