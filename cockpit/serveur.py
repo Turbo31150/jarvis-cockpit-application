@@ -969,7 +969,10 @@ _ORBE_JARVIS = {"name": "JARVIS", "model": os.environ.get("OMEGA_MODEL_JARVIS", 
 _ORBE_BOARD = {"name": "Conseil", "model": os.environ.get("OMEGA_MODEL_BOARD", "qwen3-8b"),
     "system": ("/nothink Tu es le Conseil, l'autorité de jugement. JARVIS vient de reformuler une "
                "instruction et proposer un plan. Tu ARBITRES : valide ou corrige, et ÉNONCE la décision "
-               "finale (ce qu'il FAUT faire). Oral, 2 phrases MAX, tranché. Pas de listes ni markdown.")}
+               "finale (ce qu'il FAUT faire). Oral, 2 phrases MAX, tranché. Pas de listes ni markdown. "
+               "RÈGLE ABSOLUE : n'invente AUCUN fait ni chiffre système (services, GPU, ports…) ; "
+               "appuie-toi sur la BIBLIOTHÈQUE VIVANTE fournie ; si une donnée manque, dis qu'elle doit "
+               "être VÉRIFIÉE par l'outil, ne la devine jamais.")}
 _orbe_state = {"state": "idle", "you": "", "jarvis": "", "board": "", "decision": "", "ts": 0}
 
 
@@ -981,12 +984,33 @@ def _orbe_clean(t):
     return " ".join(t.split())[:500]
 
 
-def _orbe_llm(persona, user_msg):
+RAG_CLI = os.environ.get("OMEGA_RAG_CLI", "/home/turbo/jarvis/bin/jarvis-rag")
+
+
+def _orbe_rag(query, k=3):
+    """O9 — bibliothèque vivante (board.db). Retourne (contexte, sources) best-effort."""
+    import subprocess, re
+    try:
+        out = subprocess.run([RAG_CLI, "search", query, "--k", str(k)],
+                             capture_output=True, text=True, timeout=20).stdout
+    except Exception:
+        return "", []
+    hits, srcs = [], []
+    for line in out.splitlines():
+        m = re.match(r"^\[(\d+\.\d+)\]\s*\(([^)]*)\)\s*(.*)$", line.strip())
+        if m and float(m.group(1)) >= 0.5:
+            hits.append("- (" + m.group(2) + ") " + " ".join(m.group(3).split())[:280])
+            srcs.append(m.group(2))
+    return "\n".join(hits[:k]), srcs[:k]
+
+
+def _orbe_llm(persona, user_msg, context=""):
     import urllib.request
-    payload = {"model": persona["model"],
-               "messages": [{"role": "system", "content": persona["system"]},
-                            {"role": "user", "content": user_msg}],
-               "max_tokens": 120, "temperature": 0.7}
+    msgs = [{"role": "system", "content": persona["system"]}]
+    if context:
+        msgs.append({"role": "system", "content": "BIBLIOTHÈQUE VIVANTE (appuie-toi dessus, n'invente rien au-delà) :\n" + context})
+    msgs.append({"role": "user", "content": user_msg})
+    payload = {"model": persona["model"], "messages": msgs, "max_tokens": 120, "temperature": 0.6}
     req = urllib.request.Request(ORBE_ROUTER, data=json.dumps(payload).encode("utf-8"),
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=60) as r:
@@ -994,15 +1018,17 @@ def _orbe_llm(persona, user_msg):
 
 
 def orbe_deliberate(instruction):
-    """Protocole 2 voix : JARVIS reformule+propose, le Conseil arbitre+tranche. N'EXÉCUTE PAS."""
+    """Protocole 2 voix ENRICHI (O9) : consulte la BIBLIOTHÈQUE VIVANTE (RAG board.db),
+    JARVIS reformule+propose, le Conseil arbitre+tranche en s'appuyant sur les faits (O11 : n'invente pas)."""
     import time as _t
     _orbe_state.update({"state": "thinking", "you": instruction, "jarvis": "", "board": "",
-                        "decision": "", "ts": int(_t.time())})
-    jarvis = _orbe_llm(_ORBE_JARVIS, f"INSTRUCTION DU CLIENT : {instruction}")
-    _orbe_state.update({"state": "speaking", "jarvis": jarvis, "ts": int(_t.time())})
-    board = _orbe_llm(_ORBE_BOARD, f"INSTRUCTION DU CLIENT : {instruction}\n\nJARVIS a répondu : {jarvis}")
-    _orbe_state.update({"state": "idle", "board": board, "decision": board, "ts": int(_t.time())})
-    return {"instruction": instruction, "jarvis": jarvis, "board": board, "decision": board}
+                        "decision": "", "sources": [], "ts": int(_t.time())})
+    ctx, srcs = _orbe_rag(instruction)   # O9 : bibliothèque vivante
+    jarvis = _orbe_llm(_ORBE_JARVIS, f"INSTRUCTION DU CLIENT : {instruction}", ctx)
+    _orbe_state.update({"state": "speaking", "jarvis": jarvis, "sources": srcs, "ts": int(_t.time())})
+    board = _orbe_llm(_ORBE_BOARD, f"INSTRUCTION DU CLIENT : {instruction}\n\nJARVIS a répondu : {jarvis}", ctx)
+    _orbe_state.update({"state": "idle", "board": board, "decision": board, "sources": srcs, "ts": int(_t.time())})
+    return {"instruction": instruction, "jarvis": jarvis, "board": board, "decision": board, "sources": srcs}
 
 
 def orbe_execute(instruction):
