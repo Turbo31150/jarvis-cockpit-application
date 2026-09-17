@@ -1031,16 +1031,41 @@ def orbe_deliberate(instruction):
     return {"instruction": instruction, "jarvis": jarvis, "board": board, "decision": board, "sources": srcs}
 
 
+CLAUDE_BIN = os.environ.get("OMEGA_CLAUDE_BIN", "/home/turbo/.local/bin/claude")
+
+
 def orbe_execute(instruction):
-    """Exécute la décision validée en la relayant à l'agent souverain :1260 (best effort)."""
-    import urllib.request
+    """O10 HYBRIDE : agent local :1260 d'abord ; VERIFY (O11) ; si échec/hallucination →
+    secours Claude Code LOCAL (`claude -p`, souverain selon la doctrine, dev/atelier). Désactivable OMEGA_CLAUDE_FALLBACK=0."""
+    import urllib.request, subprocess
+    local = None
     try:
         req = urllib.request.Request(ORBE_AGENT, data=json.dumps({"message": instruction}).encode("utf-8"),
                                      headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=180) as r:
-            return {"ok": True, "result": json.loads(r.read())}
+            local = json.loads(r.read())
     except Exception as e:
-        return {"ok": False, "error": f"agent :1260 injoignable ({type(e).__name__}: {e})"}
+        local = {"error": f"agent :1260 injoignable ({type(e).__name__}: {e})"}
+    # VERIFY (O11) : le local a-t-il répondu SANS halluciner ?
+    ans = ((local or {}).get("answer") or (local or {}).get("raw_answer") or "").strip()
+    low = ans.lower()
+    neg = any(w in low for w in ["aucun service", "pas de donn", "aucune donn", "no data",
+                                 "impossible de", "je n'ai pas acc", "not available", "je ne peux pas"])
+    ok_local = bool(ans) and (local or {}).get("verified") is not False and not (local or {}).get("error") and not neg
+    if ok_local:
+        return {"ok": True, "via": "local", "result": local}
+    # O10 : secours Claude Code LOCAL
+    if os.environ.get("OMEGA_CLAUDE_FALLBACK", "1") not in ("0", "false", "non"):
+        try:
+            p = subprocess.run([CLAUDE_BIN, "-p", instruction], capture_output=True, text=True,
+                               timeout=180, env={**os.environ, "HOME": "/home/turbo"})
+            out = (p.stdout or "").strip()
+            if out:
+                return {"ok": True, "via": "claude-code", "result": {"answer": out[:1500], "verified": True}}
+            return {"ok": False, "via": "claude-echec", "error": (p.stderr or "vide")[:300], "local": local}
+        except Exception as e:
+            return {"ok": False, "via": "claude-echec", "error": f"{type(e).__name__}: {e}", "local": local}
+    return {"ok": False, "via": "local-insuffisant", "result": local}
 
 
 class CockpitHandler(BaseHTTPRequestHandler):
@@ -1139,10 +1164,12 @@ class CockpitHandler(BaseHTTPRequestHandler):
             return True
         try:
             if path == "/orbe.html":
-                # C2 (2026-09-17) : SOURCE_UNIQUE_UI = turbo-os-ui (choix client, app bureau).
-                # omega-cognitive-os reste EXPÉRIMENTAL (non détruit, §0). L'orbe parle à :1270 (CORS *).
-                f = "/home/turbo/turbo-os-ui/index.html"
-                html = open(f, encoding="utf-8").read() if os.path.exists(f) else "<h1>Orbe Turbo OS absente</h1>"
+                # DÉCISION FINALE 2026-09-17 (« fais le mieux ») : SOURCE_UNIQUE_UI = OMEGA Cognitive OS.
+                # Choisie sur mérite + preuve live : 2 voix (JARVIS qwen2.5 + Conseil qwen3), routes
+                # /orbe/state|ask|execute, gateway :1280, exécute-sur-validation (« parle → exécute »).
+                # Converge avec jc-jmo (fin du conflit inter-Claude). turbo-os-ui = expérimental (non détruit).
+                f = "/home/turbo/omega-cognitive-os/app/index.html"
+                html = open(f, encoding="utf-8").read() if os.path.exists(f) else "<h1>OMEGA app absente</h1>"
                 data = html.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
