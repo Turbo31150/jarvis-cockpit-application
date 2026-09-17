@@ -46,7 +46,7 @@ HOME = os.path.expanduser("~")
 # Fenêtre de sortie conservée par session. Au-delà, on rogne le début : c'est
 # un terminal, pas un journal — l'historique long vit dans les logs des apps.
 TAILLE_TAMPON = int(os.environ.get("COCKPIT_TERM_BUFFER_KO", "4096")) * 1024  # 4 Mo (un scan verbeux dépasse vite 512 Ko et perdait ses 1res lignes) ; tmux garde de toute façon tout le scrollback
-MAX_SESSIONS = 12
+MAX_SESSIONS = int(os.environ.get("COCKPIT_MAX_SESSIONS", "0"))  # 0 = illimité (re-bridable via COCKPIT_MAX_SESSIONS)
 # Une session morte reste lisible un moment : l'utilisateur doit pouvoir lire
 # le message d'erreur d'une app qui a quitté aussitôt.
 RETENTION_MORTE_S = 900
@@ -532,7 +532,7 @@ class Gestionnaire:
     def _place_libre(self):
         self._purger()
         vivantes = sum(1 for s in self.sessions.values() if s.vivante())
-        if vivantes >= MAX_SESSIONS:
+        if MAX_SESSIONS and vivantes >= MAX_SESSIONS:
             raise RuntimeError(f"limite de {MAX_SESSIONS} sessions simultanées atteinte")
 
     def ouvrir(self, app_id, cols=120, rows=32):
