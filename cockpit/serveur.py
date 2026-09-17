@@ -1301,10 +1301,59 @@ class CockpitHandler(BaseHTTPRequestHandler):
         h = self.headers
         auth = h.get("Authorization", "") or h.get("authorization", "")
         tok = auth[7:].strip() if auth.startswith("Bearer ") else (h.get("X-Jarvis-Token") or h.get("x-jarvis-token") or "")
+        if not tok:
+            return False
+        # 1) Token maître statique (jarvis_config)
         try:
-            return bool(jarvis_config.JARVIS_AUTH_TOKEN) and hmac.compare_digest(tok or "", jarvis_config.JARVIS_AUTH_TOKEN)
+            if jarvis_config.JARVIS_AUTH_TOKEN and hmac.compare_digest(tok, jarvis_config.JARVIS_AUTH_TOKEN):
+                return True
+        except Exception:
+            pass
+        # 2) Tokens délivrés par le propriétaire (turbo-token : scope + TTL auto, révocables).
+        #    L'expiration (TTL) est vérifiée à CHAQUE authentification client → passerelle sécurisée.
+        try:
+            import os as _os, sys as _sys
+            _cd = _os.path.dirname(_os.path.abspath(__file__))
+            if _cd not in _sys.path:
+                _sys.path.insert(0, _cd)
+            import turbo_token
+            return bool(turbo_token.verify(tok, scope="orbe").get("ok"))
         except Exception:
             return False
+
+    def _orbe_admin(self):
+        """Gérance des tokens (OMEGA) : loopback OU token de scope 'admin'. Sinon 403."""
+        import hmac
+        ip = (self.client_address[0] or "").replace("::ffff:", "")
+        if ip.startswith("127.") or ip in ("::1", "localhost"):
+            return True
+        h = self.headers
+        auth = h.get("Authorization", "") or h.get("authorization", "")
+        tok = auth[7:].strip() if auth.startswith("Bearer ") else (h.get("X-Jarvis-Token") or h.get("x-jarvis-token") or "")
+        if not tok:
+            return False
+        try:
+            if jarvis_config.JARVIS_AUTH_TOKEN and hmac.compare_digest(tok, jarvis_config.JARVIS_AUTH_TOKEN):
+                return True
+        except Exception:
+            pass
+        try:
+            import os as _o, sys as _s
+            _cd = _o.path.dirname(_o.path.abspath(__file__))
+            if _cd not in _s.path:
+                _s.path.insert(0, _cd)
+            import turbo_token
+            return bool(turbo_token.verify(tok, scope="admin").get("ok"))
+        except Exception:
+            return False
+
+    def _turbo_token_mod(self):
+        import os as _o, sys as _s
+        _cd = _o.path.dirname(_o.path.abspath(__file__))
+        if _cd not in _s.path:
+            _s.path.insert(0, _cd)
+        import turbo_token
+        return turbo_token
 
     def router_orbe(self, path, req_data=None, params=None):
         """OMEGA COGNITIVE OS — orbe cliente dissociée, connectée UNIQUEMENT à ce cockpit.
@@ -1344,6 +1393,48 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 msg = ((req_data or {}).get("message") or "").strip()
                 self.respond_json(orbe_execute(msg) if msg else {"error": "message vide"},
                                   200 if msg else 400)
+            elif path == "/orbe/scene":
+                # Démo scriptée : injecte un état préparé pour piloter la bulle (sans LLM). Loopback only.
+                import time as _t_scene
+                s = req_data or {}
+                _orbe_state.update({
+                    "state": s.get("state", "idle"),
+                    "you": s.get("you", ""),
+                    "board": s.get("board", ""),
+                    "jarvis": s.get("jarvis", ""),
+                    "decision": s.get("decision", ""),
+                    "ts": int(_t_scene.time()),
+                })
+                self.respond_json({"ok": True, "state": _orbe_state["state"]})
+            elif path == "/orbe/fichier/traiter":
+                if not self._orbe_strict():
+                    self.respond_json({"error": "jeton requis (acces distant)"}, 403); return True
+                s = req_data or {}
+                try:
+                    import os as _o, sys as _s
+                    _cd = _o.path.dirname(_o.path.abspath(__file__))
+                    if _cd not in _s.path:
+                        _s.path.insert(0, _cd)
+                    import agent_documents
+                    res = agent_documents.traiter_fichier(b64=s.get("b64"), filename=s.get("filename", "document"), path=s.get("path"))
+                    self.respond_json(res, 200 if res.get("ok") else 400)
+                except Exception as e:
+                    self.respond_json({"error": f"{type(e).__name__}: {e}"}, 500)
+            elif path == "/orbe/admin/tokens":
+                if not self._orbe_admin():
+                    self.respond_json({"error": "admin requis"}, 403); return True
+                self.respond_json({"ok": True, "tokens": self._turbo_token_mod().list_public()})
+            elif path == "/orbe/admin/token/create":
+                if not self._orbe_admin():
+                    self.respond_json({"error": "admin requis"}, 403); return True
+                s = req_data or {}
+                tok, e = self._turbo_token_mod().create(s.get("label", "sans-nom"), s.get("scope", "orbe"), s.get("ttl", "7d"))
+                self.respond_json({"ok": True, "token": tok, "id": e["id"], "scope": e["scope"], "expires": e["expires"]})
+            elif path == "/orbe/admin/token/revoke":
+                if not self._orbe_admin():
+                    self.respond_json({"error": "admin requis"}, 403); return True
+                ok = self._turbo_token_mod().revoke((req_data or {}).get("id", ""))
+                self.respond_json({"ok": ok} if ok else {"ok": False, "error": "id introuvable"}, 200 if ok else 404)
             else:
                 self.respond_json({"success": False, "error": "route orbe inconnue"}, 404)
         except Exception as e:
