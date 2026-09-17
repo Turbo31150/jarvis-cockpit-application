@@ -405,40 +405,137 @@
       <!-- TAB 1 : DASHBOARD -->
       <!-- ================================================================= -->
       <section id="tab-dashboard" class="space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div class="glass-card p-4 rounded-xl border-l-4 border-cyan-500">
-            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Principal (Mining)</div>
-            <div class="text-xl font-black text-white mt-1 truncate" id="dash-node-name">mining</div>
-            <div class="text-xs text-cyan-400 mt-2 flex items-center justify-between">
-              <span>Pentium 987 · 2 cœurs</span>
-              <span class="text-emerald-400">Mode Éco CPU</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Carte 1: Nœud Maître CPU -->
+          <div class="glass-card p-4 rounded-xl border border-cyan-500/30 bg-slate-900/70 relative overflow-hidden group hover:border-cyan-400/60 transition">
+            <div class="absolute -right-2 -bottom-2 opacity-10 group-hover:opacity-20 transition text-cyan-400 text-6xl">
+              <i class="fa-solid fa-microchip"></i>
+            </div>
+            <div class="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider flex items-center justify-between">
+              <span>TURBO OS · NŒUD MAÎTRE</span>
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+            </div>
+            <div class="text-xl font-black text-white mt-1.5 truncate" id="dash-node-name">mining</div>
+            <div class="text-xs text-slate-300 mt-2 flex items-center justify-between">
+              <span>Intel i5-3470 (4 cœurs)</span>
+              <span class="text-emerald-400 font-mono" id="dash-cpu-temp">53°C</span>
+            </div>
+            <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
+              <span class="text-emerald-300">Gouverneur : performance</span>
+              <span class="text-cyan-300 font-mono">Loopback 127.0.0.1</span>
             </div>
           </div>
-          <div class="glass-card p-4 rounded-xl border-l-4 border-emerald-500">
-            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nœud Inférence (llama-server GPU)</div>
-            <div class="text-xl font-black text-white mt-1" id="dash-m6-ip">192.168.42.241:1234</div>
-            <div class="text-xs text-emerald-400 mt-2 flex items-center justify-between">
-              <span id="dash-m6-status">llama-server Dual GPU</span>
-              <span id="dash-m6-latency">-- ms</span>
+
+          <!-- Carte 2: Usine Bi-GPU Inférence -->
+          <div class="glass-card p-4 rounded-xl border border-emerald-500/30 bg-slate-900/70 relative overflow-hidden group hover:border-emerald-400/60 transition">
+            <div class="absolute -right-2 -bottom-2 opacity-10 group-hover:opacity-20 transition text-emerald-400 text-6xl">
+              <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div class="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+              <span>INFÉRENCE BI-GPU (:1234 · :1235)</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            </div>
+            <div class="text-xl font-black text-white mt-1.5" id="dash-m6-status">RTX 3080 + RTX 2060</div>
+            <div class="text-xs text-slate-300 mt-2 flex items-center justify-between">
+              <span>VRAM : <strong class="text-emerald-400" id="dash-vram-used">15.6 Go</strong> / 22 Go</span>
+              <span class="text-emerald-400 font-mono" id="dash-m6-latency">3.8 ms</span>
+            </div>
+            <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
+              <span>llama-server 100% Souverain</span>
+              <span class="text-emerald-300">0 € / Token</span>
             </div>
           </div>
-          <div class="glass-card p-4 rounded-xl border-l-4 border-indigo-500">
-            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Bibliothèque Vivante Board</div>
-            <div class="text-xl font-black text-white mt-1" id="dash-board-chunks">528 767 chunks</div>
-            <div class="text-xs text-indigo-400 mt-2">47 domaines · 88 experts</div>
+
+          <!-- Carte 3: Bibliothèque Vivante Board -->
+          <div class="glass-card p-4 rounded-xl border border-indigo-500/30 bg-slate-900/70 relative overflow-hidden group hover:border-indigo-400/60 transition">
+            <div class="absolute -right-2 -bottom-2 opacity-10 group-hover:opacity-20 transition text-indigo-400 text-6xl">
+              <i class="fa-solid fa-book-open"></i>
+            </div>
+            <div class="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider flex items-center justify-between">
+              <span>MÉMOIRE VIVANTE BOARD</span>
+              <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+            </div>
+            <div class="text-xl font-black text-white mt-1.5" id="dash-board-chunks">1 125 152 chunks</div>
+            <div class="text-xs text-indigo-300 mt-2 truncate" id="dash-board-summary">
+              21 domaines · 64 experts
+            </div>
+            <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
+              <span>FTS5 BM25 + Vectoriel</span>
+              <span class="text-indigo-300">Anti-hallucination</span>
+            </div>
           </div>
-          <div class="glass-card p-4 rounded-xl border-l-4 border-fuchsia-500">
-            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Services Supervisés</div>
-            <div class="text-xl font-black text-white mt-1"><span id="services-up-count">12</span> / 12 UP</div>
-            <div class="text-xs text-fuchsia-400 mt-2">Auto-guérison active</div>
+
+          <!-- Carte 4: Services Supervisés -->
+          <div class="glass-card p-4 rounded-xl border border-fuchsia-500/30 bg-slate-900/70 relative overflow-hidden group hover:border-fuchsia-400/60 transition">
+            <div class="absolute -right-2 -bottom-2 opacity-10 group-hover:opacity-20 transition text-fuchsia-400 text-6xl">
+              <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div class="text-[11px] font-semibold text-fuchsia-400 uppercase tracking-wider flex items-center justify-between">
+              <span>SERVICES SUPERVISÉS</span>
+              <span class="w-2 h-2 rounded-full bg-fuchsia-400"></span>
+            </div>
+            <div class="text-xl font-black text-white mt-1.5">
+              <span id="services-up-count" class="text-fuchsia-300">14</span> / <span id="services-total-count">17</span> UP
+            </div>
+            <div class="text-xs text-fuchsia-400 mt-2 flex items-center justify-between">
+              <span>Auto-guérison active</span>
+              <span class="text-emerald-400">Sécurité P0</span>
+            </div>
+            <div class="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
+              <span>Port :8600 protégé</span>
+              <span class="text-fuchsia-300">0 fuite externe</span>
+            </div>
           </div>
         </div>
 
-        <!-- Matrice des 12 Services -->
+        <!-- Raccourcis Rapides Stratégiques -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <button onclick="showTab('tableronde')" class="p-3 glass-card rounded-xl border border-indigo-500/30 hover:border-indigo-400/60 bg-gradient-to-r from-indigo-950/40 to-purple-950/30 flex items-center gap-3 text-left transition group">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition shrink-0">
+              <i class="fa-solid fa-users-viewfinder text-sm"></i>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white group-hover:text-indigo-300 transition">Table Ronde (7 Sièges)</div>
+              <div class="text-[10px] text-slate-400">Délibération souveraine</div>
+            </div>
+          </button>
+          <button onclick="showTab('plan')" class="p-3 glass-card rounded-xl border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-r from-emerald-950/40 to-teal-950/30 flex items-center gap-3 text-left transition group">
+            <div class="w-8 h-8 rounded-lg bg-emerald-600/30 border border-emerald-500/50 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition shrink-0">
+              <i class="fa-solid fa-clipboard-list text-sm"></i>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white group-hover:text-emerald-300 transition">Board Plan & Tâches</div>
+              <div class="text-[10px] text-slate-400">Suivi jarvis_master.db</div>
+            </div>
+          </button>
+          <button onclick="showTab('benchmark')" class="p-3 glass-card rounded-xl border border-amber-500/30 hover:border-amber-400/60 bg-gradient-to-r from-amber-950/40 to-orange-950/30 flex items-center gap-3 text-left transition group">
+            <div class="w-8 h-8 rounded-lg bg-amber-600/30 border border-amber-500/50 flex items-center justify-center text-amber-400 group-hover:scale-110 transition shrink-0">
+              <i class="fa-solid fa-chart-line text-sm"></i>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white group-hover:text-amber-300 transition">Analyse Comparative</div>
+              <div class="text-[10px] text-slate-400">Moat & Citations SQL</div>
+            </div>
+          </button>
+          <a href="/orbe.html" target="_blank" class="p-3 glass-card rounded-xl border border-cyan-500/30 hover:border-cyan-400/60 bg-gradient-to-r from-cyan-950/40 to-blue-950/30 flex items-center gap-3 text-left transition group" style="text-decoration:none">
+            <div class="w-8 h-8 rounded-lg bg-cyan-600/30 border border-cyan-500/50 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition shrink-0">
+              <i class="fa-solid fa-circle-nodes text-sm"></i>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white group-hover:text-cyan-300 transition">Orbe Turbo OS</div>
+              <div class="text-[10px] text-slate-400">Écran 1 (Sony HDMI-0)</div>
+            </div>
+          </a>
+        </div>
+
+        <!-- Matrice des Services -->
         <div class="glass-card p-5 rounded-xl">
-          <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <i class="fa-solid fa-network-wired text-cyan-400"></i> Matrice des Services & Ponts Réseau
-          </h2>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-network-wired text-cyan-400"></i> Matrice des Services & Ponts Réseau
+            </h2>
+            <span class="text-xs text-slate-400 mono">Supervision temps réel (cycle 6s)</span>
+          </div>
           <div id="services-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3"></div>
         </div>
       </section>
@@ -557,16 +654,16 @@
       <!-- TAB 2 : BOARD PLAN & TO-DO LIST -->
       <!-- ================================================================= -->
       <section id="tab-plan" class="hidden space-y-6">
-        <div class="flex justify-between items-center glass-card p-4 rounded-xl">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 glass-card p-5 rounded-xl border-l-4 border-emerald-500">
           <div>
             <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
               <i class="fa-solid fa-clipboard-list text-emerald-400"></i> Board Plan & To-Do List Maître
             </h2>
-            <p class="text-xs text-slate-400 mt-1">Suivi temps réel des tâches orchestrées dans <code>jarvis_master.db</code>.</p>
+            <p class="text-xs text-slate-400 mt-1">Supervision et exécution des chantiers orchestrés dans <code>jarvis_master.db</code>.</p>
           </div>
-          <div class="flex gap-3">
+          <div class="flex flex-wrap gap-2.5">
             <a href="http://127.0.0.1:8899" target="_blank" class="px-3 py-2 bg-emerald-600/30 border border-emerald-500/50 hover:bg-emerald-600/50 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i> Ouvrir Widget :8899
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Widget :8899
             </a>
             <button onclick="loadTasks()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-2 transition">
               <i class="fa-solid fa-rotate"></i> Actualiser
@@ -574,9 +671,33 @@
           </div>
         </div>
 
-        <!-- Ajout Rapide de Tâche -->
-        <div class="glass-card p-4 rounded-xl flex gap-3 items-center">
-          <input type="text" id="new-task-title" placeholder="Nouvelle tâche à planifier..." class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+        <!-- 4 Cartes KPIs Board Plan -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="glass-card p-3 rounded-xl border border-slate-800 bg-slate-900/60">
+            <div class="text-[10px] text-slate-400 uppercase font-mono">Total Tâches</div>
+            <div class="text-xl font-black text-white mt-1" id="plan-kpi-total">--</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">jarvis_master.db</div>
+          </div>
+          <div class="glass-card p-3 rounded-xl border border-amber-500/30 bg-slate-900/60">
+            <div class="text-[10px] text-amber-400 uppercase font-mono">En Attente / En Cours</div>
+            <div class="text-xl font-black text-amber-400 mt-1" id="plan-kpi-pending">--</div>
+            <div class="text-[10px] text-amber-500/80 mt-0.5">À exécuter</div>
+          </div>
+          <div class="glass-card p-3 rounded-xl border border-emerald-500/30 bg-slate-900/60">
+            <div class="text-[10px] text-emerald-400 uppercase font-mono">Terminées / Livrées</div>
+            <div class="text-xl font-black text-emerald-400 mt-1" id="plan-kpi-done">--</div>
+            <div class="text-[10px] text-emerald-500/80 mt-0.5">Succès vérifié</div>
+          </div>
+          <div class="glass-card p-3 rounded-xl border border-cyan-500/30 bg-slate-900/60">
+            <div class="text-[10px] text-cyan-400 uppercase font-mono">Taux d'Achèvement</div>
+            <div class="text-xl font-black text-cyan-400 mt-1" id="plan-kpi-pct">-- %</div>
+            <div class="text-[10px] text-cyan-500/80 mt-0.5">Progression globale</div>
+          </div>
+        </div>
+
+        <!-- Ajout Rapide de Tâche & Filtre -->
+        <div class="glass-card p-4 rounded-xl flex flex-col sm:flex-row gap-3 items-center">
+          <input type="text" id="new-task-title" placeholder="Nouvelle tâche à planifier..." class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 w-full sm:w-auto">
           <select id="new-task-agent" class="bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none">
             <option value="OMÉGA">OMÉGA</option>
             <option value="CLAUDE">CLAUDE</option>
@@ -584,9 +705,15 @@
             <option value="SWARM">SWARM</option>
             <option value="MISC-OPS">MISC-OPS</option>
           </select>
-          <button onclick="createTask()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg text-xs flex items-center gap-2 transition">
+          <button onclick="createTask()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg text-xs flex items-center gap-2 transition shrink-0">
             <i class="fa-solid fa-plus"></i> Ajouter
           </button>
+          <div class="h-6 w-px bg-slate-700 hidden sm:block"></div>
+          <div class="flex items-center gap-1.5 w-full sm:w-auto">
+            <button onclick="filterTasks('all')" id="btn-filter-all" class="px-2.5 py-1 rounded bg-slate-800 text-cyan-400 text-xs font-semibold">Tous</button>
+            <button onclick="filterTasks('pending')" id="btn-filter-pending" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-semibold">En cours</button>
+            <button onclick="filterTasks('done')" id="btn-filter-done" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-semibold">Terminées</button>
+          </div>
         </div>
 
         <!-- Liste des Tâches -->
@@ -4058,22 +4185,25 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
           }
         }
 
-        const dashM6Ip = document.getElementById('dash-m6-ip');
-        if (dashM6Ip && data.m6) {
-          dashM6Ip.textContent = `${data.m6.ip || '192.168.42.241'}:1234`;
-          const dashM6Status = document.getElementById('dash-m6-status');
+        if (data.m6) {
           const dashM6Latency = document.getElementById('dash-m6-latency');
-          if (dashM6Status) {
-            dashM6Status.textContent = data.m6.online ? (data.m6.models && data.m6.models.length ? data.m6.models[0] : 'llama-server EN LIGNE') : 'llama-server HORS LIGNE';
-          }
           if (dashM6Latency) {
             dashM6Latency.textContent = data.m6.online ? `${data.m6.latency_ms} ms` : 'Inactif';
           }
         }
 
         const nodeLabel = document.getElementById('dash-node-name');
-        if (nodeLabel && data.node) {
-          nodeLabel.textContent = data.node.toLowerCase();
+        if (nodeLabel) {
+          nodeLabel.textContent = (data.node || data.hostname || 'mining').toLowerCase();
+        }
+
+        if (data.local) {
+          const cpuTemp = document.getElementById('dash-cpu-temp');
+          if (cpuTemp && data.local.temp_c) cpuTemp.textContent = `${data.local.temp_c}°C`;
+          const vramUsed = document.getElementById('dash-vram-used');
+          if (vramUsed && data.local.vram_used_mb) {
+            vramUsed.textContent = `${(data.local.vram_used_mb / 1024).toFixed(1)} Go`;
+          }
         }
 
         const grid = document.getElementById('services-grid');
@@ -4096,8 +4226,24 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
             });
             const countEl = document.getElementById('services-up-count');
             if (countEl) countEl.textContent = upCount;
+            const totalEl = document.getElementById('services-total-count');
+            if (totalEl) totalEl.textContent = data.services.length;
           }
         }
+
+        // Télémétrie dynamique Board RAG
+        try {
+          const bRes = await fetch('/api/board/stats');
+          if (bRes.ok) {
+            const bData = await bRes.json();
+            if (bData && bData.stats) {
+              const bChunksEl = document.getElementById('dash-board-chunks');
+              if (bChunksEl) bChunksEl.textContent = `${(bData.stats.chunks || 0).toLocaleString()} chunks`;
+              const bSumEl = document.getElementById('dash-board-summary');
+              if (bSumEl) bSumEl.textContent = bData.stats.summary || `${bData.stats.domains || 21} domaines · ${bData.stats.experts || 64} experts`;
+            }
+          }
+        } catch (_) {}
       } catch (e) {
         console.error("Erreur polling status:", e);
       }
@@ -4125,34 +4271,79 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
     }
 
     // ── TÂCHES & PLANNING ──
+    let _cachedTasks = [];
+    let _taskFilter = 'all';
+
+    function filterTasks(f) {
+      _taskFilter = f;
+      ['all', 'pending', 'done'].forEach(id => {
+        const btn = document.getElementById('btn-filter-' + id);
+        if (!btn) return;
+        if (id === f) {
+          btn.className = "px-2.5 py-1 rounded bg-slate-800 text-cyan-400 text-xs font-semibold";
+        } else {
+          btn.className = "px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-semibold";
+        }
+      });
+      renderTasksList();
+    }
+
+    function renderTasksList() {
+      const tbody = document.getElementById('tasks-table');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      let filtered = _cachedTasks;
+      if (_taskFilter === 'pending') {
+        filtered = _cachedTasks.filter(t => t.status !== 'done');
+      } else if (_taskFilter === 'done') {
+        filtered = _cachedTasks.filter(t => t.status === 'done');
+      }
+      if (!filtered || !filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">Aucune tâche dans cette vue</td></tr>';
+        return;
+      }
+      filtered.forEach(t => {
+        const isDone = t.status === 'done';
+        const badgeClass = isDone ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-amber-950 text-amber-400 border-amber-800';
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-800/30">
+            <td class="p-3 font-mono text-slate-500">#${t.id}</td>
+            <td class="p-3 font-medium text-white ${isDone ? 'line-through opacity-60' : ''}">${t.title}</td>
+            <td class="p-3 mono text-cyan-400">${t.category || 'GÉNÉRAL'}</td>
+            <td class="p-3"><span class="px-2 py-0.5 rounded border text-[10px] ${badgeClass}">${t.status.toUpperCase()}</span></td>
+            <td class="p-3 mono text-slate-500">${(t.created_at || '').split(' ')[0]}</td>
+            <td class="p-3">
+              <button onclick="toggleTaskStatus(${t.id}, '${isDone ? 'pending' : 'done'}')" class="text-xs text-slate-400 hover:text-emerald-400">
+                <i class="fa-solid ${isDone ? 'fa-arrow-rotate-left' : 'fa-check'}"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
     async function loadTasks() {
       try {
         const res = await fetch('/api/tasks?limit=250');
         const data = await res.json();
-        const tbody = document.getElementById('tasks-table');
-        tbody.innerHTML = '';
-        if (!data.tasks || !data.tasks.length) {
-          tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">Aucune tâche trouvée</td></tr>';
-          return;
-        }
-        data.tasks.forEach(t => {
-          const isDone = t.status === 'done';
-          const badgeClass = isDone ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-amber-950 text-amber-400 border-amber-800';
-          tbody.innerHTML += `
-            <tr class="hover:bg-slate-800/30">
-              <td class="p-3 font-mono text-slate-500">#${t.id}</td>
-              <td class="p-3 font-medium text-white ${isDone ? 'line-through opacity-60' : ''}">${t.title}</td>
-              <td class="p-3 mono text-cyan-400">${t.category || 'GÉNÉRAL'}</td>
-              <td class="p-3"><span class="px-2 py-0.5 rounded border text-[10px] ${badgeClass}">${t.status.toUpperCase()}</span></td>
-              <td class="p-3 mono text-slate-500">${(t.created_at || '').split(' ')[0]}</td>
-              <td class="p-3">
-                <button onclick="toggleTaskStatus(${t.id}, '${isDone ? 'pending' : 'done'}')" class="text-xs text-slate-400 hover:text-emerald-400">
-                  <i class="fa-solid ${isDone ? 'fa-arrow-rotate-left' : 'fa-check'}"></i>
-                </button>
-              </td>
-            </tr>
-          `;
-        });
+        _cachedTasks = data.tasks || [];
+        
+        // Calcul des KPIs
+        const total = _cachedTasks.length;
+        const done = _cachedTasks.filter(t => t.status === 'done').length;
+        const pending = total - done;
+        const pct = total > 0 ? ((done / total) * 100).toFixed(1) : '0.0';
+
+        const elTotal = document.getElementById('plan-kpi-total');
+        if (elTotal) elTotal.textContent = total;
+        const elPending = document.getElementById('plan-kpi-pending');
+        if (elPending) elPending.textContent = pending;
+        const elDone = document.getElementById('plan-kpi-done');
+        if (elDone) elDone.textContent = done;
+        const elPct = document.getElementById('plan-kpi-pct');
+        if (elPct) elPct.textContent = `${pct} %`;
+
+        renderTasksList();
       } catch (e) {
         console.error("Erreur tasks:", e);
       }

@@ -1089,6 +1089,21 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self.respond_json({"success": False, "error": f"{type(e).__name__}: {e}"}, 500)
         return True
 
+    def _orbe_strict(self):
+        """O7/C-SEC : routes d'ACTION orbe (ask/execute) = loopback OU jeton Bearer VALIDE.
+        Pas d'exemption de plage (tether/tailscale) → ferme la RCE non authentifiée."""
+        import hmac
+        ip = (self.client_address[0] or "").replace("::ffff:", "")
+        if ip.startswith("127.") or ip in ("::1", "localhost"):
+            return True
+        h = self.headers
+        auth = h.get("Authorization", "") or h.get("authorization", "")
+        tok = auth[7:].strip() if auth.startswith("Bearer ") else (h.get("X-Jarvis-Token") or h.get("x-jarvis-token") or "")
+        try:
+            return bool(jarvis_config.JARVIS_AUTH_TOKEN) and hmac.compare_digest(tok or "", jarvis_config.JARVIS_AUTH_TOKEN)
+        except Exception:
+            return False
+
     def router_orbe(self, path, req_data=None, params=None):
         """OMEGA COGNITIVE OS — orbe cliente dissociée, connectée UNIQUEMENT à ce cockpit.
         Sécurité C-SEC : loopback libre, client distant => jeton Bearer requis (local_seulement)."""
@@ -1114,10 +1129,14 @@ class CockpitHandler(BaseHTTPRequestHandler):
             elif path == "/orbe/state":
                 self.respond_json(dict(_orbe_state))
             elif path == "/orbe/ask":
+                if not self._orbe_strict():
+                    self.respond_json({"error": "jeton requis (acces distant)"}, 403); return True
                 msg = ((req_data or {}).get("message") or "").strip()
                 self.respond_json(orbe_deliberate(msg) if msg else {"error": "message vide"},
                                   200 if msg else 400)
             elif path == "/orbe/execute":
+                if not self._orbe_strict():
+                    self.respond_json({"error": "jeton requis (acces distant)"}, 403); return True
                 msg = ((req_data or {}).get("message") or "").strip()
                 self.respond_json(orbe_execute(msg) if msg else {"error": "message vide"},
                                   200 if msg else 400)
@@ -1151,6 +1170,42 @@ class CockpitHandler(BaseHTTPRequestHandler):
         # ── MOTEUR GPU : état des modèles (remplace la gestion LM Studio) ──
         elif path == "/api/gpu/models":
             self.respond_json(get_gpu_models_state())
+            return
+
+        # ── TÉLÉMÉTRIE GPU DIRECTE & UTILISATION SOUVERAINE ──
+        elif path in ("/api/gpu/usage", "/api/system/gpu"):
+            gpus = []
+            try:
+                res_gpu = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=index,name,memory.total,memory.free,memory.used,temperature.gpu,utilization.gpu", "--format=csv,noheader,nounits"],
+                    capture_output=True, text=True, timeout=2.0
+                )
+                if res_gpu.returncode == 0:
+                    for line in res_gpu.stdout.strip().split("\n"):
+                        parts = [p.strip() for p in line.split(",")]
+                        if len(parts) >= 7:
+                            gpus.append({
+                                "index": int(parts[0]),
+                                "name": parts[1],
+                                "vram_total_mb": int(parts[2]),
+                                "vram_free_mb": int(parts[3]),
+                                "vram_used_mb": int(parts[4]),
+                                "temp_c": int(parts[5]),
+                                "utilization_gpu_pct": int(parts[6])
+                            })
+            except Exception:
+                pass
+            total_vram = sum(g.get("vram_total_mb", 0) for g in gpus)
+            used_vram = sum(g.get("vram_used_mb", 0) for g in gpus)
+            self.respond_json({
+                "success": True,
+                "gpus": gpus,
+                "total_vram_mb": total_vram,
+                "used_vram_mb": used_vram,
+                "free_vram_mb": total_vram - used_vram,
+                "summary": f"{len(gpus)} GPU(s) actifs · {round(used_vram/1024, 1)}/{round(total_vram/1024, 1)} Go VRAM utilisée",
+                "timestamp": datetime.now().isoformat()
+            })
             return
 
         # ── CHECKPOINT ENGINE : tâche reprenable + historique ──
