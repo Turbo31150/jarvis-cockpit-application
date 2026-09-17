@@ -1226,7 +1226,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
             return
 
         # ── TÉLÉMÉTRIE GPU DIRECTE & UTILISATION SOUVERAINE ──
-        elif path in ("/api/gpu/usage", "/api/system/gpu"):
+        elif path in ("/api/gpu/usage", "/api/system/gpu", "/api/gpu/status"):
             gpus = []
             try:
                 res_gpu = subprocess.run(
