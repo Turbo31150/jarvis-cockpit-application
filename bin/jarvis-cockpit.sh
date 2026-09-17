@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# jarvis-cockpit.sh — LANCEUR DU COCKPIT UNIFIÉ JARVIS
+# Redirige vers bin/jarvis-cockpit-app de manière transparente.
+# ==============================================================================
+set -e
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -x "$DIR/jarvis-cockpit-app" ]; then
+    exec "$DIR/jarvis-cockpit-app" "$@"
+elif [ -x "$HOME/jarvis/bin/jarvis-cockpit-app" ]; then
+    exec "$HOME/jarvis/bin/jarvis-cockpit-app" "$@"
+else
+    echo "Lanceur jarvis-cockpit-app introuvable dans $DIR ou ~/jarvis/bin." >&2
+    exit 1
+fi

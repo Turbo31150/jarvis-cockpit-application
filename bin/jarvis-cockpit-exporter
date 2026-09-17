@@ -11,8 +11,14 @@
 # =============================================================================
 set -euo pipefail
 
-SOURCE="$HOME/jarvis/cockpit"
-PAQUET="/data/jarvis/JARVIS-COCKPIT-PORTABLE"
+SOURCE="${JARVIS_SOURCE:-$HOME/jarvis/cockpit}"
+if [ -n "${JARVIS_PORTABLE_PKG:-}" ]; then
+    PAQUET="$JARVIS_PORTABLE_PKG"
+elif [ -d "/data/jarvis" ]; then
+    PAQUET="/data/jarvis/JARVIS-COCKPIT-PORTABLE"
+else
+    PAQUET="$HOME/jarvis/data/JARVIS-COCKPIT-PORTABLE"
+fi
 
 reconstruire() {
     [ -d "$SOURCE" ] || { echo "source introuvable : $SOURCE" >&2; return 1; }

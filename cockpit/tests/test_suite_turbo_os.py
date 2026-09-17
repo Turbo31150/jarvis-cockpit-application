@@ -129,9 +129,27 @@ class TestTurboOS(unittest.TestCase):
 
     # 19. test_packaging
     def test_packaging(self):
+        # 1. Lanceur bureau canonique
         launcher = "/home/turbo/.local/bin/turbo-os"
         self.assertTrue(os.path.exists(launcher))
         self.assertTrue(os.access(launcher, os.X_OK))
+
+        # 2. Binaires et scripts du packaging cockpit
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        required_files = [
+            os.path.join(repo_root, "bin", "jarvis-cockpit-app"),
+            os.path.join(repo_root, "bin", "jarvis-cockpit.sh"),
+            os.path.join(repo_root, "bin", "jarvis-planning-widget.py"),
+            os.path.join(repo_root, "bin", "swarm-watch.sh"),
+            os.path.join(repo_root, "bin", "m6-watch.sh"),
+            os.path.join(repo_root, "scripts", "planning_mega_m4.py"),
+            os.path.join(repo_root, "VERSION"),
+            os.path.join(repo_root, "CHANGELOG.md"),
+        ]
+        for f in required_files:
+            self.assertTrue(os.path.exists(f), f"Fichier de packaging requis absent: {f}")
+            if f.endswith((".sh", ".py", "jarvis-cockpit-app")):
+                self.assertTrue(os.access(f, os.X_OK), f"Fichier non exécutable: {f}")
 
 
 if __name__ == "__main__":

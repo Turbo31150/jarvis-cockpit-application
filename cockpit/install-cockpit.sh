@@ -53,7 +53,7 @@ done
 titre "Fichiers du cockpit"
 poser(){  # poser <relatif-depot> <destination>
   local rel="$1" dest="$2"
-  if [ ! -e "$SRC/$rel" ]; then warn "absent du depot : $rel"; return 1; fi
+  if [ ! -e "$SRC/$rel" ]; then warn "absent du depot (optionnel) : $rel"; return 0; fi
   mkdir -p "$(dirname "$dest")"
   if cmp -s "$SRC/$rel" "$dest" 2>/dev/null; then ok "$rel (deja a jour)"; return 0; fi
   [ -e "$dest" ] && cp -a "$dest" "$dest.bak-$(date +%Y%m%d-%H%M%S)"
@@ -66,11 +66,24 @@ poser cockpit/gui_app.py            "$DST/cockpit/gui_app.py"
 for f in index.html manifest.json sw.js icone.png; do
   poser "cockpit/web/$f"            "$DST/cockpit/web/$f"
 done
+if [ ! -L "$DST/cockpit" ]; then
+  if [ -d "$SRC/cockpit/core" ]; then
+    mkdir -p "$DST/cockpit/core"
+    cp -a "$SRC/cockpit/core/"* "$DST/cockpit/core/" 2>/dev/null || true
+    ok "cockpit/core -> $DST/cockpit/core"
+  fi
+  if [ -d "$SRC/cockpit/ui" ]; then
+    mkdir -p "$DST/cockpit/ui"
+    cp -a "$SRC/cockpit/ui/"* "$DST/cockpit/ui/" 2>/dev/null || true
+    ok "cockpit/ui -> $DST/cockpit/ui"
+  fi
+fi
+poser bin/jarvis-cockpit-app        "$DST/bin/jarvis-cockpit-app"
+poser bin/jarvis-cockpit.sh         "$DST/bin/jarvis-cockpit.sh"
 poser bin/jarvis-planning-widget.py "$DST/bin/jarvis-planning-widget.py"
 poser bin/ttx                       "$HOME/bin/ttx"
 poser bin/swarm-watch.sh            "$DST/bin/swarm-watch.sh"
 poser bin/m6-watch.sh               "$DST/bin/m6-watch.sh"
-poser bin/jarvis-cockpit.sh         "$DST/bin/jarvis-cockpit.sh"
 poser scripts/planning_mega_m4.py   "$DST/scripts/planning_mega_m4.py"
 
 titre "Base de tâches (jarvis_master.db)"
@@ -88,9 +101,23 @@ c.execute("""CREATE TABLE IF NOT EXISTS tasks (
 c.execute("""CREATE TABLE IF NOT EXISTS plan (
   id INTEGER PRIMARY KEY AUTOINCREMENT, titre TEXT, statut TEXT DEFAULT 'a_faire',
   cree_le DATETIME DEFAULT CURRENT_TIMESTAMP)""")
+existing_cols = {row[1] for row in c.execute("PRAGMA table_info(tasks)").fetchall()}
+for col_name, col_type in (
+    ("parent_id", "INTEGER"), ("agent", "TEXT"), ("score", "REAL"),
+    ("biblio_preload", "TEXT"), ("machine", "TEXT"), ("context", "TEXT"),
+    ("progress", "INTEGER DEFAULT 0"),
+):
+    if col_name not in existing_cols:
+        try:
+            c.execute(f"ALTER TABLE tasks ADD COLUMN {col_name} {col_type}")
+        except Exception:
+            pass
 for idx, col in (("idx_tasks_status","status"),("idx_tasks_updated","updated_at"),
                  ("idx_tasks_agent","agent"),("idx_tasks_created_at","created_at")):
-    c.execute(f"CREATE INDEX IF NOT EXISTS {idx} ON tasks({col})")
+    try:
+        c.execute(f"CREATE INDEX IF NOT EXISTS {idx} ON tasks({col})")
+    except Exception:
+        pass
 c.commit()
 n = c.execute("SELECT count(*) FROM tasks").fetchone()[0]
 print(f"  base {'CREEE' if neuve else 'deja presente'} — {n} tache(s)")
@@ -100,6 +127,8 @@ PY
 titre "Services systemd (--user)"
 if [ "$AVEC_SERVICE" = "1" ] && command -v systemctl >/dev/null; then
   mkdir -p "$HOME/.config/systemd/user"
+  PY_BIN="/usr/bin/python3"
+  [ -x "$HOME/jarvis/.venv/bin/python3" ] && PY_BIN="%h/jarvis/.venv/bin/python3"
   cat > "$HOME/.config/systemd/user/jarvis-planning-widget.service" <<UNIT
 [Unit]
 Description=JARVIS Planning Widget — backend dashboard :$PORT_WIDGET
@@ -109,7 +138,7 @@ StartLimitIntervalSec=120
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 %h/jarvis/bin/jarvis-planning-widget.py $PORT_WIDGET
+ExecStart=$PY_BIN %h/jarvis/bin/jarvis-planning-widget.py $PORT_WIDGET
 WorkingDirectory=%h/jarvis
 Restart=always
 RestartSec=5
@@ -120,7 +149,8 @@ StandardError=append:%h/jarvis/logs/planning-widget.log
 [Install]
 WantedBy=default.target
 UNIT
-  cat > "$HOME/.config/systemd/user/jarvis-cockpit.service" <<UNIT
+  if [ ! -f "$HOME/.config/systemd/user/jarvis-cockpit.service" ]; then
+    cat > "$HOME/.config/systemd/user/jarvis-cockpit.service" <<UNIT
 [Unit]
 Description=JARVIS Cockpit — pilotage du cluster (PWA :$PORT_COCKPIT)
 After=network.target
@@ -128,7 +158,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h/jarvis/cockpit
-ExecStart=/usr/bin/python3 %h/jarvis/cockpit/serveur.py
+ExecStart=$PY_BIN %h/jarvis/cockpit/serveur.py
 Restart=always
 RestartSec=5
 Environment=COCKPIT_PORT=$PORT_COCKPIT
@@ -138,6 +168,10 @@ StandardError=append:%h/jarvis/logs/cockpit.log
 [Install]
 WantedBy=default.target
 UNIT
+    ok "unit jarvis-cockpit.service generee"
+  else
+    ok "unit jarvis-cockpit.service preservee (existante)"
+  fi
   ok "units ecrites"
   systemctl --user daemon-reload 2>/dev/null
   for s in jarvis-planning-widget jarvis-cockpit; do

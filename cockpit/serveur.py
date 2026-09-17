@@ -1098,8 +1098,10 @@ class CockpitHandler(BaseHTTPRequestHandler):
             return True
         try:
             if path == "/orbe.html":
-                f = "/home/turbo/omega-cognitive-os/app/index.html"
-                html = open(f, encoding="utf-8").read() if os.path.exists(f) else "<h1>OMEGA app absente</h1>"
+                # C2 (2026-09-17) : SOURCE_UNIQUE_UI = turbo-os-ui (choix client, app bureau).
+                # omega-cognitive-os reste EXPÉRIMENTAL (non détruit, §0). L'orbe parle à :1270 (CORS *).
+                f = "/home/turbo/turbo-os-ui/index.html"
+                html = open(f, encoding="utf-8").read() if os.path.exists(f) else "<h1>Orbe Turbo OS absente</h1>"
                 data = html.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")

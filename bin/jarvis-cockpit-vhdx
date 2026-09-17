@@ -14,10 +14,16 @@
 # =============================================================================
 set -euo pipefail
 
-VHDX="/data/jarvis/JARVIS-COCKPIT.vhdx"
-MNT="/mnt/jarvis-cockpit-vhdx"
+if [ -n "${JARVIS_VHDX:-}" ]; then
+    VHDX="$JARVIS_VHDX"
+elif [ -d "/data/jarvis" ]; then
+    VHDX="/data/jarvis/JARVIS-COCKPIT.vhdx"
+else
+    VHDX="$HOME/jarvis/data/JARVIS-COCKPIT.vhdx"
+fi
+MNT="${JARVIS_VHDX_MNT:-/mnt/jarvis-cockpit-vhdx}"
 NBD="/dev/nbd0"
-SOURCE="$HOME/jarvis/cockpit"
+SOURCE="${JARVIS_SOURCE:-$HOME/jarvis/cockpit}"
 
 _nbd_pret() {
     # Le module nbd n'est pas charge au demarrage : sans lui, /dev/nbd0

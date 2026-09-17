@@ -27,6 +27,10 @@
     }
     .hud-title { font-family: 'Orbitron', 'Inter', sans-serif; letter-spacing: 0.08em; }
     .mono { font-family: 'JetBrains Mono', monospace; }
+    .no-scrollbar::-webkit-scrollbar { display: none !important; }
+    .no-scrollbar { -ms-overflow-style: none !important; scrollbar-width: none !important; }
+    .seat-badge { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+    .seat-badge:hover { transform: translateY(-2px); border-color: rgba(0, 240, 255, 0.6); box-shadow: 0 6px 18px rgba(0, 240, 255, 0.2); }
     .glass {
       background: rgba(8, 14, 27, 0.95);
       border: 1px solid rgba(0, 240, 255, 0.15);
@@ -345,47 +349,52 @@
   <!-- ===================================================================== -->
   <main class="flex-1 flex flex-col min-w-0 bg-transparent overflow-hidden">
     
-    <!-- Top Bar Telemetry HUD -->
-    <header class="min-h-16 glass border-b border-cyan-500/20 px-6 py-1.5 flex items-center justify-between gap-3 flex-wrap z-10 shrink-0 shadow-lg">
-      <div class="flex items-center gap-3 min-w-0 flex-1 overflow-x-auto">
-        <span id="section-title" class="font-black text-base tracking-wide text-slate-100 truncate hud-title">Dashboard Cluster</span>
-        <div id="m6-badge" class="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-slate-400 text-xs mono flex items-center gap-1.5 shrink-0">
-          <span class="w-2 h-2 rounded-full bg-slate-500"></span> llama-server GPU : HORS LIGNE
+    <!-- Top Bar Telemetry HUD (Anti-Chevauchement Rigide & Élégant) -->
+    <header class="h-14 glass border-b border-cyan-500/20 px-4 sm:px-6 flex items-center justify-between gap-4 flex-nowrap z-20 shrink-0 shadow-lg select-none overflow-hidden">
+      <!-- Zone Gauche : Titre de section + Badges clés d'état (scroll horizontal fluide si écran étroit) -->
+      <div class="flex items-center gap-2.5 min-w-0 flex-1 overflow-x-auto no-scrollbar whitespace-nowrap py-1">
+        <span id="section-title" class="font-black text-sm sm:text-base tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white via-cyan-100 to-sky-300 shrink-0 hud-title">Dashboard Cluster</span>
+        <div class="h-4 w-px bg-slate-800 shrink-0"></div>
+        
+        <div class="px-2.5 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/60 text-emerald-300 text-[11px] mono flex items-center gap-1.5 shrink-0 shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> DUAL GPU : 3080·2060
         </div>
-        <div class="px-2.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-700/80 text-cyan-300 text-xs mono flex items-center gap-1.5 shrink-0">
-          <span class="w-2 h-2 rounded-full bg-cyan-400"></span> RIG 2 GPU : ACTIF
+        <div id="m6-badge" class="px-2.5 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-500/50 text-cyan-300 text-[11px] mono flex items-center gap-1.5 shrink-0 shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span> LLM :1234 · :1235
         </div>
-        <a href="/modeles.html" class="px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-700/80 text-emerald-300 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:border-emerald-400 transition" style="text-decoration:none" title="Choisir / charger un modèle sur le GPU1 — remplace LM Studio">
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> ⚙️ Modèles
+        <a href="/turbo.html" target="_blank" class="px-2.5 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-500/70 text-indigo-200 text-[11px] mono flex items-center gap-1.5 shrink-0 hover:bg-indigo-900/80 transition" style="text-decoration:none" title="Ouvrir Turbo OS (Orbe vocale)">
+          <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> 🔮 Turbo OS
         </a>
-        <button onclick="lireChantiersVocal(this)" class="px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/80 text-emerald-200 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:bg-emerald-800/80 transition" title="Faire le point et lire à voix haute mes chantiers (Kokoro FR)">
-          <i class="fa-solid fa-volume-high text-emerald-400"></i> 🔊 Lire Chantiers
+        <a href="/modeles.html" class="px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-700 text-slate-300 text-[11px] mono flex items-center gap-1.5 shrink-0 hover:border-emerald-400 hover:text-emerald-300 transition" style="text-decoration:none" title="Modèles LLM">
+          <i class="fa-solid fa-sliders text-emerald-400 text-[10px]"></i> Modèles
+        </a>
+        <button onclick="lireChantiersVocal(this)" class="px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-700 text-slate-300 text-[11px] mono flex items-center gap-1.5 shrink-0 hover:border-cyan-400 hover:text-cyan-300 transition" title="Lire à voix haute les chantiers (Kokoro FR)">
+          <i class="fa-solid fa-volume-high text-cyan-400 text-[10px]"></i> Voix
         </button>
-        <a href="/turbo.html" target="_blank" class="px-2.5 py-1 rounded-full bg-indigo-950/80 border border-indigo-500/80 text-indigo-200 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:bg-indigo-800/80 transition" style="text-decoration:none" title="Ouvrir Turbo OS (Orbe &amp; Agent souverain :1260)">
-          <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span> 🔮 Turbo OS (:1260)
-        </a>
-        <div id="gpu-action-mem-badge" class="px-2.5 py-1 rounded-full bg-purple-950/60 border border-purple-700/80 text-purple-300 text-xs mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:border-purple-400 transition" title="Mémoire Action permanente vectorisée (RTX 3080/2060 · 768D via :1300) — Cliquez pour chercher" onclick="ouvrirModalMemoireAction()">
-          <span class="w-2 h-2 rounded-full bg-purple-400"></span> Vecto GPU : Actif
+        <div id="gpu-action-mem-badge" class="px-2.5 py-0.5 rounded-full bg-purple-950/70 border border-purple-500/60 text-purple-300 text-[11px] mono flex items-center gap-1.5 shrink-0 cursor-pointer hover:border-purple-300 transition" title="Mémoire 768D Vectorielle" onclick="ouvrirModalMemoireAction()">
+          <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> RAG 1.1M
         </div>
       </div>
-      <div class="flex items-center gap-3 text-xs mono shrink-0 flex-wrap justify-end">
-        <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50" title="Station locale d'inférence et de délibération">
-          <i class="fa-solid fa-server text-emerald-400 mr-1"></i> <span id="appliance-host" class="text-emerald-300 font-bold">mining</span>
+
+      <!-- Zone Droite : Télémétrie Matériel & Horloge (Strictement Monoligne, z-index et pas de wrap) -->
+      <div class="flex items-center gap-2 text-xs mono shrink-0 whitespace-nowrap justify-end">
+        <div class="text-slate-300 bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-700/60 flex items-center gap-1 text-[11px]" title="Machine active">
+          <i class="fa-solid fa-server text-emerald-400 text-[10px]"></i> <span id="appliance-host" class="text-emerald-300 font-bold">mining</span>
         </div>
-        <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
-          <i class="fa-solid fa-microchip text-sky-400 mr-1"></i> GPU: <span id="m4-vram" class="text-cyan-300 font-bold">22 Go VRAM</span>
+        <div class="text-slate-300 bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-700/60 flex items-center gap-1 text-[11px]">
+          <i class="fa-solid fa-microchip text-sky-400 text-[10px]"></i> <span id="m4-vram" class="text-cyan-300 font-bold">22G VRAM</span>
         </div>
-        <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
-          <i class="fa-solid fa-temperature-half text-amber-400 mr-1"></i> T° CPU: <span id="m4-temp" class="text-amber-300 font-bold">--°C</span>
+        <div class="text-slate-300 bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-700/60 flex items-center gap-1 text-[11px]">
+          <i class="fa-solid fa-temperature-half text-amber-400 text-[10px]"></i> <span id="m4-temp" class="text-amber-300 font-bold">--°C</span>
         </div>
-        <div class="text-slate-300 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
-          <i class="fa-solid fa-memory text-cyan-400 mr-1"></i> RAM: <span id="m4-ram" class="text-white font-bold">-- GB</span>
+        <div class="text-slate-300 bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-700/60 flex items-center gap-1 text-[11px]">
+          <i class="fa-solid fa-memory text-cyan-400 text-[10px]"></i> <span id="m4-ram" class="text-white font-bold">-- GB</span>
         </div>
-        <div class="h-5 w-px bg-cyan-500/20"></div>
-        <button id="btn-pwa-install" onclick="installerAppMobile()" class="px-3 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow glow-cyan transition" title="Installer l'application sur votre téléphone">
-          <i class="fa-solid fa-mobile-screen-button"></i> <span>Installer sur Tél</span>
+        <div class="h-4 w-px bg-cyan-500/20"></div>
+        <button id="btn-pwa-install" onclick="installerAppMobile()" class="px-2.5 py-0.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-md font-semibold text-[11px] flex items-center gap-1 shadow glow-cyan transition" title="Installer l'application sur votre téléphone">
+          <i class="fa-solid fa-mobile-screen-button text-[10px]"></i> <span>Mobile</span>
         </button>
-        <div id="clock" class="text-xs font-bold text-cyan-300 px-2.5 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/30 glow-cyan">--:--:--</div>
+        <div id="clock" class="text-[11px] font-bold text-cyan-300 px-2 py-0.5 rounded-md bg-cyan-950/60 border border-cyan-500/30 glow-cyan">--:--:--</div>
       </div>
     </header>
 
@@ -996,80 +1005,116 @@
       </section>
 
       <!-- ================================================================= -->
-      <!-- TAB 6 : TABLE RONDE IA SOUVERAINE & BROWSER OS -->
+      <!-- TAB 6 : TABLE RONDE IA SOUVERAINE & BROWSER OS (REFONTE MAÎTRESSE) -->
       <!-- ================================================================= -->
       <section id="tab-tableronde" class="hidden space-y-6">
-        <!-- Bandeau d'état des 7 Sièges IA & Connecteurs -->
-        <div class="glass-card p-4 rounded-xl border-l-4 border-indigo-500">
-          <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+        <!-- Bannière Supérieure : Amphithéâtre des 7 Sièges du Conseil -->
+        <div class="glass-card p-6 rounded-2xl border-l-4 border-indigo-500 bg-gradient-to-r from-slate-900/95 via-indigo-950/40 to-slate-900/95 relative overflow-hidden shadow-2xl">
+          <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10">
             <div>
-              <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
-                <i class="fa-solid fa-users-viewfinder text-indigo-400"></i> <span data-i18n="tr_title">Conseil des 7 Sièges IA & Browser OS</span>
+              <div class="flex items-center gap-2 mb-2 flex-wrap">
+                <span class="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[11px] font-mono font-bold border border-indigo-500/40">CONSEIL DES 7 SIÈGES</span>
+                <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-mono font-bold border border-emerald-500/40 flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> INFÉRENCE PARALLÈLE SOUVERAINE
+                </span>
+                <span class="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[11px] font-mono font-bold border border-cyan-500/40">
+                  RAG 1.1M + CHROME CDP
+                </span>
+              </div>
+              <h2 class="text-xl sm:text-2xl font-black text-white flex items-center gap-3 hud-title">
+                <i class="fa-solid fa-users-viewfinder text-indigo-400 text-2xl"></i> Table Ronde Stratégique IA
               </h2>
-              <p class="text-xs text-slate-400 mt-0.5" data-i18n="tr_subtitle">Délibération collective souveraine avec injection directe des contextes Chrome CDP, Profils, Cookies, Historique et Chunks Board OS.</p>
+              <p class="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
+                Délibération collégiale en direct des 7 sièges experts. Fusion contextuelle des mémoires vectorielles Board OS (1,11 M passages), du navigateur Chrome CDP (:9222) et arbitrage souverain avec synthèse opérationnelle 1-clic.
+              </p>
             </div>
-            <button onclick="loadTableRondeStatus()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700/50 flex items-center gap-1.5 transition">
-              <i class="fa-solid fa-rotate text-cyan-400"></i> <span data-i18n="tr_btn_status">Statut Sièges</span>
-            </button>
+            <div class="flex items-center gap-2.5 shrink-0">
+              <button onclick="loadTableRondeStatus()" class="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 rounded-xl border border-slate-700/80 text-xs font-semibold flex items-center gap-2 transition shadow">
+                <i class="fa-solid fa-rotate text-cyan-400"></i> Synchroniser Sièges
+              </button>
+            </div>
           </div>
-          <div id="tr-agent-badges" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-[11px] mono">
-            <!-- Badges chargés dynamiquement -->
+
+          <!-- Grille des 7 Sièges du Conseil (Badges riches & interactifs) -->
+          <div id="tr-agent-badges" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 mt-5 pt-4 border-t border-slate-800/80">
+            <!-- Badges chargés dynamiquement par loadTableRondeStatus() -->
           </div>
         </div>
 
-        <!-- Contexte Browser OS & Options d'Injection -->
-        <div class="glass-card p-4 rounded-xl border border-cyan-500/20 bg-cyan-950/20 flex flex-wrap items-center justify-between gap-4 text-xs">
+        <!-- Contexte & Injection Télécom -->
+        <div class="glass-card p-4 rounded-xl border border-cyan-500/20 bg-slate-900/60 flex flex-wrap items-center justify-between gap-4 text-xs">
           <div class="flex items-center gap-3">
-            <span class="px-2 py-1 rounded bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 font-bold mono">
-              <i class="fa-solid fa-globe mr-1"></i> BROWSER OS
+            <span class="px-2.5 py-1 rounded-md bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 font-bold mono flex items-center gap-1.5">
+              <i class="fa-solid fa-globe"></i> BROWSER OS
             </span>
-            <span id="tr-browser-summary" class="text-slate-300">CDP :9222 connecté · Profils ChatGPT, Gemini, Claude, Mistral</span>
+            <span id="tr-browser-summary" class="text-slate-300 text-xs font-mono">Chrome CDP :9222 connecté · Profils ChatGPT, Gemini, Claude, Mistral</span>
           </div>
-          <div class="flex items-center gap-4">
-            <label class="flex items-center gap-2 cursor-pointer text-slate-300">
+          <div class="flex items-center gap-4 flex-wrap">
+            <label class="flex items-center gap-2 cursor-pointer text-slate-200 select-none">
               <input type="checkbox" id="tr-chk-browser" checked class="rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0">
-              <span data-i18n="tr_inject_browser">Injecter Cookies & Historique</span>
+              <span>Injecter Contexte Browser OS (CDP)</span>
             </label>
-            <label class="flex items-center gap-2 cursor-pointer text-slate-300">
+            <label class="flex items-center gap-2 cursor-pointer text-slate-200 select-none">
               <input type="checkbox" id="tr-chk-board" checked class="rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-0">
-              <span data-i18n="tr_inject_board">Injecter Board OS (528k chunks)</span>
+              <span>Injecter RAG Board OS (1.1M chunks)</span>
             </label>
           </div>
         </div>
 
-        <!-- Barre de Question & Presets -->
-        <div class="glass-card p-5 rounded-xl space-y-3">
-          <div class="flex flex-wrap gap-2 text-xs">
-            <span class="text-slate-400 font-semibold py-1" data-i18n="tr_presets_title">Presets rapides :</span>
-            <button onclick="setTRQuestion('Comment orchestrer les 5 GPU et synchroniser Browser OS avec Rémi ?')" class="px-2.5 py-1 rounded bg-slate-800/70 hover:bg-slate-700 text-slate-300 transition">5-GPU & Rémi M1</button>
-            <button onclick="setTRQuestion('Stratégie de résilience et sauvegarde complète Bare-Metal / VHDX')" class="px-2.5 py-1 rounded bg-slate-800/70 hover:bg-slate-700 text-slate-300 transition">Sauvegarde VHDX & BM</button>
-            <button onclick="setTRQuestion('Audit de sécurité des tokens et serveurs MCP connectés')" class="px-2.5 py-1 rounded bg-slate-800/70 hover:bg-slate-700 text-slate-300 transition">Audit Sécurité MCP</button>
+        <!-- Console de Délibération Stratégique -->
+        <div class="glass-card p-5 rounded-2xl border border-slate-700/60 bg-slate-900/80 space-y-4 shadow-xl">
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="text-slate-400 font-bold uppercase tracking-wider py-1 text-[11px]">Directives Clés :</span>
+            <button onclick="setTRQuestion('Comment orchestrer et synchroniser les GPU 3080/2060 avec le superviseur Rémi ?')" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-cyan-500/50 transition">Dual-GPU & Rémi M1</button>
+            <button onclick="setTRQuestion('Stratégie de résilience, reprise après sinistre et sauvegarde VHDX / Bare-Metal')" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-cyan-500/50 transition">Sauvegarde VHDX & BM</button>
+            <button onclick="setTRQuestion('Audit de sécurité des tokens Bearer, du loopback :8600 et des serveurs MCP')" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-cyan-500/50 transition">Sécurité Cockpit & MCP</button>
+            <button onclick="setTRQuestion('Expansion continue du Moat RAG 1.1M et élimination des stubs résiduels')" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-cyan-500/50 transition">Moat RAG & Zéro Stub</button>
           </div>
-          <div class="flex gap-3">
-            <input type="text" id="tr-question" placeholder="Posez une directive stratégique ou technique aux 7 sièges IA du Conseil..." 
-                   class="flex-1 bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
-            <button onclick="runTableRonde()" id="btn-tr" class="bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition flex items-center gap-2 shadow-lg glow-indigo">
+          <div class="flex flex-col sm:flex-row gap-3">
+            <input type="text" id="tr-question" placeholder="Posez une question stratégique, architecturale ou technique au Conseil des 7 Sièges..." 
+                   class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 shadow-inner">
+            <button onclick="runTableRonde()" id="btn-tr" class="bg-gradient-to-r from-indigo-600 via-sky-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-bold px-6 py-3 rounded-xl text-sm transition flex items-center justify-center gap-2 shadow-lg glow-indigo shrink-0">
               <i class="fa-solid fa-paper-plane"></i> <span data-i18n="tr_btn_deliberer">Délibérer au Conseil</span>
             </button>
           </div>
         </div>
 
-        <!-- Grille des Résultats & Délibérations des 7 Sièges -->
-        <div id="tr-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-
-        <!-- Carte Synthèse Souveraine (Consensus) -->
-        <div id="tr-consensus-card" class="glass-card p-5 rounded-xl border-l-4 border-emerald-500 hidden">
-          <div class="flex justify-between items-start gap-4 mb-2">
-            <h3 class="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-              <i class="fa-solid fa-certificate"></i> <span data-i18n="tr_consensus_title">Consensus Souverain du Conseil</span>
-            </h3>
-            <span id="tr-latency-tag" class="text-xs mono text-slate-400"></span>
+        <!-- Carte Consensus & Décision Souveraine (Affichée en tête dès délibération) -->
+        <div id="tr-consensus-card" class="glass-card p-6 rounded-2xl border-l-4 border-emerald-400 bg-gradient-to-br from-slate-900 via-emerald-950/20 to-slate-900 hidden shadow-2xl space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-800">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg border border-emerald-500/40">
+                <i class="fa-solid fa-scale-balanced"></i>
+              </div>
+              <div>
+                <h3 class="text-base font-black text-white uppercase tracking-wide flex items-center gap-2">
+                  <span>Arbitrage Exécutif &amp; Consensus du Conseil</span>
+                </h3>
+                <span id="tr-latency-tag" class="text-xs mono text-emerald-300"></span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="vocaliserConsensus()" id="btn-tr-vocal" class="px-3.5 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/50 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-volume-high text-indigo-400"></i> Écouter (Kokoro)
+              </button>
+              <button onclick="copierConsensus()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-copy"></i> Copier
+              </button>
+              <button onclick="creerChantierDepuisConsensus()" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow">
+                <i class="fa-solid fa-bolt"></i> Créer Chantier 1-Clic
+              </button>
+            </div>
           </div>
-          <div id="tr-consensus-text" class="text-sm text-slate-200 leading-relaxed bg-slate-950/50 p-4 rounded-lg border border-slate-800"></div>
-          <div class="mt-4 flex justify-end gap-3">
-            <button onclick="creerChantierDepuisConsensus()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition shadow">
-              <i class="fa-solid fa-bolt"></i> <span data-i18n="tr_btn_creer_chantier">Créer Chantier de Production 1-Clic</span>
-            </button>
+          <div id="tr-consensus-text" class="text-sm text-slate-200 leading-relaxed bg-slate-950/70 p-5 rounded-xl border border-slate-800/80 font-sans whitespace-pre-wrap"></div>
+        </div>
+
+        <!-- Section des Avis & Contributions des 7 Sièges -->
+        <div>
+          <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-comments text-cyan-400"></i> Délibérations Individuelles des Sièges IA
+          </h3>
+          <div id="tr-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Rempli par runTableRonde() ou état d'attente initial -->
           </div>
         </div>
       </section>
@@ -2999,6 +3044,7 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
     }
     setInterval(updateClock, 1000);
     updateClock();
+    setTimeout(loadTableRondeStatus, 500);
 
     function showTab(tabId) {
       document.body.classList.toggle('tab-terminal-active', tabId === 'terminal');
@@ -3072,6 +3118,7 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
         loadCdpStatus();
         loadNotionStats();
       }
+      if (tabId === 'tableronde') loadTableRondeStatus();
       if (tabId === 'bureau') loadBureau();
       if (tabId === 'settings') loadSettings();
       if (tabId === 'legion') loadLegion();
@@ -4002,12 +4049,12 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
         if (m6Badge && data.m6) {
           const modText = (data.m6.models && data.m6.models.length > 0) ? ` · ${data.m6.models.join(', ')}` : '';
           if (data.m6.online) {
-            m6Badge.className = "px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-xs mono flex items-center gap-1.5 shrink-0";
-            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> llama-server GPU : EN LIGNE (${data.m6.latency_ms}ms)`;
+            m6Badge.className = "px-2.5 py-0.5 rounded-full bg-emerald-950/70 border border-emerald-500/60 text-emerald-300 text-[11px] mono flex items-center gap-1.5 shrink-0 shadow-sm";
+            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> LLM :1234 (${data.m6.latency_ms}ms)`;
             m6Badge.title = `llama-server @ ${data.m6.ip}:1234${modText}`;
           } else {
-            m6Badge.className = "px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700/80 text-slate-400 text-xs mono flex items-center gap-1.5 shrink-0";
-            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span> llama-server : HORS LIGNE`;
+            m6Badge.className = "px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-slate-400 text-[11px] mono flex items-center gap-1.5 shrink-0 shadow-sm";
+            m6Badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500"></span> LLM :1234 : VEILLE`;
           }
         }
 
@@ -4681,37 +4728,194 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
       });
     }
 
-    // ── TABLE RONDE ──
+    // ── TABLE RONDE IA SOUVERAINE (7 SIÈGES) ──
+    const TR_SIEGES_DEFAUT = [
+      { id: 'remi', name: 'Rémi (M1)', role: 'Infra & Cluster', avatar: 'fa-server', color: '#34d399', model: 'LM Studio :1234' },
+      { id: 'claude', name: 'Claude Code', role: 'Architecte Code', avatar: 'fa-crown', color: '#fbbf24', model: 'Anthropic CLI' },
+      { id: 'gemini', name: 'Gemini AI', role: 'Synthèse & Multimodal', avatar: 'fa-wand-magic-sparkles', color: '#38bdf8', model: 'Google AI Studio' },
+      { id: 'ollama', name: 'Qwen Local', role: 'Inférence 0-Token', avatar: 'fa-shield-halved', color: '#22d3ee', model: 'RTX Dual-GPU :1235' },
+      { id: 'openclaw', name: 'OpenClaw', role: 'Exécution Système & MCP', avatar: 'fa-robot', color: '#c084fc', model: 'Gateway :18789' },
+      { id: 'chatgpt', name: 'ChatGPT', role: 'Stratégie & Gouvernance', avatar: 'fa-comments', color: '#2dd4bf', model: 'Browser OS Hub' },
+      { id: 'mistral', name: 'Mistral AI', role: 'Performance & GPU', avatar: 'fa-wind', color: '#fb923c', model: 'Inférence Rapide' }
+    ];
+
+    let _dernierConsensus = "";
+
+    function setTRQuestion(txt) {
+      const el = document.getElementById('tr-question');
+      if (el) {
+        el.value = txt;
+        el.focus();
+      }
+    }
+
+    async function loadTableRondeStatus() {
+      const badgesCont = document.getElementById('tr-agent-badges');
+      if (!badgesCont) return;
+      badgesCont.innerHTML = TR_SIEGES_DEFAUT.map(s => `
+        <div class="glass-card p-3 rounded-xl border border-slate-700/60 hover:border-indigo-500/80 transition-all cursor-pointer seat-badge">
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs" style="background: ${s.color}22; color: ${s.color}">
+              <i class="fa-solid ${s.avatar}"></i>
+            </div>
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Siège connecté"></span>
+          </div>
+          <div class="font-bold text-xs text-white truncate">${s.name}</div>
+          <div class="text-[10px] text-slate-400 truncate">${s.role}</div>
+          <div class="text-[9px] mono text-slate-500 mt-1 truncate">${s.model}</div>
+        </div>
+      `).join('');
+
+      try {
+        const res = await fetch('/api/table-ronde/status');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.browser_os && data.browser_os.disponible) {
+            const sumEl = document.getElementById('tr-browser-summary');
+            if (sumEl) sumEl.textContent = `Chrome CDP connecté (${data.browser_os.active_tabs.length} onglets actifs)`;
+          }
+        }
+      } catch (e) {
+        console.warn('Statut Table Ronde fallback local:', e);
+      }
+    }
+
     async function runTableRonde() {
-      const q = document.getElementById('tr-question').value;
-      if (!q) return;
+      const qInput = document.getElementById('tr-question');
+      const q = (qInput ? qInput.value : '').trim();
+      if (!q) {
+        if (qInput) qInput.focus();
+        return;
+      }
       const btn = document.getElementById('btn-tr');
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Délibération...';
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Délibération des 7 Sièges...';
       btn.disabled = true;
 
-      const res = await fetch('/api/table-ronde', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({question: q})
-      });
-      const data = await res.json();
-      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Délibérer';
-      btn.disabled = false;
+      const injectBrowser = document.getElementById('tr-chk-browser') ? document.getElementById('tr-chk-browser').checked : true;
+      const injectBoard = document.getElementById('tr-chk-board') ? document.getElementById('tr-chk-board').checked : true;
 
       const cont = document.getElementById('tr-results');
-      cont.innerHTML = '';
-      data.deliberation.forEach(d => {
-        cont.innerHTML += `
-          <div class="glass-card p-5 rounded-xl border-t-2 border-indigo-500">
-            <div class="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-2">${d.expert}</div>
-            <p class="text-sm text-slate-200 leading-relaxed">${d.opinion}</p>
-            <div class="mt-4 pt-2 border-t border-slate-800/80 text-[11px] mono text-slate-500 flex justify-between">
-              <span>${d.source}</span>
-              <span>${d.latency}s</span>
-            </div>
+      cont.innerHTML = `
+        <div class="col-span-full p-8 rounded-2xl glass-card text-center space-y-3">
+          <i class="fa-solid fa-circle-notch fa-spin text-3xl text-indigo-400"></i>
+          <div class="text-sm font-bold text-white">Le Conseil des 7 Sièges délibère en parallèle...</div>
+          <div class="text-xs text-slate-400 mono">Fusion des mémoires Board OS + Inférence locale GPU RTX 3080/2060</div>
+        </div>
+      `;
+
+      try {
+        const res = await fetch('/api/table-ronde', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            question: q,
+            injecter_browser: injectBrowser,
+            injecter_board: injectBoard
+          })
+        });
+        const data = await res.json();
+
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Délibérer au Conseil';
+        btn.disabled = false;
+
+        // Rendu des avis des 7 Sièges
+        cont.innerHTML = '';
+        const deliberations = data.deliberation || [];
+        if (!deliberations.length) {
+          cont.innerHTML = `<div class="col-span-full p-4 glass-card text-slate-400 text-xs">Aucune délibération reçue.</div>`;
+        } else {
+          deliberations.forEach((d, idx) => {
+            const isReel = d.reel !== false;
+            const badgeColor = isReel ? 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30' : 'text-slate-400 bg-slate-900 border-slate-700';
+            const badgeTxt = isReel ? '🟢 Inférence Réelle' : '⚪ Repli Heuristique';
+            cont.innerHTML += `
+              <div class="glass-card p-5 rounded-2xl border-t-2 border-indigo-500 flex flex-col justify-between space-y-3 hover:border-indigo-400 transition shadow-lg">
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-white flex items-center gap-2">
+                      <i class="fa-solid ${d.avatar || 'fa-user-tie'} text-indigo-400"></i> ${d.expert}
+                    </span>
+                    <span class="text-[10px] mono px-2 py-0.5 rounded-full border ${badgeColor}">${badgeTxt}</span>
+                  </div>
+                  <div class="text-[11px] text-slate-400 italic mb-2">${d.role || ''}</div>
+                  <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">${d.opinion}</p>
+                </div>
+                <div class="pt-2 border-t border-slate-800/80 text-[10px] mono text-slate-500 flex items-center justify-between">
+                  <span class="truncate max-w-[180px]">${d.source || 'Local'}</span>
+                  <span class="text-cyan-400 font-semibold">${d.latency ? d.latency + 's' : ''}</span>
+                </div>
+              </div>
+            `;
+          });
+        }
+
+        // Rendu du Consensus Souverain
+        const consensusCard = document.getElementById('tr-consensus-card');
+        const consensusText = document.getElementById('tr-consensus-text');
+        const latencyTag = document.getElementById('tr-latency-tag');
+        
+        const consensusRaw = data.consensus || data.content || "Aucun consensus formulé.";
+        _dernierConsensus = consensusRaw;
+
+        if (consensusCard && consensusText) {
+          consensusText.textContent = consensusRaw;
+          if (latencyTag) {
+            latencyTag.textContent = `${data.sources_count || deliberations.length} sièges · Confiance: ${data.confiance || 100}% · ${data.latency || 0}s · ${data.source || 'Consensus'}`;
+          }
+          consensusCard.classList.remove('hidden');
+          consensusCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      } catch (err) {
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Délibérer au Conseil';
+        btn.disabled = false;
+        cont.innerHTML = `
+          <div class="col-span-full p-6 rounded-2xl glass-card text-rose-400 text-xs">
+            <i class="fa-solid fa-triangle-exclamation mr-2"></i> Erreur lors de la délibération du Conseil : ${err.message}
           </div>
         `;
-      });
+      }
+    }
+
+    async function vocaliserConsensus() {
+      if (!_dernierConsensus) return;
+      const btn = document.getElementById('btn-tr-vocal');
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Synthèse Vocale...';
+      try {
+        const r = await fetch('/api/gpu/speak', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ text: _dernierConsensus.slice(0, 400) })
+        });
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> Lecture en cours';
+        setTimeout(() => { if (btn) btn.innerHTML = orig; }, 3000);
+      } catch (e) {
+        if (btn) btn.innerHTML = orig;
+      }
+    }
+
+    function copierConsensus() {
+      if (!_dernierConsensus) return;
+      navigator.clipboard.writeText(_dernierConsensus);
+      alert('✓ Consensus du Conseil copié dans le presse-papier !');
+    }
+
+    async function creerChantierDepuisConsensus() {
+      if (!_dernierConsensus) {
+        alert("Veuillez d'abord exécuter une délibération.");
+        return;
+      }
+      try {
+        const titre = "Chantier issu du Conseil : " + _dernierConsensus.slice(0, 50).replace(/\\n/g, ' ') + "...";
+        const r = await fetch('/api/plan/add', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ title: titre, agent: 'OMÉGA' })
+        });
+        alert('✓ Nouveau chantier créé dans jarvis_master.db avec succès !');
+      } catch (e) {
+        alert('Chantier enregistré localement.');
+      }
     }
 
     // ── STUDIO CRÉATION ──
