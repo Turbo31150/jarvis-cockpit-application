@@ -27,10 +27,10 @@ import logging
 from typing import Dict, Any, List, Optional, Callable
 
 try:
-    from .system_state import get_system_state, ActionStatus, TaskStatus
+    from .system_state import get_system_state, ActionStatus, TaskStatus, InvalidStateTransitionError
     from .application_manager import get_application_manager
 except ImportError:
-    from system_state import get_system_state, ActionStatus, TaskStatus
+    from system_state import get_system_state, ActionStatus, TaskStatus, InvalidStateTransitionError
     from application_manager import get_application_manager
 
 logger = logging.getLogger("TurboOS.Dispatcher")
@@ -121,49 +121,95 @@ class BoardAdapter(BaseAdapter):
 
         result: Dict[str, Any] = {"success": True, "action": action, "entity_type": entity_type, "entity_id": entity_id}
 
-        if entity_type == "task":
-            if action == "RUN":
-                state.transition("task", entity_id, TaskStatus.RUNNING.value, reason="Lancement depuis Board", updated_by=caller)
-                result["message"] = f"Tâche {entity_id} lancée"
-            elif action == "PAUSE":
-                state.pause_task(entity_id, reason="Mise en pause depuis Board", updated_by=caller)
-                result["message"] = f"Tâche {entity_id} mise en pause avec checkpoint"
-            elif action == "RESUME":
-                state.resume_task(entity_id, reason="Reprise depuis Board", updated_by=caller)
-                result["message"] = f"Tâche {entity_id} reprise depuis checkpoint"
-            elif action == "CANCEL":
-                state.transition("task", entity_id, TaskStatus.CANCELLED.value, reason="Annulation depuis Board", updated_by=caller)
-                result["message"] = f"Tâche {entity_id} annulée"
-            elif action == "VERIFY":
-                state.verify_task(entity_id, reason="Demande de vérification Board", updated_by=caller)
-                result["message"] = f"Tâche {entity_id} en cours de vérification"
-            elif action == "INSPECT":
-                ent = state.get_entity("task", entity_id)
-                result["entity"] = ent.to_dict() if ent else None
-            elif action == "RETRY":
-                state.transition("task", entity_id, TaskStatus.READY.value, reason="Relance depuis Board", updated_by=caller)
-                result["message"] = f"Tâche {entity_id} replacée en READY"
-            else:
-                result["message"] = f"Action {action} enregistrée sur {entity_id}"
+        try:
+            if entity_type == "task":
+                if action in ("RUN", "OPEN"):
+                    if action == "OPEN":
+                        ent = state.get_entity("task", entity_id)
+                        result["entity"] = ent.to_dict() if ent else None
+                        result["message"] = f"Tâche {entity_id} inspectée"
+                    else:
+                        state.transition("task", entity_id, TaskStatus.RUNNING.value, reason="Lancement depuis Board", updated_by=caller)
+                        result["message"] = f"Tâche {entity_id} lancée"
+                elif action == "PAUSE":
+                    state.pause_task(entity_id, reason="Mise en pause depuis Board", updated_by=caller)
+                    result["message"] = f"Tâche {entity_id} mise en pause avec checkpoint"
+                elif action == "RESUME":
+                    state.resume_task(entity_id, reason="Reprise depuis Board", updated_by=caller)
+                    result["message"] = f"Tâche {entity_id} reprise depuis checkpoint"
+                elif action == "CANCEL":
+                    state.transition("task", entity_id, TaskStatus.CANCELLED.value, reason="Annulation depuis Board", updated_by=caller)
+                    result["message"] = f"Tâche {entity_id} annulée"
+                elif action == "VERIFY":
+                    state.verify_task(entity_id, reason="Demande de vérification Board", updated_by=caller)
+                    result["message"] = f"Tâche {entity_id} en cours de vérification"
+                elif action == "INSPECT":
+                    ent = state.get_entity("task", entity_id)
+                    result["entity"] = ent.to_dict() if ent else None
+                elif action == "RETRY":
+                    state.transition("task", entity_id, TaskStatus.READY.value, reason="Relance depuis Board", updated_by=caller)
+                    result["message"] = f"Tâche {entity_id} replacée en READY"
+                else:
+                    result["message"] = f"Action {action} enregistrée sur {entity_id}"
 
-        elif entity_type == "application":
-            if action in ("RUN", "OPEN"):
-                res = app_mgr.start(entity_id, caller=caller)
-                result.update(res)
-            elif action == "PAUSE":
-                res = app_mgr.pause(entity_id, caller=caller)
-                result.update(res)
-            elif action == "RESUME":
-                res = app_mgr.resume(entity_id, caller=caller)
-                result.update(res)
-            elif action == "CANCEL":
-                res = app_mgr.stop(entity_id, caller=caller)
-                result.update(res)
-            elif action == "INSPECT":
-                res = app_mgr.status(entity_id)
-                result.update(res)
+            elif entity_type == "application":
+                if action in ("RUN", "OPEN"):
+                    res = app_mgr.start(entity_id, caller=caller)
+                    result.update(res)
+                elif action == "PAUSE":
+                    res = app_mgr.pause(entity_id, caller=caller)
+                    result.update(res)
+                elif action == "RESUME":
+                    res = app_mgr.resume(entity_id, caller=caller)
+                    result.update(res)
+                elif action == "CANCEL":
+                    res = app_mgr.stop(entity_id, caller=caller)
+                    result.update(res)
+                elif action == "INSPECT":
+                    res = app_mgr.status(entity_id)
+                    result.update(res)
+                elif action == "RETRY":
+                    app_mgr.stop(entity_id, caller=caller)
+                    res = app_mgr.start(entity_id, caller=caller)
+                    result.update(res)
+                else:
+                    result["message"] = f"Action {action} appliquée sur application {entity_id}"
+
+            elif entity_type == "service":
+                import subprocess
+                if action == "INSPECT":
+                    r = subprocess.run(["systemctl", "--user", "status", entity_id], capture_output=True, text=True, timeout=2.0)
+                    result["output"] = r.stdout or r.stderr
+                    result["active"] = r.returncode == 0
+                elif action == "RUN":
+                    subprocess.run(["systemctl", "--user", "start", entity_id], timeout=5.0)
+                    result["message"] = f"Service {entity_id} démarré"
+                elif action == "CANCEL":
+                    subprocess.run(["systemctl", "--user", "stop", entity_id], timeout=5.0)
+                    result["message"] = f"Service {entity_id} arrêté"
+                elif action == "RETRY":
+                    subprocess.run(["systemctl", "--user", "restart", entity_id], timeout=5.0)
+                    result["message"] = f"Service {entity_id} redémarré"
+                else:
+                    result["message"] = f"Action {action} sur service {entity_id}"
+
             else:
-                result["message"] = f"Action {action} appliquée sur application {entity_id}"
+                ent = state.get_entity(entity_type, entity_id)
+                if action == "INSPECT":
+                    result["entity"] = ent.to_dict() if ent else None
+                else:
+                    result["message"] = f"Action {action} enregistrée pour {entity_type} {entity_id}"
+                    if ent:
+                        result["entity"] = ent.to_dict()
+
+        except Exception as ex:
+            return {
+                "success": False,
+                "error": str(ex),
+                "action": action,
+                "entity_type": entity_type,
+                "entity_id": entity_id
+            }
 
         return result
 

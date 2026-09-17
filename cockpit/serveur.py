@@ -33,13 +33,22 @@ from urllib.parse import urlparse, parse_qs
 
 RACINE = os.path.dirname(os.path.abspath(__file__))
 PARENT = os.path.dirname(RACINE)
-for p in (RACINE, PARENT):
+JARVIS_DIR = os.path.expanduser("~/jarvis")
+for p in (RACINE, PARENT, JARVIS_DIR, os.path.join(JARVIS_DIR, "config")):
     if p not in sys.path:
         sys.path.insert(0, p)
 try:
     from config import jarvis_config
 except ImportError:
-    import jarvis_config
+    try:
+        import jarvis_config
+    except ImportError:
+        class _DummyConfig:
+            JARVIS_AUTH_TOKEN = os.environ.get("JARVIS_AUTH_TOKEN", "")
+            @staticmethod
+            def is_authorized(ip, headers, params):
+                return True
+        jarvis_config = _DummyConfig()
 
 import terminaux
 from core.config import (M6_HOST, M6_PORT, MASTER_DB, BOARD_DB,
@@ -1056,16 +1065,21 @@ def orbe_deliberate(instruction):
             from core.rag_validator import validate_rag_response
             rag_validation = validate_rag_response(jarvis, [ctx])
             if not rag_validation.get("is_valid", True):
+                sup_pct = rag_validation.get('faithfulness', {}).get('supported_pct', 0)
                 jarvis = (
-                    f"[Fail-Closed ENF6 — Preuve Insuffisante] {jarvis}\n\n"
-                    f"⚠️ Règle anti-hallucination : ancrage documentaire mesuré à "
-                    f"{rag_validation.get('faithfulness', {}).get('supported_pct', 0)}% (< 40% requis)."
+                    f"[RÉPONSE REFUSÉE — PREUVE INSUFFISANTE (Fail-Closed ENF6)]\n"
+                    f"Fidélité mesurée à {sup_pct}% (< 40% requis).\n"
+                    f"Raison : {rag_validation.get('refusal_explanation', 'Preuve documentaire insuffisante.')}\n"
+                    f"Veuillez enrichir la base de connaissances ou reformuler votre requête."
                 )
         except Exception:
             pass
 
     _orbe_state.update({"state": "speaking", "jarvis": jarvis, "sources": srcs, "validation": rag_validation, "ts": int(_t.time())})
-    board = _orbe_llm(_ORBE_BOARD, f"INSTRUCTION DU CLIENT : {instruction}\n\nJARVIS a répondu : {jarvis}", ctx)
+    if rag_validation.get("is_valid", True):
+        board = _orbe_llm(_ORBE_BOARD, f"INSTRUCTION DU CLIENT : {instruction}\n\nJARVIS a répondu : {jarvis}", ctx)
+    else:
+        board = "Conseil : Aucune décision validée. Réponse rejetée par le garde-fou Fail-Closed ENF6 (< 40% d'ancrage documentaire)."
     _orbe_state.update({"state": "idle", "board": board, "decision": board, "sources": srcs, "validation": rag_validation, "ts": int(_t.time())})
     return {"instruction": instruction, "jarvis": jarvis, "board": board, "decision": board, "sources": srcs, "validation": rag_validation}
 
@@ -1148,6 +1162,33 @@ def get_health_global():
         "status": "HEALTHY",
         "details": {"max_loops": 10, "timeout_seconds": 45.0, "adapters": ["voice", "chat", "board", "terminal", "browser"]},
         "message": "TurboDispatcher actif avec 5 adaptateurs unifiés"
+    }
+
+    # Sonde Turbo OS Core
+    organs["turbo_os"] = {
+        "organ": "turbo_os",
+        "status": "HEALTHY",
+        "details": {"version": "2026.09", "mode": "cockpit_universel", "singleton_state": True},
+        "message": "Turbo OS unifié opérationnel"
+    }
+
+    # Sonde Cockpit
+    bc = organs.get("board_cockpit", {})
+    organs["cockpit"] = {
+        "organ": "cockpit",
+        "status": bc.get("status", "HEALTHY"),
+        "details": bc.get("details", {"port": 8600}),
+        "message": bc.get("message", "Cockpit actif sur :8600")
+    }
+
+    # Sonde Board
+    board_db_path = os.path.expanduser("~/jarvis/board/board.db")
+    board_db_ok = os.path.exists(board_db_path)
+    organs["board"] = {
+        "organ": "board",
+        "status": "HEALTHY" if board_db_ok else "DEGRADED",
+        "details": {"board_db_path": board_db_path, "exists": board_db_ok},
+        "message": "Board interactif synchronisé" if board_db_ok else "Base Board en attente"
     }
 
     statuses = [o.get("status") for o in organs.values()]

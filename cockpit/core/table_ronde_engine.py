@@ -57,7 +57,6 @@ BROWSEROS_MCP_URL = "http://127.0.0.1:9003/mcp"
 # Badges pour la barre d'experts de l'UI (clé publique conservée) -------------
 EXPERTS = [
     {"id": "remi", "name": "🖥️ Rémi (M1)", "color": "#34d399", "role": "Superviseur d'infrastructure et cluster."},
-    {"id": "m4", "name": "🎨 Claire (M4)", "color": "#f472b6", "role": "Nœud M4 : pédagogie, créativité, espaces métiers."},
     {"id": "claude", "name": "👑 Claude Code", "color": "#fbbf24", "role": "Architecte logiciel et conception code."},
     {"id": "gemini", "name": "✨ Gemini AI", "color": "#38bdf8", "role": "Synthèse grands volumes & multimodal."},
     {"id": "ollama", "name": "🛡️ Qwen Local", "color": "#22d3ee", "role": "Inférence locale 0-token souveraine."},
@@ -106,11 +105,6 @@ SIEGES = [
         "id": "mistral", "nom": "Mistral AI (Spécialiste Algorithmique)",
         "role": "Optimisation des performances brutes, latences GPU et logique européenne souveraine.",
         "avatar": "fa-wind text-orange-400", "badge": "Inférence Rapide", "preferred": "ollama:qwen2.5:1.5b",
-    },
-    {
-        "id": "m4", "nom": "Claire (Nœud M4 · LM Studio)",
-        "role": "Regard pédagogique et créatif : clarté pour des non-techniciens, organisation par espaces métiers.",
-        "avatar": "fa-palette text-pink-400", "badge": "LM Studio M4 · 10.42.0.153 (tunnel :1236)", "preferred": "m4",
     },
 ]
 

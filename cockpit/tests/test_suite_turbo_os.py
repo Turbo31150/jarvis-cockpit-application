@@ -228,6 +228,11 @@ class TestTurboOS(unittest.TestCase):
         with self.assertRaises(InvalidStateTransitionError):
             st.transition("task", task_id, TaskStatus.DONE, "interdit direct sans verify")
 
+        # Tentative directe de complete_task depuis RUNNING sans verify doit échouer
+        st.register_entity("task", "task-leak-check", TaskStatus.RUNNING)
+        with self.assertRaises(InvalidStateTransitionError):
+            st.complete_task("task-leak-check")
+
         # Transition légale : RUNNING -> VERIFYING -> DONE
         st.verify_task(task_id, reason="vérification des preuves")
         self.assertEqual(st.get_entity("task", task_id).status, TaskStatus.VERIFYING.value)
@@ -237,6 +242,14 @@ class TestTurboOS(unittest.TestCase):
         # Transition interdite : DONE -> RUNNING
         with self.assertRaises(InvalidStateTransitionError):
             st.transition("task", task_id, TaskStatus.RUNNING, "interdit depuis DONE")
+
+        # Mises à jour des statuts globaux avec audit
+        st.update_cockpit_status("RUNNING", reason="test cockpit running")
+        self.assertEqual(st.cockpit_status, "RUNNING")
+        st.update_board_status("READY", reason="test board ready")
+        self.assertEqual(st.board_status, "READY")
+        st.update_health_status("HEALTHY", reason="test health healthy")
+        self.assertEqual(st.health_status, "HEALTHY")
 
         # Audit events produits
         logs = st.get_audit_log(entity_type="task", entity_id=task_id)
@@ -254,6 +267,50 @@ class TestTurboOS(unittest.TestCase):
         probe = ApplicationHealth.probe({"id": "cockpit-server", "type": "service", "port": 8600, "status": "RUNNING"})
         self.assertEqual(probe["health"], "HEALTHY")
         self.assertTrue(probe["port_open"])
+
+        # Test cycle de vie complet d'application Linux réelle (start, pause, resume, stop)
+        test_app_id = "test-live-proc-lifecycle"
+        mgr.registry._apps[test_app_id] = {
+            "id": test_app_id,
+            "name": "Test Live Proc",
+            "type": "process",
+            "exec": "sleep 15",
+            "path": "",
+            "terminal": False,
+            "dispo": True,
+            "status": "READY",
+            "pid": None,
+            "window_id": None,
+        }
+        mgr.state.register_entity("application", test_app_id, "READY")
+
+        # 1. Start depuis READY -> RUNNING
+        start_res = mgr.start(test_app_id)
+        self.assertTrue(start_res["success"], f"Échec start: {start_res}")
+        self.assertEqual(mgr.registry.get(test_app_id)["status"], "RUNNING")
+        pid = start_res.get("pid")
+        self.assertTrue(ApplicationHealth.is_pid_running(pid))
+
+        # 2. Pause (SIGSTOP) -> READY (is_paused=True)
+        pause_res = mgr.pause(test_app_id)
+        self.assertTrue(pause_res["success"])
+        self.assertTrue(mgr.registry.get(test_app_id).get("is_paused"))
+
+        # 3. Resume (SIGCONT) -> RUNNING
+        resume_res = mgr.resume(test_app_id)
+        self.assertTrue(resume_res["success"])
+        self.assertEqual(mgr.registry.get(test_app_id)["status"], "RUNNING")
+        self.assertFalse(mgr.registry.get(test_app_id).get("is_paused"))
+
+        # 4. Stop (SIGTERM) -> STOPPED
+        stop_res = mgr.stop(test_app_id)
+        self.assertTrue(stop_res["success"])
+        self.assertEqual(mgr.registry.get(test_app_id)["status"], "STOPPED")
+
+        # 5. Stop sur application inactive ou UNAVAILABLE
+        stop_inactive = mgr.stop(test_app_id)
+        self.assertTrue(stop_inactive["success"])
+        self.assertEqual(stop_inactive.get("message"), "Déjà arrêtée")
 
     # 22. test_turbo_dispatcher_and_adapters
     def test_turbo_dispatcher_and_adapters(self):
@@ -299,11 +356,8 @@ class TestTurboOS(unittest.TestCase):
         self.assertTrue(d.get("ok"))
         self.assertIn("organs", d)
         organs = d["organs"]
-        self.assertIn("environment", organs)
-        self.assertIn("gpu", organs)
-        self.assertIn("rag", organs)
-        self.assertIn("dispatcher", organs)
-        self.assertIn("applications", organs)
+        for org_key in ["environment", "gpu", "rag", "dispatcher", "applications", "turbo_os", "cockpit", "board"]:
+            self.assertIn(org_key, organs, f"Organe {org_key} manquant dans /health")
 
         # API system state
         st_data = self._http_get("/api/system/state")

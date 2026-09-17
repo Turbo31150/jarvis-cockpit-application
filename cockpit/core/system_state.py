@@ -182,16 +182,53 @@ VALID_TRANSITIONS: Dict[str, Dict[str, Set[str]]] = {
         TaskStatus.ARCHIVED.value: set(),
     },
     "application": {
-        ApplicationStatus.REGISTERED.value: {ApplicationStatus.STARTING.value, ApplicationStatus.READY.value, ApplicationStatus.UNAVAILABLE.value, ApplicationStatus.UNKNOWN.value},
-        ApplicationStatus.STARTING.value: {ApplicationStatus.READY.value, ApplicationStatus.RUNNING.value, ApplicationStatus.ERROR.value, ApplicationStatus.CRASHED.value, ApplicationStatus.STOPPED.value},
-        ApplicationStatus.READY.value: {ApplicationStatus.RUNNING.value, ApplicationStatus.STOPPING.value, ApplicationStatus.STOPPED.value, ApplicationStatus.UNAVAILABLE.value, ApplicationStatus.ERROR.value},
-        ApplicationStatus.RUNNING.value: {ApplicationStatus.STOPPING.value, ApplicationStatus.STOPPED.value, ApplicationStatus.ERROR.value, ApplicationStatus.CRASHED.value, ApplicationStatus.READY.value},
-        ApplicationStatus.STOPPING.value: {ApplicationStatus.STOPPED.value, ApplicationStatus.ERROR.value, ApplicationStatus.CRASHED.value},
-        ApplicationStatus.STOPPED.value: {ApplicationStatus.STARTING.value, ApplicationStatus.REGISTERED.value, ApplicationStatus.READY.value},
-        ApplicationStatus.ERROR.value: {ApplicationStatus.STARTING.value, ApplicationStatus.STOPPED.value, ApplicationStatus.UNKNOWN.value, ApplicationStatus.REGISTERED.value},
-        ApplicationStatus.CRASHED.value: {ApplicationStatus.STARTING.value, ApplicationStatus.STOPPED.value, ApplicationStatus.UNKNOWN.value, ApplicationStatus.REGISTERED.value},
-        ApplicationStatus.UNAVAILABLE.value: {ApplicationStatus.REGISTERED.value, ApplicationStatus.STARTING.value},
-        ApplicationStatus.UNKNOWN.value: {ApplicationStatus.REGISTERED.value, ApplicationStatus.STARTING.value, ApplicationStatus.STOPPED.value, ApplicationStatus.READY.value, ApplicationStatus.RUNNING.value},
+        ApplicationStatus.REGISTERED.value: {
+            ApplicationStatus.STARTING.value, ApplicationStatus.READY.value,
+            ApplicationStatus.UNAVAILABLE.value, ApplicationStatus.UNKNOWN.value,
+            ApplicationStatus.STOPPED.value
+        },
+        ApplicationStatus.STARTING.value: {
+            ApplicationStatus.READY.value, ApplicationStatus.RUNNING.value,
+            ApplicationStatus.ERROR.value, ApplicationStatus.CRASHED.value,
+            ApplicationStatus.STOPPED.value
+        },
+        ApplicationStatus.READY.value: {
+            ApplicationStatus.STARTING.value, ApplicationStatus.RUNNING.value,
+            ApplicationStatus.STOPPING.value, ApplicationStatus.STOPPED.value,
+            ApplicationStatus.UNAVAILABLE.value, ApplicationStatus.ERROR.value
+        },
+        ApplicationStatus.RUNNING.value: {
+            ApplicationStatus.STOPPING.value, ApplicationStatus.STOPPED.value,
+            ApplicationStatus.ERROR.value, ApplicationStatus.CRASHED.value,
+            ApplicationStatus.READY.value
+        },
+        ApplicationStatus.STOPPING.value: {
+            ApplicationStatus.STOPPED.value, ApplicationStatus.ERROR.value,
+            ApplicationStatus.CRASHED.value
+        },
+        ApplicationStatus.STOPPED.value: {
+            ApplicationStatus.STARTING.value, ApplicationStatus.REGISTERED.value,
+            ApplicationStatus.READY.value, ApplicationStatus.UNAVAILABLE.value
+        },
+        ApplicationStatus.ERROR.value: {
+            ApplicationStatus.STARTING.value, ApplicationStatus.READY.value,
+            ApplicationStatus.STOPPED.value, ApplicationStatus.UNKNOWN.value,
+            ApplicationStatus.REGISTERED.value
+        },
+        ApplicationStatus.CRASHED.value: {
+            ApplicationStatus.STARTING.value, ApplicationStatus.READY.value,
+            ApplicationStatus.STOPPED.value, ApplicationStatus.UNKNOWN.value,
+            ApplicationStatus.REGISTERED.value
+        },
+        ApplicationStatus.UNAVAILABLE.value: {
+            ApplicationStatus.REGISTERED.value, ApplicationStatus.STARTING.value,
+            ApplicationStatus.READY.value, ApplicationStatus.STOPPED.value
+        },
+        ApplicationStatus.UNKNOWN.value: {
+            ApplicationStatus.REGISTERED.value, ApplicationStatus.STARTING.value,
+            ApplicationStatus.STOPPED.value, ApplicationStatus.READY.value,
+            ApplicationStatus.RUNNING.value
+        },
     },
     "service": {
         ServiceStatus.DEFINED.value: {ServiceStatus.STARTING.value, ServiceStatus.INACTIVE.value, ServiceStatus.ACTIVE.value},
@@ -226,6 +263,30 @@ VALID_TRANSITIONS: Dict[str, Dict[str, Set[str]]] = {
         ModelStatus.UNLOADED.value: {ModelStatus.LOADING.value, ModelStatus.AVAILABLE.value},
         ModelStatus.ERROR.value: {ModelStatus.AVAILABLE.value, ModelStatus.LOADING.value, ModelStatus.UNAVAILABLE.value},
         ModelStatus.UNAVAILABLE.value: {ModelStatus.DISCOVERED.value, ModelStatus.AVAILABLE.value},
+    },
+    "action": {
+        ActionStatus.PENDING.value: {ActionStatus.EXECUTING.value, ActionStatus.CANCELLED.value, ActionStatus.REJECTED.value},
+        ActionStatus.EXECUTING.value: {ActionStatus.COMPLETED.value, ActionStatus.FAILED.value, ActionStatus.CANCELLED.value},
+        ActionStatus.COMPLETED.value: set(),
+        ActionStatus.FAILED.value: {ActionStatus.PENDING.value, ActionStatus.EXECUTING.value},
+        ActionStatus.CANCELLED.value: set(),
+        ActionStatus.REJECTED.value: set(),
+    },
+    "agent": {
+        ActionStatus.PENDING.value: {ActionStatus.EXECUTING.value, ActionStatus.CANCELLED.value, ActionStatus.REJECTED.value},
+        ActionStatus.EXECUTING.value: {ActionStatus.COMPLETED.value, ActionStatus.FAILED.value, ActionStatus.CANCELLED.value},
+        ActionStatus.COMPLETED.value: set(),
+        ActionStatus.FAILED.value: {ActionStatus.PENDING.value, ActionStatus.EXECUTING.value},
+        ActionStatus.CANCELLED.value: set(),
+        ActionStatus.REJECTED.value: set(),
+    },
+    "domino": {
+        DominoStatus.IDLE.value: {DominoStatus.SCHEDULED.value, DominoStatus.EXECUTING.value},
+        DominoStatus.SCHEDULED.value: {DominoStatus.EXECUTING.value, DominoStatus.PAUSED.value, DominoStatus.IDLE.value},
+        DominoStatus.EXECUTING.value: {DominoStatus.SUCCESS.value, DominoStatus.FAILED.value, DominoStatus.PAUSED.value},
+        DominoStatus.PAUSED.value: {DominoStatus.EXECUTING.value, DominoStatus.IDLE.value, DominoStatus.SCHEDULED.value},
+        DominoStatus.SUCCESS.value: {DominoStatus.IDLE.value, DominoStatus.SCHEDULED.value},
+        DominoStatus.FAILED.value: {DominoStatus.IDLE.value, DominoStatus.SCHEDULED.value},
     },
 }
 
@@ -320,6 +381,7 @@ class SystemState:
             "service": {},
             "tool": {},
             "model": {},
+            "action": {},
             "domino": {},
             "agent": {},
         }
@@ -338,6 +400,30 @@ class SystemState:
         with self._lock:
             self._init_state()
 
+    def update_cockpit_status(self, status: str | CockpitStatus, reason: str = "Mise à jour état Cockpit",
+                              updated_by: str = "system"):
+        val = status.value if isinstance(status, Enum) else str(status)
+        with self._lock:
+            old = self.cockpit_status
+            self.cockpit_status = val
+            self._record_audit(AuditEvent("cockpit", "cockpit", old, val, reason, updated_by))
+
+    def update_board_status(self, status: str | BoardStatus, reason: str = "Mise à jour état Board",
+                            updated_by: str = "system"):
+        val = status.value if isinstance(status, Enum) else str(status)
+        with self._lock:
+            old = self.board_status
+            self.board_status = val
+            self._record_audit(AuditEvent("board", "board", old, val, reason, updated_by))
+
+    def update_health_status(self, status: str | HealthStatus, reason: str = "Mise à jour santé globale",
+                             updated_by: str = "system"):
+        val = status.value if isinstance(status, Enum) else str(status)
+        with self._lock:
+            old = self.health_status
+            self.health_status = val
+            self._record_audit(AuditEvent("health", "global", old, val, reason, updated_by))
+
     def register_entity(self, entity_type: str, entity_id: str,
                         initial_status: str | Enum,
                         metadata: Optional[dict] = None,
@@ -347,6 +433,11 @@ class SystemState:
         with self._lock:
             if entity_type not in self._entities:
                 self._entities[entity_type] = {}
+            if entity_id in self._entities[entity_type]:
+                ent = self._entities[entity_type][entity_id]
+                if metadata:
+                    ent.metadata.update(metadata)
+                return ent
             ent = EntityState(entity_type, entity_id, status_val, metadata=metadata, updated_by=updated_by)
             self._entities[entity_type][entity_id] = ent
             self._record_audit(AuditEvent(
@@ -491,13 +582,10 @@ class SystemState:
             if not ent:
                 raise ValueError(f"Tâche {task_id} introuvable")
             if ent.status != TaskStatus.VERIFYING.value:
-                # Si elle est RUNNING, on force le passage par VERIFYING pour respecter la directive
-                if ent.status == TaskStatus.RUNNING.value:
-                    self.verify_task(task_id, reason="Auto-vérification préalable obligatoire", updated_by=updated_by)
-                else:
-                    raise InvalidStateTransitionError(
-                        f"Impossible d'achever la tâche {task_id} depuis l'état {ent.status} (doit être VERIFYING)"
-                    )
+                raise InvalidStateTransitionError(
+                    f"Transition interdite : impossible d'achever la tâche {task_id} depuis l'état {ent.status} "
+                    f"(la directive exige impérativement un passage par l'état VERIFYING avant DONE)"
+                )
             return self.transition("task", task_id, TaskStatus.DONE.value, reason=reason, updated_by=updated_by)
 
     # ─── ACCÈS ET AUDIT ─────────────────────────────────────────────────────────

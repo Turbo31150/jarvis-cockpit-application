@@ -250,6 +250,7 @@ class ApplicationController:
         self.registry = registry or ApplicationRegistry()
         self.state = get_system_state()
         self._lock = threading.RLock()
+        self._active_procs: Dict[str, subprocess.Popen] = {}
 
     def start(self, app_id: str, caller: str = "user") -> Dict[str, Any]:
         """Démarre une application, trace le PID, vérifie la fenêtre et met à jour l'état."""
@@ -264,6 +265,10 @@ class ApplicationController:
             current_status = app.get("status")
             if current_status == ApplicationStatus.RUNNING.value and ApplicationHealth.is_pid_running(app.get("pid")):
                 return {"success": True, "message": f"Application '{app['name']}' déjà en cours d'exécution", "pid": app.get("pid")}
+
+            # Si l'application était en pause, la réveiller
+            if app.get("is_paused") and ApplicationHealth.is_pid_running(app.get("pid")):
+                return self.resume(app_id, caller=caller)
 
             # 1. Transition vers STARTING
             self.state.transition("application", app_id, ApplicationStatus.STARTING.value,
@@ -293,6 +298,8 @@ class ApplicationController:
                                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
                 pid = proc.pid if proc else None
+                if proc:
+                    self._active_procs[app_id] = proc
                 time.sleep(0.3)  # Temps d'initialisation X11 / proc
 
                 # 3. Vérification de démarrage effectif
@@ -305,6 +312,7 @@ class ApplicationController:
                     "status": ApplicationStatus.RUNNING.value,
                     "pid": pid,
                     "window_id": win_id,
+                    "is_paused": False,
                 })
 
                 return {
@@ -330,10 +338,23 @@ class ApplicationController:
                 return {"success": False, "error": f"Application '{app_id}' introuvable"}
 
             pid = app.get("pid")
+            proc = self._active_procs.pop(app_id, None)
+
             if not pid or not ApplicationHealth.is_pid_running(pid):
-                self.state.transition("application", app_id, ApplicationStatus.STOPPED.value,
-                                      reason="Processus déjà inactif", updated_by=caller)
-                self.registry.update(app_id, {"status": ApplicationStatus.STOPPED.value, "pid": None})
+                if proc:
+                    try:
+                        proc.wait(timeout=0.2)
+                    except Exception:
+                        pass
+                current_ent = self.state.get_entity("application", app_id)
+                current_status = current_ent.status if current_ent else app.get("status")
+                if current_status != ApplicationStatus.STOPPED.value:
+                    try:
+                        self.state.transition("application", app_id, ApplicationStatus.STOPPED.value,
+                                              reason="Processus déjà inactif", updated_by=caller)
+                    except Exception:
+                        pass
+                self.registry.update(app_id, {"status": ApplicationStatus.STOPPED.value, "pid": None, "is_paused": False})
                 return {"success": True, "message": "Déjà arrêtée"}
 
             # Transition STOPPING
@@ -343,7 +364,11 @@ class ApplicationController:
 
             sig = signal.SIGKILL if force else signal.SIGTERM
             try:
-                os.kill(pid, sig)
+                try:
+                    os.killpg(os.getpgid(pid), sig)
+                except Exception:
+                    os.kill(pid, sig)
+
                 # Attente brève de terminaison
                 for _ in range(10):
                     if not ApplicationHealth.is_pid_running(pid):
@@ -352,11 +377,20 @@ class ApplicationController:
 
                 if ApplicationHealth.is_pid_running(pid) and not force:
                     # Force kill si SIGTERM n'a pas suffi
-                    os.kill(pid, signal.SIGKILL)
+                    try:
+                        os.killpg(os.getpgid(pid), signal.SIGKILL)
+                    except Exception:
+                        os.kill(pid, signal.SIGKILL)
+
+                if proc:
+                    try:
+                        proc.wait(timeout=0.5)
+                    except Exception:
+                        pass
 
                 self.state.transition("application", app_id, ApplicationStatus.STOPPED.value,
                                       reason="Arrêt confirmé", updated_by=caller)
-                self.registry.update(app_id, {"status": ApplicationStatus.STOPPED.value, "pid": None, "window_id": None})
+                self.registry.update(app_id, {"status": ApplicationStatus.STOPPED.value, "pid": None, "window_id": None, "is_paused": False})
                 return {"success": True, "app_id": app_id, "status": ApplicationStatus.STOPPED.value}
 
             except Exception as ex:
@@ -375,7 +409,11 @@ class ApplicationController:
                 return {"success": False, "error": "Application non active (pas de PID)"}
 
             try:
-                os.kill(pid, signal.SIGSTOP)
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGSTOP)
+                except Exception:
+                    os.kill(pid, signal.SIGSTOP)
+
                 self.state.transition("application", app_id, ApplicationStatus.READY.value,
                                       reason="Processus mis en pause (SIGSTOP)", updated_by=caller,
                                       extra={"is_paused": True})
@@ -395,7 +433,11 @@ class ApplicationController:
                 return {"success": False, "error": "Application non active (pas de PID)"}
 
             try:
-                os.kill(pid, signal.SIGCONT)
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGCONT)
+                except Exception:
+                    os.kill(pid, signal.SIGCONT)
+
                 self.state.transition("application", app_id, ApplicationStatus.RUNNING.value,
                                       reason="Processus réactivé (SIGCONT)", updated_by=caller,
                                       extra={"is_paused": False})
