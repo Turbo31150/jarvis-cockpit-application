@@ -45,6 +45,9 @@ REMI_OLLAMA_URL = "http://127.0.0.1:11500"
 REMI_COCKPIT_URL = "http://127.0.0.1:8601"
 REMI_TOKEN = "5fd517241556e9026a0b6914bf2766ae5fb8767808facccfab5cb865b0a78d40"
 LOCAL_LMSTUDIO_URL = "http://127.0.0.1:1234/v1"
+# M4_CLAIRE_LINK : nœud M4 de Claire via tunnel inverse (jarvis-tunnel-turbo sur M4)
+M4_COCKPIT_URL = "http://127.0.0.1:8602"
+M4_LMSTUDIO_URL = "http://127.0.0.1:1236/v1"
 
 
 def normaliser(texte: str) -> str:
@@ -221,7 +224,11 @@ def verifier_tunnels():
         "tunnel_remi_cockpit": False,
         "tunnel_remi_cockpit_details": {},
         "lmstudio_local": False,
-        "lmstudio_models": []
+        "lmstudio_models": [],
+        "tunnel_m4_cockpit": False,
+        "tunnel_m4_cockpit_details": {},
+        "tunnel_m4_lmstudio": False,
+        "tunnel_m4_models": []
     }
     
     # 1. Tunnel Ollama Rémi (:11500)
@@ -256,6 +263,27 @@ def verifier_tunnels():
                 data = json.loads(resp.read().decode("utf-8"))
                 statut["lmstudio_local"] = True
                 statut["lmstudio_models"] = [m["id"] for m in data.get("data", [])]
+    except Exception:
+        pass
+
+    # 4. Tunnel Cockpit M4 Claire (:8602)
+    try:
+        req = urllib.request.Request(f"{M4_COCKPIT_URL}/api/status", headers={"User-Agent": "JarvisCockpit/1.0"})
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            if resp.status == 200:
+                statut["tunnel_m4_cockpit"] = True
+                statut["tunnel_m4_cockpit_details"] = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        pass
+
+    # 5. Tunnel LM Studio M4 Claire (:1236)
+    try:
+        req = urllib.request.Request(f"{M4_LMSTUDIO_URL}/models", headers={"User-Agent": "JarvisCockpit/1.0"})
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                statut["tunnel_m4_lmstudio"] = True
+                statut["tunnel_m4_models"] = [m["id"] for m in data.get("data", [])]
     except Exception:
         pass
 

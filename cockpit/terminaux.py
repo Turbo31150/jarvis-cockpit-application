@@ -65,7 +65,99 @@ PREFIXE_VUE = "cockpit-vue-"
 TOUT_OUVRIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmux-tout-ouvrir.sh")
 
 
+# ── TMUX_PARTAGE : terminaux partagés entre machines ─────────────────────────
+# Les sessions tmux des autres nœuds apparaissent sous la forme « hôte:session »
+# (hôte = alias ~/.ssh/config). Les ouvrir crée une vue GROUPÉE sur la machine
+# distante, par SSH : même écran, même saisie, taille propre à la vue, et
+# `destroy-unattached` la supprime dès que la vue se ferme. Source de vérité :
+# turbo. M4 : COCKPIT_TMUX_DISTANTS=turbo · turbo : COCKPIT_TMUX_DISTANTS=m4,rem.
+DISTANTS = [h.strip() for h in os.environ.get("COCKPIT_TMUX_DISTANTS", "").split(",") if h.strip()]
+SEP_DISTANT = ":"
+# Liste servie depuis le cache, rafraîchie en tâche de fond : un nœud lent
+# (Rémi passe par la 4G) ne doit jamais geler l'onglet Terminal.
+CACHE_DISTANT_S = 10
+_CACHE_DISTANT = {}
+_RAFRAICHIS = set()
+_VERROU_DISTANT = threading.Lock()
+SSH_LISTE = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4",
+             "-o", "ControlMaster=auto", "-o", "ControlPersist=120",
+             "-o", f"ControlPath={HOME}/.ssh/cm-cockpit-%C"]
+_CMD_LISTE_DISTANTE = (
+    "tmux ls -F '#{session_name}\t#{session_windows}\t#{session_attached}\t#{session_created}' 2>/dev/null; "
+    "echo --fenetres--; "
+    "tmux list-windows -a -F '#{session_name}\t#{window_index}:#{window_name}:#{pane_current_command}' 2>/dev/null; "
+    "true")
+
+
+def _lister_distant(hote):
+    """Sessions tmux de `hote` mesurées par SSH ([] si injoignable)."""
+    try:
+        r = subprocess.run(SSH_LISTE + [hote, _CMD_LISTE_DISTANTE],
+                           capture_output=True, text=True, timeout=12)
+    except Exception:
+        return []
+    if r.returncode != 0:
+        return []
+    lignes, fenetres, bloc = [], {}, "sessions"
+    for ligne in r.stdout.splitlines():
+        if ligne == "--fenetres--":
+            bloc = "fenetres"
+            continue
+        champs = ligne.split("\t")
+        if bloc == "fenetres":
+            if len(champs) == 2:
+                fenetres.setdefault(champs[0], []).append(champs[1])
+        elif len(champs) >= 4 and not champs[0].startswith(PREFIXE_VUE):
+            lignes.append(champs)
+    return [{
+        "nom": f"{hote}{SEP_DISTANT}{c[0]}",
+        "fenetres": int(c[1]) if c[1].isdigit() else 0,
+        "attachee": c[2] not in ("", "0"),
+        "cree": int(c[3]) if c[3].isdigit() else 0,
+        "cockpit": c[0].startswith(PREFIXE_APP),
+        "detail": fenetres.get(c[0], []),
+        "hote": hote,
+    } for c in sorted(lignes)]
+
+
+def _rafraichir_distant(hote):
+    try:
+        sessions = _lister_distant(hote)
+        with _VERROU_DISTANT:
+            _CACHE_DISTANT[hote] = (time.time(), sessions)
+    finally:
+        with _VERROU_DISTANT:
+            _RAFRAICHIS.discard(hote)
+
+
+def _sessions_distantes(hote):
+    """Jamais bloquant : sert le cache et relance une mesure s'il est périmé."""
+    with _VERROU_DISTANT:
+        cache = _CACHE_DISTANT.get(hote)
+        lancer = (hote not in _RAFRAICHIS
+                  and (cache is None or time.time() - cache[0] >= CACHE_DISTANT_S))
+        if lancer:
+            _RAFRAICHIS.add(hote)
+    if lancer:
+        threading.Thread(target=_rafraichir_distant, args=(hote,), daemon=True).start()
+    return cache[1] if cache else []
+
+
+# Préchauffage au chargement : la liste distante est prête au premier clic
+# (Rémi via la 4G met ~7 s à répondre, turbo et M4 < 0,5 s).
+for _hote in DISTANTS:
+    _sessions_distantes(_hote)
+
+
 def tmux_sessions():
+    """Sessions locales puis sessions partagées des autres machines."""
+    out = _tmux_sessions_locales()
+    for hote in DISTANTS:
+        out.extend(_sessions_distantes(hote))
+    return out
+
+
+def _tmux_sessions_locales():
     """Sessions tmux réellement vivantes, avec leurs fenêtres."""
     if not TMUX:
         return []
@@ -144,6 +236,17 @@ def _cmd_app(app, cols, rows):
 
 def _cmd_vue(cible, cols, rows):
     """Commande PTY pour observer une session tmux existante sans la rétrécir."""
+    hote, sep, distante = cible.partition(SEP_DISTANT)
+    if sep and hote in DISTANTS:
+        # TMUX_PARTAGE : la vue naît chez l'hôte distant, attachée dans le même
+        # geste (pas de -d), puis destroy-unattached la supprime à la fermeture.
+        # Nom rendu vide : aucune session locale à tuer.
+        origine = os.uname().nodename.split(".")[0]
+        vue = f"{PREFIXE_VUE}{origine}-{uuid.uuid4().hex[:6]}"
+        distant = (f"tmux new-session -s {shlex.quote(vue)} -t {shlex.quote('=' + distante)} "
+                   f"\\; set-option -q destroy-unattached on")
+        return (["ssh", "-tt", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6",
+                 "-o", "ServerAliveInterval=15", hote, distant], "")
     nom = PREFIXE_VUE + uuid.uuid4().hex[:6]
     # `-t cible` groupe la vue avec la session : fenêtres partagées, taille
     # indépendante. Surtout PAS `destroy-unattached` ici — la session naît

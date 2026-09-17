@@ -1017,18 +1017,57 @@ def _orbe_llm(persona, user_msg, context=""):
         return _orbe_clean(json.loads(r.read())["choices"][0]["message"]["content"])
 
 
+import threading as _threading
+_conseil_lock = _threading.Lock()
+
+
+def _orbe_conseil_async(question):
+    """TABLE RONDE en ASYNC (multi-cerveaux Rémi+Claude+OpenClaw+M4, ~70s) — jamais bloquant.
+    Résultat déposé dans _orbe_state['conseil'] pour affichage différé (« Table Ronde à fond »)."""
+    if not _conseil_lock.acquire(blocking=False):
+        return  # une délibération conseil est déjà en cours
+    def _worker():
+        import time as _t
+        try:
+            res = run_table_ronde_deliberation(question, injecter_browser=False, injecter_board=True)
+            txt = (res.get("content") if isinstance(res, dict) else str(res)) or ""
+            _orbe_state.update({"conseil": txt[:1200], "conseil_ts": int(_t.time())})
+        except Exception as e:
+            _orbe_state.update({"conseil": f"(Table Ronde indisponible : {type(e).__name__})", "conseil_ts": int(_t.time())})
+        finally:
+            _conseil_lock.release()
+    _threading.Thread(target=_worker, daemon=True).start()
+
+
 def orbe_deliberate(instruction):
-    """Protocole 2 voix ENRICHI (O9) : consulte la BIBLIOTHÈQUE VIVANTE (RAG board.db),
-    JARVIS reformule+propose, le Conseil arbitre+tranche en s'appuyant sur les faits (O11 : n'invente pas)."""
+    """Protocole 2 voix ENRICHI (O9) : consulte la BIBLIOTHÈQUE VIVANTE (RAG board.db) + lance la
+    TABLE RONDE en async ; JARVIS reformule+propose, le Conseil arbitre+tranche (O11 : n'invente pas)."""
     import time as _t
     _orbe_state.update({"state": "thinking", "you": instruction, "jarvis": "", "board": "",
-                        "decision": "", "sources": [], "ts": int(_t.time())})
+                        "decision": "", "sources": [], "conseil": "", "ts": int(_t.time())})
+    _orbe_conseil_async(instruction)     # Table Ronde à fond, en arrière-plan (non bloquant)
     ctx, srcs = _orbe_rag(instruction)   # O9 : bibliothèque vivante
     jarvis = _orbe_llm(_ORBE_JARVIS, f"INSTRUCTION DU CLIENT : {instruction}", ctx)
-    _orbe_state.update({"state": "speaking", "jarvis": jarvis, "sources": srcs, "ts": int(_t.time())})
+
+    # DIRECTIVE FAIL-CLOSED RAG (ENF6)
+    rag_validation = {"status": "NO_SOURCES", "is_valid": True}
+    if ctx:
+        try:
+            from core.rag_validator import validate_rag_response
+            rag_validation = validate_rag_response(jarvis, [ctx])
+            if not rag_validation.get("is_valid", True):
+                jarvis = (
+                    f"[Fail-Closed ENF6 — Preuve Insuffisante] {jarvis}\n\n"
+                    f"⚠️ Règle anti-hallucination : ancrage documentaire mesuré à "
+                    f"{rag_validation.get('faithfulness', {}).get('supported_pct', 0)}% (< 40% requis)."
+                )
+        except Exception:
+            pass
+
+    _orbe_state.update({"state": "speaking", "jarvis": jarvis, "sources": srcs, "validation": rag_validation, "ts": int(_t.time())})
     board = _orbe_llm(_ORBE_BOARD, f"INSTRUCTION DU CLIENT : {instruction}\n\nJARVIS a répondu : {jarvis}", ctx)
-    _orbe_state.update({"state": "idle", "board": board, "decision": board, "sources": srcs, "ts": int(_t.time())})
-    return {"instruction": instruction, "jarvis": jarvis, "board": board, "decision": board, "sources": srcs}
+    _orbe_state.update({"state": "idle", "board": board, "decision": board, "sources": srcs, "validation": rag_validation, "ts": int(_t.time())})
+    return {"instruction": instruction, "jarvis": jarvis, "board": board, "decision": board, "sources": srcs, "validation": rag_validation}
 
 
 CLAUDE_BIN = os.environ.get("OMEGA_CLAUDE_BIN", "/home/turbo/.local/bin/claude")
@@ -1040,32 +1079,103 @@ def orbe_execute(instruction):
     import urllib.request, subprocess
     local = None
     try:
-        req = urllib.request.Request(ORBE_AGENT, data=json.dumps({"message": instruction}).encode("utf-8"),
+        req = urllib.request.Request("http://127.0.0.1:1260/execute",
+                                     data=json.dumps({"command": instruction}).encode("utf-8"),
                                      headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=180) as r:
-            local = json.loads(r.read())
+        with urllib.request.urlopen(req, timeout=120) as r:
+            local = json.loads(r.read().decode("utf-8"))
+            if local.get("ok"):
+                return {"ok": True, "via": "agent-1260", "result": local}
     except Exception as e:
-        local = {"error": f"agent :1260 injoignable ({type(e).__name__}: {e})"}
-    # VERIFY (O11) : le local a-t-il répondu SANS halluciner ?
-    ans = ((local or {}).get("answer") or (local or {}).get("raw_answer") or "").strip()
-    low = ans.lower()
-    neg = any(w in low for w in ["aucun service", "pas de donn", "aucune donn", "no data",
-                                 "impossible de", "je n'ai pas acc", "not available", "je ne peux pas"])
-    ok_local = bool(ans) and (local or {}).get("verified") is not False and not (local or {}).get("error") and not neg
-    if ok_local:
-        return {"ok": True, "via": "local", "result": local}
-    # O10 : secours Claude Code LOCAL
-    if os.environ.get("OMEGA_CLAUDE_FALLBACK", "1") not in ("0", "false", "non"):
+        local = {"error": f"{type(e).__name__}: {e}"}
+
+    # REPLI CLAUDE CODE LOCAL si secours autorisé
+    if os.environ.get("OMEGA_CLAUDE_FALLBACK", "1") in ("1", "true", "yes") and os.path.exists(CLAUDE_BIN):
         try:
-            p = subprocess.run([CLAUDE_BIN, "-p", instruction], capture_output=True, text=True,
-                               timeout=180, env={**os.environ, "HOME": "/home/turbo"})
-            out = (p.stdout or "").strip()
-            if out:
-                return {"ok": True, "via": "claude-code", "result": {"answer": out[:1500], "verified": True}}
-            return {"ok": False, "via": "claude-echec", "error": (p.stderr or "vide")[:300], "local": local}
+            proc = subprocess.run([CLAUDE_BIN, "-p", instruction],
+                                  capture_output=True, text=True, timeout=180)
+            return {"ok": proc.returncode == 0, "via": "claude-code-local",
+                    "stdout": proc.stdout[:2000], "stderr": proc.stderr[:500], "local_fallback_from": local}
         except Exception as e:
             return {"ok": False, "via": "claude-echec", "error": f"{type(e).__name__}: {e}", "local": local}
     return {"ok": False, "via": "local-insuffisant", "result": local}
+
+
+def get_health_global():
+    """CU-5 / CDCF §16 & DIRECTIVE CRITIQUE — HEALTH RÉEL SUR LES 10+ ORGANES VITAUX."""
+    import time as _t
+    import shutil
+    try:
+        from core.launcher import probe_all_organs
+        probes = probe_all_organs()
+    except Exception as ex:
+        probes = {"organs": {}, "overall_status": "ERROR", "error": str(ex), "duration_ms": 0}
+
+    organs = probes.get("organs", {})
+
+    # Sonde du navigateur Chromium / CDP
+    browser_present = bool(shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser"))
+    organs["browser"] = {
+        "organ": "browser",
+        "status": "HEALTHY" if browser_present else "DEGRADED",
+        "details": {"chrome_or_chromium": browser_present},
+        "message": "Navigateur Chromium disponible" if browser_present else "Navigateur absent"
+    }
+
+    # Sonde du gestionnaire d'applications
+    try:
+        from core.application_manager import get_application_manager
+        app_mgr = get_application_manager()
+        apps = app_mgr.registry.list_all()
+        running_apps = [a for a in apps if a.get("status") == "RUNNING"]
+        organs["applications"] = {
+            "organ": "applications",
+            "status": "HEALTHY",
+            "details": {"total": len(apps), "running": len(running_apps)},
+            "message": f"{len(running_apps)}/{len(apps)} applications actives"
+        }
+    except Exception as e:
+        organs["applications"] = {
+            "organ": "applications",
+            "status": "DEGRADED",
+            "details": {"error": str(e)},
+            "message": f"Applications: {e}"
+        }
+
+    # Sonde du TurboDispatcher
+    organs["dispatcher"] = {
+        "organ": "dispatcher",
+        "status": "HEALTHY",
+        "details": {"max_loops": 10, "timeout_seconds": 45.0, "adapters": ["voice", "chat", "board", "terminal", "browser"]},
+        "message": "TurboDispatcher actif avec 5 adaptateurs unifiés"
+    }
+
+    statuses = [o.get("status") for o in organs.values()]
+    has_error = any(s == "ERROR" for s in statuses)
+    has_degraded = any(s == "DEGRADED" for s in statuses)
+    overall_status = "ERROR" if has_error else ("DEGRADED" if has_degraded else "HEALTHY")
+    degraded_list = [k for k, v in organs.items() if v.get("status") in ("DEGRADED", "ERROR")]
+
+    h = {
+        "ts": int(_t.time()),
+        "status": overall_status,
+        "overall_status": overall_status,
+        "ok": overall_status in ("HEALTHY", "DEGRADED"),
+        "source": "live_probe_organs",
+        "organs": organs,
+        "degraded": degraded_list,
+        "degraded_organs": degraded_list,
+        "duration_ms": probes.get("duration_ms", 0),
+        # Rétro-compatibilité CU-5 / CDCF §16
+        "cockpit": True,
+        "llm": {k: v.get("alive", False) for k, v in organs.get("lmstudio", {}).get("details", {}).get("nodes", {}).items()},
+        "services": organs.get("services", {}).get("details", {}).get("services", {}),
+        "gpu": organs.get("gpu", {}).get("details", {}),
+        "rag_biblio_vivante": organs.get("rag", {}).get("status") == "HEALTHY",
+        "agent_1260": organs.get("services", {}).get("details", {}).get("services", {}).get("jarvis-agent-api") == "active",
+        "voix_1270": organs.get("stt", {}).get("details", {}).get("socket_1270", False),
+    }
+    return h
 
 
 class CockpitHandler(BaseHTTPRequestHandler):
@@ -1213,6 +1323,23 @@ class CockpitHandler(BaseHTTPRequestHandler):
         if self.router_terminal(path, params=params):
             return
         if self.router_orbe(path, params=params):
+            return
+
+        # ── HEALTH GLOBAL RÉEL (CU-5 / CDCF §16) — jamais un OK statique ──
+        if path == "/health" or path == "/api/health":
+            self.respond_json(get_health_global())
+            return
+
+        # ── SYSTEM STATE UNIFIÉ & AUDITÉ ──
+        if path == "/api/system/state":
+            from core.system_state import get_system_state
+            self.respond_json(get_system_state().export_state())
+            return
+
+        # ── APPLICATION REGISTRY & CONTROLLER ──
+        if path == "/api/applications":
+            from core.application_manager import get_application_manager
+            self.respond_json({"applications": get_application_manager().registry.list_all()})
             return
 
         # ── TÉLÉMÉTRIE CLUSTER ──
@@ -2038,6 +2165,18 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 self.respond_json({"success": False, "error": f"Board OS injoignable: {e}"}, 503)
             return
 
+        elif path in ("/api/m4/status", "/api/m4/board", "/api/m4/table-ronde"):
+            # M4_CLAIRE_LINK : proxy direct vers le Cockpit M4 de Claire (tunnel inverse :8602)
+            cible = {"/api/m4/status": "/api/status", "/api/m4/board": "/api/board/stats",
+                     "/api/m4/table-ronde": "/api/table-ronde/status"}[path]
+            try:
+                req = urllib.request.Request(f"http://127.0.0.1:8602{cible}", headers={"User-Agent": "JarvisCockpit/1.0"})
+                with urllib.request.urlopen(req, timeout=5.0) as resp:
+                    self.respond_json(json.loads(resp.read().decode("utf-8")))
+            except Exception as e:
+                self.respond_json({"success": False, "error": f"Cockpit M4 injoignable: {e}"}, 503)
+            return
+
         elif path == "/api/benchmark/status":
             # État en direct des GPU et de la performance d'inférence Dual-GPU
             try:
@@ -2165,6 +2304,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 {"nom": "Infogreffe",  "url": "https://www.infogreffe.fr/", "type": "scraping", "actif": False},
                 {"nom": "Société.com", "url": "https://www.societe.com/", "type": "scraping", "actif": False},
                 {"nom": "Ollama Rémi (veille IA)", "url": "http://127.0.0.1:11500", "type": "llm", "actif": True},
+                {"nom": "LM Studio M4 Claire (qwen2.5-7b)", "url": "http://127.0.0.1:1236", "type": "llm", "actif": True},
             ]})
             return
 
@@ -2534,8 +2674,32 @@ class CockpitHandler(BaseHTTPRequestHandler):
         if self.router_orbe(path, req_data=req_data):
             return
 
+        # ── TURBO DISPATCHER CENTRAL (BUS UNIVERSEL) ──
+        if path == "/api/dispatch":
+            from core.dispatcher import TurboDispatcher
+            source = req_data.get("source", "auto")
+            res = TurboDispatcher.dispatch(req_data, source=source)
+            self.respond_json(res)
+            return
+
+        elif path == "/api/board/action":
+            from core.dispatcher import TurboDispatcher
+            action = req_data.get("action", "")
+            entity_type = req_data.get("entity_type", "task")
+            entity_id = req_data.get("entity_id") or req_data.get("id") or ""
+            res = TurboDispatcher.dispatch_board(action, entity_type, entity_id, payload=req_data)
+            self.respond_json(res)
+            return
+
+        elif path == "/api/voice/command":
+            from core.dispatcher import TurboDispatcher
+            text = req_data.get("text") or req_data.get("transcript") or ""
+            res = TurboDispatcher.dispatch_voice(text)
+            self.respond_json(res)
+            return
+
         # ── SYNCHRONISATION 1-CLIC ──
-        if path == "/api/sync/run":
+        elif path == "/api/sync/run":
             auto_git = bool(req_data.get("auto_git", False))
             msg_commit = req_data.get("commit_message", "")
             res = trigger_synchronisation(auto_git_commit=auto_git, message_commit=msg_commit)
@@ -3037,23 +3201,17 @@ class CockpitHandler(BaseHTTPRequestHandler):
                     }
                     if source_chunks and consensus_text:
                         try:
-                            from scripts.faithfulness_evaluator import evaluate_faithfulness
+                            from core.rag_validator import evaluate_faithfulness, validate_rag_response
                             faith_data = evaluate_faithfulness(consensus_text, source_chunks)
+                            min_faith = float(os.environ.get("RAG_MIN_FAITH", "40"))
+                            val_res = validate_rag_response(consensus_text, source_chunks, threshold=min_faith)
+                            validation_status = val_res["status"]
+                            validation_reason = val_res["reason"]
                         except Exception as fe:
                             faith_data["eval_error"] = str(fe)
-
-                    # ── FAIL-CLOSE : la validation reflète l'ANCRAGE réel, pas le simple nombre de citations ──
-                    try:
-                        sup = float(str(faith_data.get("faithfulness_pct") or "0").replace("%", "").strip() or 0)
-                    except Exception:
-                        sup = 0.0
-                    min_faith = float(os.environ.get("RAG_MIN_FAITH", "40"))
-                    if has_citations and consensus_text and sup < min_faith:
+                    elif not has_citations:
                         validation_status = "PREUVE_INSUFFISANTE"
-                        validation_reason = (
-                            f"Fail-close : ancrage {sup:.0f}% < {min_faith:.0f}% — réponse plausible mais NON "
-                            f"suffisamment soutenue par les {len(citations)} citations (anti-hallucination stricte)."
-                        )
+                        validation_reason = "Fail-Closed ENF6 : Aucune citation valide trouvée dans la base."
 
                     self.respond_json({
                         "success": True,

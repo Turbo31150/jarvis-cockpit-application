@@ -46,6 +46,8 @@ from core.inference import generate_completion
 # Endpoints réseau du Conseil ------------------------------------------------
 REMI_IP = os.environ.get("JARVIS_M1_HOST", "192.168.42.241")  # LM Studio tether 192.168.42.241 (0 token)
 M1_URL = os.environ.get("JARVIS_LMSTUDIO_URL", f"http://{REMI_IP}:1234")
+# M4_CLAIRE_LINK : LM Studio du nœud M4 de Claire (tunnel inverse jarvis-tunnel-turbo)
+M4_URL = os.environ.get("JARVIS_M4_LMSTUDIO_URL", "http://127.0.0.1:1236")
 OL_URL = OLLAMA_URL                                            # M4 Ollama local
 OPENCLAW_URL = os.environ.get("JARVIS_OPENCLAW_URL", "http://127.0.0.1:18789")
 ANTIGRAVITY_URL = os.environ.get("JARVIS_ANTIGRAVITY_URL", "http://127.0.0.1:18811")
@@ -55,6 +57,7 @@ BROWSEROS_MCP_URL = "http://127.0.0.1:9003/mcp"
 # Badges pour la barre d'experts de l'UI (clé publique conservée) -------------
 EXPERTS = [
     {"id": "remi", "name": "🖥️ Rémi (M1)", "color": "#34d399", "role": "Superviseur d'infrastructure et cluster."},
+    {"id": "m4", "name": "🎨 Claire (M4)", "color": "#f472b6", "role": "Nœud M4 : pédagogie, créativité, espaces métiers."},
     {"id": "claude", "name": "👑 Claude Code", "color": "#fbbf24", "role": "Architecte logiciel et conception code."},
     {"id": "gemini", "name": "✨ Gemini AI", "color": "#38bdf8", "role": "Synthèse grands volumes & multimodal."},
     {"id": "ollama", "name": "🛡️ Qwen Local", "color": "#22d3ee", "role": "Inférence locale 0-token souveraine."},
@@ -104,10 +107,16 @@ SIEGES = [
         "role": "Optimisation des performances brutes, latences GPU et logique européenne souveraine.",
         "avatar": "fa-wind text-orange-400", "badge": "Inférence Rapide", "preferred": "ollama:qwen2.5:1.5b",
     },
+    {
+        "id": "m4", "nom": "Claire (Nœud M4 · LM Studio)",
+        "role": "Regard pédagogique et créatif : clarté pour des non-techniciens, organisation par espaces métiers.",
+        "avatar": "fa-palette text-pink-400", "badge": "LM Studio M4 · 10.42.0.153 (tunnel :1236)", "preferred": "m4",
+    },
 ]
 
 # Repli heuristique par siège si TOUS les moteurs sont indisponibles ----------
 FALLBACK_OPINIONS = {
+    "m4": "Côté M4, je privilégie une solution simple à expliquer, rangée dans le bon espace métier et utilisable sans connaissances techniques.",
     "remi": "Pour l'infrastructure M1/M4, la résilience repose sur le partitionnement des données et le maintien de la synchronisation continue du cluster.",
     "claude": "Du point de vue du code, je préconise une approche modulaire découplée avec typage strict et gestion des erreurs par couches.",
     "gemini": "L'intégration multimodale et l'exploitation des traces vivantes permettent une vision globale et réactive.",
@@ -226,15 +235,21 @@ def check_agent_status() -> dict:
     # 8. Mistral (via moteurs locaux)
     status["mistral"] = {"en_ligne": status["ollama"]["en_ligne"], "detail": "Moteur souverain M6/Ollama"}
 
+    # M4 Claire (LM Studio via tunnel inverse :1236)
+    m4_up = _http_ok(f"{M4_URL}/v1/models", timeout=1.5)
+    status["m4"] = {"en_ligne": m4_up, "ip": "10.42.0.153",
+                    "detail": "LM Studio M4 (tunnel :1236)" if m4_up else "Tunnel M4 inactif"}
+
     return status
 
 
 # ── Inférence d'un siège (routage préféré + cascade) ────────────────────────
-def _infer_m1(prompt: str, sys_prompt: str, timeout: float = 15.0) -> dict:
+def _infer_m1(prompt: str, sys_prompt: str, timeout: float = 15.0,
+              base: str = "", label: str = "LM Studio GPU") -> dict:
     """Tente une inférence sur le nœud LM Studio (API OpenAI-compatible, Dual GPU)."""
     try:
         from core.inference import _lmstudio_local_model, _lmstudio_base
-        base = _lmstudio_base() or M1_URL
+        base = base or _lmstudio_base() or M1_URL
         modele = _lmstudio_local_model(base) or "qwen3-8b"
         user_prompt = prompt
         if any(tag in modele.lower() for tag in ("qwen3", "deepseek-r1", "-r1")):
@@ -258,7 +273,7 @@ def _infer_m1(prompt: str, sys_prompt: str, timeout: float = 15.0) -> dict:
             if "</think>" in content:
                 content = content.split("</think>")[-1].strip()
             if content:
-                return {"content": content, "source": f"LM Studio GPU ({modele})", "success": True,
+                return {"content": content, "source": f"{label} ({modele})", "success": True,
                         "latency": round(time.time() - t0, 2)}
     except Exception:
         pass
@@ -307,6 +322,8 @@ def _deliberer_siege(siege: dict, question: str, ctx_str: str) -> dict:
     # 1. Routage préféré
     if preferred == "m1":
         result = _infer_m1(prompt, sys_prompt)
+    elif preferred == "m4":
+        result = _infer_m1(prompt, sys_prompt, timeout=30.0, base=M4_URL, label="LM Studio M4 Claire")
     elif preferred and preferred.startswith("ollama:"):
         result = _infer_ollama(prompt, sys_prompt, preferred.split(":", 1)[1])
 

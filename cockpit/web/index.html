@@ -1993,6 +1993,15 @@ Les rapports détaillés apparaîtront ici et seront persistés dans la base cen
             <span class="text-slate-400">llama-server Local (:1234)</span>
             <span id="badge-lmstudio-local" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
           </div>
+          <!-- M4_CLAIRE_LINK : nœud M4 de Claire (tunnel inverse RJ45) -->
+          <div class="p-2.5 rounded-lg bg-slate-900/60 border border-pink-900/60 flex items-center justify-between">
+            <a href="http://127.0.0.1:8602" target="_blank" class="text-pink-300 hover:underline">Cockpit M4 Claire (:8602)</a>
+            <span id="badge-tunnel-m4-cockpit" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
+          </div>
+          <div class="p-2.5 rounded-lg bg-slate-900/60 border border-pink-900/60 flex items-center justify-between">
+            <span class="text-pink-300">LM Studio M4 (:1236)</span>
+            <span id="badge-tunnel-m4-lms" class="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-800 text-slate-400">Vérification...</span>
+          </div>
         </div>
 
         <!-- 4 Cartes KPIs -->
@@ -6696,6 +6705,13 @@ ${(d.citations || []).map((c, i) => `[${i+1}] **${c.title}** (score ${c.score})\
             bLms.className = t.lmstudio_local ? 'px-2 py-0.5 rounded font-mono text-[10px] bg-emerald-500/20 text-emerald-300' : 'px-2 py-0.5 rounded font-mono text-[10px] bg-rose-500/20 text-rose-400';
             bLms.textContent = t.lmstudio_local ? '48.4 tok/s (GPU 0)' : 'HORS LIGNE';
           }
+          // M4_CLAIRE_LINK
+          const okCls = 'px-2 py-0.5 rounded font-mono text-[10px] bg-emerald-500/20 text-emerald-300';
+          const koCls = 'px-2 py-0.5 rounded font-mono text-[10px] bg-rose-500/20 text-rose-400';
+          const bM4c = document.getElementById('badge-tunnel-m4-cockpit');
+          const bM4l = document.getElementById('badge-tunnel-m4-lms');
+          if (bM4c) { bM4c.className = t.tunnel_m4_cockpit ? okCls : koCls; bM4c.textContent = t.tunnel_m4_cockpit ? 'LIÉ (RJ45)' : 'DÉCONNECTÉ'; }
+          if (bM4l) { bM4l.className = t.tunnel_m4_lmstudio ? okCls : koCls; bM4l.textContent = t.tunnel_m4_lmstudio ? (t.tunnel_m4_models || []).join(', ') || 'CONNECTÉ' : 'HORS LIGNE'; }
         }
 
         // Test des ports 8899 et 5001
